@@ -5,6 +5,12 @@ log "Paso 5/6 — Docker stack..."
 
 mkdir -p "$LAB_DIR/repos"
 
+# Carpeta de conocimiento compartido — sincronizada con Syncthing, usada por Hermes
+mkdir -p "$LAB_DIR/knowledge/projects"
+mkdir -p "$LAB_DIR/knowledge/research"
+mkdir -p "$LAB_DIR/knowledge/daily"
+log "Estructura knowledge/ creada en $LAB_DIR/knowledge/"
+
 # Clonar repos base
 if [ ! -d "$LAB_DIR/repos/paperclip/.git" ]; then
   git clone https://github.com/paperclipai/paperclip.git "$LAB_DIR/repos/paperclip"
@@ -81,6 +87,21 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
   log "Portainer arrancado en :9443"
 else
   log "Portainer ya existe."
+fi
+
+# SearXNG — motor de búsqueda self-hosted, backend nativo de Hermes
+# Escucha solo en localhost:8080 (Hermes lo accede localmente)
+if ! docker ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
+  docker run -d \
+    --name searxng \
+    --restart unless-stopped \
+    -p 127.0.0.1:8080:8080 \
+    --network ai-lab \
+    searxng/searxng:latest
+  log "SearXNG arrancado en localhost:8080."
+  warn "Agregar SEARXNG_URL=http://localhost:8080 a ~/.env_agents para que Hermes lo use."
+else
+  log "SearXNG ya existe."
 fi
 
 warn "Antes de iniciar servicios, completar los secrets usando los templates en: $SCRIPT_DIR/templates/"

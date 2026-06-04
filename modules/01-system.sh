@@ -65,4 +65,19 @@ sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/
 sudo systemctl restart ssh
 log "SSH hardening aplicado (PasswordAuthentication no, PermitRootLogin no)."
 
+# Syncthing — sincronización P2P de knowledge/ con otros dispositivos
+if ! command -v syncthing &>/dev/null; then
+  curl -s https://syncthing.net/release-key.txt \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/syncthing.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/syncthing.gpg] https://apt.syncthing.net/ syncthing stable" \
+    | sudo tee /etc/apt/sources.list.d/syncthing.list > /dev/null
+  sudo apt update -qq && sudo apt install -y syncthing
+  sudo systemctl enable syncthing@"$LAB_USER"
+  sudo systemctl start syncthing@"$LAB_USER"
+  log "Syncthing instalado y activo como servicio del sistema."
+  warn "Configuración de Syncthing requiere pasos manuales — ver instrucciones al final del bootstrap."
+else
+  log "Syncthing ya instalado, saltando."
+fi
+
 log "Módulo 01 completo."
