@@ -39,10 +39,10 @@ BASHRC="$HOME/.bashrc"
 if ! grep -q "alias claude-d=" "$BASHRC"; then
   echo "" >> "$BASHRC"
   echo "# AI Lab" >> "$BASHRC"
-  echo "export PATH=/home/$LAB_USER/.opencode/bin:\$PATH" >> "$BASHRC"
-  echo "export PATH=\"/home/$LAB_USER/.local/bin:\$PATH\"" >> "$BASHRC"
+  echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\"" >> "$BASHRC"
+  echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$BASHRC"
   echo "alias claude-d='claude --dangerously-skip-permissions'" >> "$BASHRC"
-  [ "$INSTALL_HERMES" = "true" ] && echo "alias hermes='~/.hermes-env/bin/hermes'" >> "$BASHRC"
+  [ "$INSTALL_HERMES" = "true" ] && echo "alias hermes='\$HOME/.hermes-env/bin/hermes'" >> "$BASHRC"
   log "Aliases y PATH agregados a .bashrc."
 fi
 

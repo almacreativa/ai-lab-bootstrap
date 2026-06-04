@@ -60,8 +60,6 @@ CONFIRM="${CONFIRM:-S}"
 
 # Exportar para que los módulos las lean
 export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM
-export HERMES_DATA="$HOME/.hermes"
-export NVM_DIR="$HOME/.nvm"
 
 # ─── Módulos ──────────────────────────────────────────────────
 source "$SCRIPT_DIR/modules/01-system.sh"
