@@ -22,6 +22,8 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 | Opencode | IDE AI en terminal |
 | Portainer | UI web para gestión Docker |
 | Paperclip | Frontend AI con múltiples providers |
+| SearXNG | Motor de búsqueda self-hosted — backend nativo de Hermes |
+| Syncthing | Sincronización P2P de `~/ai-lab/knowledge/` con otros dispositivos |
 | Red Docker `ai-lab` | Red aislada para todos los contenedores del lab |
 
 ---
@@ -192,6 +194,67 @@ docker compose -f docker/docker-compose.yml \
 ### 9. Portainer
 
 Abrir `https://<IP-del-servidor>:9443` y crear el usuario admin en el primer acceso.
+
+---
+
+## SearXNG — búsqueda web self-hosted
+
+El bootstrap levanta SearXNG como contenedor Docker accesible solo desde `localhost:8080`. Hermes lo detecta automáticamente cuando `SEARXNG_URL` está en `~/.env_agents`.
+
+```bash
+# Activar en Hermes — agregar a ~/.env_agents:
+SEARXNG_URL=http://localhost:8080
+
+# Verificar que responde:
+curl http://localhost:8080/search?q=test&format=json | head -c 100
+```
+
+Sin API key, sin telemetría, sin costos. Consulta más de 70 motores de búsqueda en paralelo.
+
+---
+
+## Syncthing — carpeta knowledge/ sincronizada
+
+El bootstrap instala Syncthing y crea `~/ai-lab/knowledge/` con tres subcarpetas (`projects/`, `research/`, `daily/`). Esta carpeta es donde Hermes guarda notas, investigaciones y contexto de proyectos — sincronizada automáticamente con otros dispositivos via P2P.
+
+### Configuración post-bootstrap (manual)
+
+**En el servidor** — acceder a la GUI via tunnel SSH:
+```bash
+# Desde tu máquina local:
+ssh -L 8384:localhost:8384 usuario@ip-del-servidor
+# Abrir: http://localhost:8384
+```
+
+**Settings → Connections:**
+- Global Discovery → OFF
+- Enable Relays → OFF
+- NAT Traversal → OFF
+
+> Con Tailscale ya activo, el tráfico de Syncthing viaja dentro del túnel WireGuard. No se necesita discovery público ni relays.
+
+**Agregar carpeta:**
+- Folder Path: `~/ai-lab/knowledge`
+- Folder ID: `ai-lab-knowledge` (debe ser igual en todos los dispositivos)
+- File Versioning: Staggered, 90 días
+
+### Conectar dispositivos adicionales
+
+```bash
+# Ver Device ID del servidor:
+syncthing --device-id
+
+# Estado del servicio:
+systemctl status syncthing@$USER
+```
+
+**En Mac (Homebrew):**
+```bash
+brew install syncthing
+brew services start syncthing
+# Abrir: http://localhost:8384
+# Agregar el servidor como dispositivo con su Device ID
+```
 
 ---
 
