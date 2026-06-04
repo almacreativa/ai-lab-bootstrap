@@ -1,0 +1,24 @@
+#!/bin/bash
+# Módulo 02 — NVM + Node.js 24 + Gemini CLI
+
+log "Paso 2/6 — Node.js..."
+
+export NVM_DIR="$HOME/.nvm"
+if [ ! -d "$NVM_DIR" ]; then
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+fi
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+
+nvm install 24 --lts 2>/dev/null || nvm install 24
+nvm use 24
+nvm alias default 24
+log "Node $(node --version) activo."
+
+if ! command -v gemini &>/dev/null; then
+  npm install -g @google/gemini-cli
+  log "Gemini CLI instalado."
+else
+  log "Gemini CLI ya instalado."
+fi
+
+log "Módulo 02 completo."
