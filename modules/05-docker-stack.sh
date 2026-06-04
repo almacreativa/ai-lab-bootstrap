@@ -3,11 +3,7 @@
 
 log "Paso 5/6 — Docker stack..."
 
-# Estructura de directorios
 mkdir -p "$LAB_DIR/repos"
-mkdir -p "$LAB_DIR/workspace"
-mkdir -p "$HOME/.hermes/memories"
-mkdir -p "$HOME/.hermes/skills"
 
 # Clonar repos base
 if [ ! -d "$LAB_DIR/repos/paperclip/.git" ]; then
@@ -42,9 +38,10 @@ if [ "$INSTALL_HERMES" = "true" ]; then
   HERMES_START_SRC="$SCRIPT_DIR/configs/hermes-start.sh"
 
   if [ -f "$HERMES_SERVICE_SRC" ]; then
-    sed "s|{{LAB_USER}}|$LAB_USER|g" "$HERMES_SERVICE_SRC" \
+    NODE_VERSION=$(node --version 2>/dev/null || echo "v24.16.0")
+    sed "s|{{LAB_USER}}|$LAB_USER|g; s|{{NODE_VERSION}}|$NODE_VERSION|g" "$HERMES_SERVICE_SRC" \
       | sudo tee /etc/systemd/system/hermes.service > /dev/null
-    log "hermes.service instalado."
+    log "hermes.service instalado (Node $NODE_VERSION)."
   else
     warn "configs/hermes.service no encontrado — instalar manualmente."
   fi
@@ -86,21 +83,6 @@ else
   log "Portainer ya existe."
 fi
 
-# Templates de secrets (solo si no existen ya)
-TEMPLATES_DIR="$SCRIPT_DIR/templates"
-if [ -f "$TEMPLATES_DIR/hermes.env.example" ] && [ ! -f "$HOME/.hermes/.env" ]; then
-  cp "$TEMPLATES_DIR/hermes.env.example" "$HOME/.hermes/.env.example"
-  warn "Completar ~/.hermes/.env antes de iniciar Hermes. Ver .env.example de referencia."
-fi
-if [ -f "$TEMPLATES_DIR/agents.env.example" ] && [ ! -f "$HOME/.env_agents" ]; then
-  cp "$TEMPLATES_DIR/agents.env.example" "$HOME/.env_agents.example"
-  warn "Completar ~/.env_agents antes de usar agentes del lab."
-fi
-if [ "$INSTALL_PAPERCLIP" = "true" ] && \
-   [ -f "$TEMPLATES_DIR/paperclip.env.example" ] && \
-   [ ! -f "$LAB_DIR/repos/paperclip/.env.paperclip" ]; then
-  cp "$TEMPLATES_DIR/paperclip.env.example" "$LAB_DIR/repos/paperclip/.env.paperclip.example"
-  warn "Completar paperclip/.env.paperclip antes de levantar Paperclip."
-fi
+warn "Antes de iniciar servicios, completar los secrets usando los templates en: $SCRIPT_DIR/templates/"
 
 log "Módulo 05 completo."

@@ -13,7 +13,7 @@ EnvironmentFile=/home/{{LAB_USER}}/.hermes/.env
 Environment="HERMES_HOME=/home/{{LAB_USER}}/.hermes"
 Environment="HERMES_DASHBOARD_HOST=0.0.0.0"
 Environment="HERMES_DASHBOARD_PORT=9119"
-Environment="PATH=/home/{{LAB_USER}}/.local/bin:/home/{{LAB_USER}}/.opencode/bin:/home/{{LAB_USER}}/.nvm/versions/node/v24/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+Environment="PATH=/home/{{LAB_USER}}/.local/bin:/home/{{LAB_USER}}/.opencode/bin:/home/{{LAB_USER}}/.nvm/versions/node/{{NODE_VERSION}}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 ExecStart=/usr/local/bin/hermes-start.sh
 Restart=always
 RestartSec=10
