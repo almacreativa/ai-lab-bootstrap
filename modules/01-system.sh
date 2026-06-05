@@ -3,6 +3,9 @@
 
 log "Paso 1/6 — Sistema base..."
 
+# iptables-persistent usa debconf interactivo — pre-seed para que no pause
+echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | sudo debconf-set-selections
+echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | sudo debconf-set-selections
 sudo apt update -qq
 sudo apt install -y \
   git curl wget \

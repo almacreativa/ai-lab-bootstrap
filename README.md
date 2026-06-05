@@ -121,7 +121,7 @@ gh auth login
 ### 4. Claude Code
 
 ```bash
-curl -fsSL https://get.antigravity.dev | bash
+npm install -g @anthropic-ai/claude-code
 claude   # completar login
 ```
 
@@ -230,8 +230,9 @@ ssh -L 8384:localhost:8384 usuario@ip-del-servidor
 - Global Discovery → OFF
 - Enable Relays → OFF
 - NAT Traversal → OFF
+- Listen Addresses → dejar en `default` (NO fijar a una IP específica)
 
-> Con Tailscale ya activo, el tráfico de Syncthing viaja dentro del túnel WireGuard. No se necesita discovery público ni relays.
+> Con Tailscale activo el tráfico viaja dentro del túnel WireGuard. Fijar la dirección a una IP Tailscale IPv4 específica hace que Syncthing rechace conexiones por la dirección IPv6 que Tailscale también asigna al dispositivo.
 
 **Agregar carpeta:**
 - Folder Path: `~/ai-lab/knowledge`
