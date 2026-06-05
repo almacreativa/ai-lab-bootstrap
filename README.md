@@ -281,6 +281,16 @@ networks:
 
 ---
 
+## Documentación adicional
+
+| Documento | Contenido |
+|---|---|
+| `docs/HERMES_CONFIG_GUIDE.md` | Configuración de providers (opencode_go, fallback, auxiliares), cada sección del `config.yaml` explicada, comandos operativos |
+| `docs/PAPERCLIP_GUIDE.md` | Infraestructura Docker, providers OpenCode vía `auth.json`, configuración de agentes, troubleshooting |
+| `configs/hermes-config.yaml.example` | Template completo del `config.yaml` de Hermes con comentarios |
+
+---
+
 ## Decisiones de diseño
 
 | Decisión | Motivo |

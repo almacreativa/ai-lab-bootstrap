@@ -1,0 +1,73 @@
+# ~/.hermes/config.yaml — Template de configuración para Hermes Agent
+# Copiar a ~/.hermes/config.yaml y ajustar según el entorno.
+# Sin secrets — las API keys viven en ~/.hermes/.env
+#
+# Documentación completa: docs/HERMES_CONFIG_GUIDE.md
+
+model:
+  provider: opencode_go        # proveedor principal (API key: OPENCODE_GO_API_KEY en .env)
+  default: deepseek-v4-pro     # modelo principal para tareas generales
+
+terminal:
+  backend: local               # "local" para bare metal, "docker" si corre en contenedor
+  cwd: ~/ai-lab/workspace      # directorio de trabajo por defecto
+  timeout: 180
+  lifetime_seconds: 300
+  container_persistent: true
+
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+
+agent:
+  max_turns: 45
+  verbose: false
+  reasoning_effort: medium     # low | medium | high
+
+display:
+  compact: true
+  tool_progress: all
+
+compression:
+  enabled: true
+  threshold: 0.4               # comprimir cuando el contexto llega al 40%
+
+skills:
+  creation_nudge_interval: 20
+
+platforms:
+  telegram:
+    reply_to_mode: first
+    extra:
+      disable_link_previews: false
+
+platform_toolsets:
+  cli: [hermes-cli]
+  telegram: [hermes-telegram]
+
+# Proveedor de respaldo cuando el principal falla (503, rate limit, etc.)
+fallback_providers:
+  - provider: opencode_zen     # tier gratuito de OpenCode (API key: OPENCODE_ZEN_API_KEY en .env)
+    model: opencode/nemotron-3-ultra-free
+
+# Modelos para tareas internas — no consumen cuota del modelo principal
+auxiliary:
+  compression:
+    provider: opencode_zen
+    model: opencode/deepseek-v4-flash-free
+  vision:
+    provider: opencode_zen
+    model: opencode/nemotron-3-ultra-free
+
+# Servidores MCP — Hermes los arranca automáticamente al iniciar
+mcp_servers:
+  notebooklm-mcp:
+    command: uvx
+    args: ["--from", "notebooklm-mcp-cli", "notebooklm-mcp"]
+
+# Motor de búsqueda web — "searxng" usa la instancia local levantada por el bootstrap
+web:
+  search_backend: searxng
+
+approvals:
+  destructive_slash_confirm: false
