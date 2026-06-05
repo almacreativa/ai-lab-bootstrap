@@ -1,5 +1,5 @@
 #!/bin/bash
-# Módulo 04 — Herramientas AI: Claude Code (agy), Opencode, Chromium, Xvfb
+# Módulo 04 — Herramientas AI: Claude Code, Opencode, Chromium, Xvfb
 
 log "Paso 4/6 — Herramientas AI..."
 
@@ -11,10 +11,10 @@ else
   log "Chromium ya instalado, saltando."
 fi
 
-# Claude Code via agy (Antigravity installer)
+# Claude Code via npm
 if ! command -v claude &>/dev/null; then
   warn "Claude Code requiere instalación manual (autenticación interactiva):"
-  warn "  curl -fsSL https://get.antigravity.dev | bash"
+  warn "  npm install -g @anthropic-ai/claude-code"
   warn "  Luego: claude  (para completar el login)"
 else
   log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
