@@ -42,6 +42,25 @@ Acceso a los modelos más capaces.
 API key: `OPENCODE_GO_API_KEY` en `~/.hermes/.env`
 Endpoint: `https://opencode.ai/zen/go/v1`
 
+**Modelos disponibles en opencode-go:**
+
+| Modelo | Req/5h | Cuándo usarlo |
+|---|---|---|
+| `deepseek-v4-flash` | ~31.650 | Alto volumen, tareas repetitivas |
+| `mimo-v2.5` | ~30.100 | Muy alto volumen |
+| `qwen3.7-plus` | ~4.300 | Razonamiento estratégico — **recomendado para Hermes** |
+| `deepseek-v4-pro` | ~3.450 | Análisis profundo, código complejo |
+| `mimo-v2.5-pro` | ~3.250 | Depuración, refactorización |
+| `qwen3.6-plus` | ~3.300 | Alternativa a qwen3.7-plus |
+| `minimax-m2.5` | ~6.300 | Latencia muy baja |
+| `minimax-m2.7` | ~3.400 | Latencia baja |
+| `minimax-m3` | ~1.400 | Latencia baja, repetitivo |
+| `kimi-k2.5` | ~1.850 | Contexto largo |
+| `kimi-k2.6` | ~1.150 | Contexto muy largo, decisión estratégica |
+| `glm-5` | ~1.150 | Lógica compleja |
+| `glm-5.1` | ~880 | Análisis de dependencias |
+| `qwen3.7-max` | ~950 | Razonamiento fuerte, menor volumen |
+
 ### opencode_zen — Fallback gratuito
 
 Tier gratuito de OpenCode. Se activa automáticamente cuando el provider
@@ -51,6 +70,9 @@ principal falla (503, rate limit, presupuesto agotado).
 |---|---|
 | `opencode/nemotron-3-ultra-free` | Más capaz del tier gratuito — usado como fallback y vision |
 | `opencode/deepseek-v4-flash-free` | Rápido y gratuito — usado para compresión de contexto |
+| `opencode/big-pickle` | Uso general gratuito |
+| `opencode/mimo-v2.5-free` | Gratuito |
+| `opencode/minimax-m3-free` | Gratuito |
 
 API key: `OPENCODE_ZEN_API_KEY` en `~/.hermes/.env`
 
