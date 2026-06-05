@@ -11,11 +11,11 @@ else
   log "Chromium ya instalado, saltando."
 fi
 
-# Claude Code via npm
+# Claude Code via npm (instalación automática — login es manual al final)
 if ! command -v claude &>/dev/null; then
-  warn "Claude Code requiere instalación manual (autenticación interactiva):"
-  warn "  npm install -g @anthropic-ai/claude-code"
-  warn "  Luego: claude  (para completar el login)"
+  npm install -g @anthropic-ai/claude-code
+  log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
+  warn "Completar login después del bootstrap: claude"
 else
   log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
 fi
