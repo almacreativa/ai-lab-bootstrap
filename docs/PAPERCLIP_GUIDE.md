@@ -406,7 +406,55 @@ docker exec paperclip-server-1 opencode models | grep "opencode-go\|ollama-cloud
 
 ---
 
-## 13. Bug conocido: ENOSPC en /tmp
+## 13. Watchdog automático de zombies
+
+Cuando un provider no responde (ollama-cloud inestable, red, timeout), el proceso `opencode`
+queda colgado indefinidamente. Paperclip no detecta esto — el heartbeat aparece como `running`
+para siempre, bloqueando al agente y acumulando procesos en el contenedor.
+
+**Instalar el watchdog** (corre cada 15 minutos, mata procesos colgados >10 min sin output):
+
+```bash
+# Crear el script
+mkdir -p ~/ai-lab/scripts
+cat > ~/ai-lab/scripts/paperclip-watchdog.sh << 'EOF'
+#!/bin/bash
+ZOMBIES=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -t -c "
+SELECT COUNT(*) FROM heartbeat_runs
+WHERE status = 'running'
+  AND stdout_excerpt IS NULL
+  AND started_at < NOW() - INTERVAL '10 minutes';
+" 2>/dev/null | tr -d ' ')
+
+if [ "$ZOMBIES" -gt "0" ] 2>/dev/null; then
+  docker exec paperclip-server-1 sh -c \
+    "kill \$(cat /proc/*/cmdline 2>/dev/null | tr '\0\n' '  ' | grep -o '[0-9]* /usr/local/bin/opencode' | awk '{print \$1}') 2>/dev/null" \
+    2>/dev/null
+  docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+    UPDATE heartbeat_runs
+    SET status = 'failed',
+        error = 'Watchdog: proceso colgado >10min sin output',
+        finished_at = NOW()
+    WHERE status = 'running'
+      AND stdout_excerpt IS NULL
+      AND started_at < NOW() - INTERVAL '10 minutes';
+  " 2>/dev/null
+  echo "\$(date): watchdog eliminó \$ZOMBIES zombie(s)"
+fi
+EOF
+chmod +x ~/ai-lab/scripts/paperclip-watchdog.sh
+
+# Agregar al crontab
+(crontab -l 2>/dev/null; echo "*/15 * * * * ~/ai-lab/scripts/paperclip-watchdog.sh >> ~/ai-lab/scripts/watchdog.log 2>&1") | crontab -
+```
+
+**Regla de oro:** mantener los agentes en `opencode-go` siempre. Solo cambiar a `ollama-cloud`
+manualmente cuando se agote el periodo de Go — nunca como fallback automático, porque
+ollama-cloud puede no responder y genera zombies.
+
+---
+
+## 14. Bug conocido: ENOSPC en /tmp
 
 OpenCode extrae una librería en `/tmp` en cada heartbeat y no la limpia.
 Con el tiempo llena el disco y los agentes fallan con `ENOSPC`.
