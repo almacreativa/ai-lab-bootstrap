@@ -80,6 +80,31 @@ API key: `OPENCODE_ZEN_API_KEY` en `~/.hermes/.env`
 
 ## Secciones del config.yaml explicadas
 
+### `delegation` — Política de complejidad (subagentes)
+
+```yaml
+delegation:
+  provider: ollama-cloud
+  model: qwen3-coder-next
+  reasoning_effort: medium
+  max_iterations: 50
+  max_concurrent_children: 3
+```
+
+Cuando Hermes delega una subtarea via `delegate_task`, los subagentes usan este
+provider/modelo en lugar de heredar el del agente principal. Esto implementa una
+**política de complejidad**:
+
+- **Principal** (`opencode-go/deepseek-v4-pro`) — orquestación, razonamiento estratégico, decisiones
+- **Subagentes** (`ollama-cloud/qwen3-coder-next`) — ejecución, código, tareas específicas — gratis
+
+Sin `delegation` configurado, los subagentes heredan el modelo principal y consumen
+la misma cuota cara para tareas simples.
+
+Para máxima capacidad de código en subagentes, cambiar a `qwen3-coder:480b`.
+
+---
+
 ### `fallback_providers` — Respaldo automático
 
 ```yaml

@@ -45,6 +45,16 @@ platform_toolsets:
   cli: [hermes-cli]
   telegram: [hermes-telegram]
 
+# Política de complejidad — subagentes usan un modelo diferente al principal
+# El agente principal orquesta; los subagentes (delegate_task) ejecutan con un modelo más liviano.
+# Con ollama-cloud la ejecución de subagentes es gratuita.
+delegation:
+  provider: ollama-cloud
+  model: qwen3-coder-next    # cambiar a qwen3-coder:480b para más capacidad de código
+  reasoning_effort: medium
+  max_iterations: 50
+  max_concurrent_children: 3
+
 # Proveedor de respaldo cuando el principal falla (503, rate limit, etc.)
 fallback_providers:
   - provider: opencode-zen     # tier gratuito de OpenCode (API key: OPENCODE_ZEN_API_KEY en .env)
