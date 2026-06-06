@@ -56,7 +56,10 @@ delegation:
   max_concurrent_children: 3
 
 # Proveedor de respaldo cuando el principal falla (503, rate limit, etc.)
+# minimax-m3: flagship multimodal, 1M contexto, diseñado para uso agéntico — ideal para orquestador general
 fallback_providers:
+  - provider: ollama-cloud
+    model: minimax-m3
   - provider: opencode-zen     # tier gratuito de OpenCode (API key: OPENCODE_ZEN_API_KEY en .env)
     model: opencode/nemotron-3-ultra-free
 

@@ -109,13 +109,28 @@ Para máxima capacidad de código en subagentes, cambiar a `qwen3-coder:480b`.
 
 ```yaml
 fallback_providers:
+  - provider: ollama-cloud
+    model: minimax-m3
   - provider: opencode-zen
     model: opencode/nemotron-3-ultra-free
 ```
 
-Cuando el provider principal falla, Hermes redirige automáticamente al fallback.
-No requiere intervención manual. Con el tier gratuito como fallback, el servicio
-se mantiene operativo aunque se agote el presupuesto mensual de opencode_go.
+Cuando el provider principal falla, Hermes redirige automáticamente al primer fallback disponible.
+La cadena es:
+
+1. **ollama-cloud/minimax-m3** — gratuito, flagship multimodal de MiniMax con 1M de contexto.
+   Diseñado para uso agéntico (74.2% MCP Atlas, mayor Claw-Eval entre modelos evaluados).
+   Es el mejor sustituto del orquestador principal porque mantiene capacidad de razonamiento
+   general, seguimiento de instrucciones y uso de herramientas. Disponibilidad variable.
+2. **opencode-zen/nemotron-3-ultra-free** — tier gratuito de OpenCode, siempre disponible.
+   Capacidad reducida pero garantizada. Actúa como último recurso si ollama-cloud no responde.
+
+**Por qué no `qwen3-coder-next` como fallback del orquestador:**  
+Es un modelo especializado en código (64K contexto). Cuando el orquestador usa el fallback,
+sigue necesitando razonamiento general, planificación y comunicación — no solo código.
+
+`OLLAMA_API_KEY` requerida en `~/.hermes/.env`. Obtener desde `~/.local/share/opencode/auth.json`
+(clave del provider `ollama-cloud`).
 
 ---
 
@@ -246,8 +261,12 @@ Si SearXNG no está disponible, Hermes usa el backend por defecto.
 # Provider principal
 OPENCODE_GO_API_KEY=go_<tu-api-key>
 
-# Provider fallback / auxiliares (tier gratuito)
+# Provider fallback / auxiliares (tier gratuito OpenCode)
 OPENCODE_ZEN_API_KEY=zen_<tu-api-key>
+
+# ollama-cloud: modelos grandes gratuitos (minimax-m3, deepseek-v4-pro, kimi-k2.6, etc.)
+# Extraer desde ~/.local/share/opencode/auth.json → key del provider "ollama-cloud"
+OLLAMA_API_KEY=<key-de-ollama-cloud>
 
 # Telegram gateway
 TELEGRAM_BOT_TOKEN=<token-de-botfather>
