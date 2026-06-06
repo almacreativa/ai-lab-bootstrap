@@ -13,7 +13,7 @@ Template completo: `configs/hermes-config.yaml.example`
 
 ```yaml
 model:
-  provider: opencode_go
+  provider: opencode-go
   default: deepseek-v4-pro
 ```
 
@@ -61,7 +61,7 @@ Endpoint: `https://opencode.ai/zen/go/v1`
 | `glm-5.1` | ~880 | Análisis de dependencias |
 | `qwen3.7-max` | ~950 | Razonamiento fuerte, menor volumen |
 
-### opencode_zen — Fallback gratuito
+### opencode-zen — Fallback gratuito
 
 Tier gratuito de OpenCode. Se activa automáticamente cuando el provider
 principal falla (503, rate limit, presupuesto agotado).
@@ -84,7 +84,7 @@ API key: `OPENCODE_ZEN_API_KEY` en `~/.hermes/.env`
 
 ```yaml
 fallback_providers:
-  - provider: opencode_zen
+  - provider: opencode-zen
     model: opencode/nemotron-3-ultra-free
 ```
 
@@ -99,10 +99,10 @@ se mantiene operativo aunque se agote el presupuesto mensual de opencode_go.
 ```yaml
 auxiliary:
   compression:
-    provider: opencode_zen
+    provider: opencode-zen
     model: opencode/deepseek-v4-flash-free
   vision:
-    provider: opencode_zen
+    provider: opencode-zen
     model: opencode/nemotron-3-ultra-free
 ```
 
@@ -271,17 +271,17 @@ sudo systemctl status hermes
 
 ## Cuando se agota el presupuesto de opencode_go
 
-El fallback a `opencode_zen` es automático. Para confirmar que está funcionando:
+El fallback a `opencode-zen` es automático. Para confirmar que está funcionando:
 
 ```bash
-journalctl -u hermes -f | grep -i "fallback\|opencode_zen"
+journalctl -u hermes -f | grep -i "fallback\|opencode-zen"
 ```
 
 Para forzar el tier gratuito temporalmente, editar `~/.hermes/config.yaml`:
 
 ```yaml
 model:
-  provider: opencode_zen
+  provider: opencode-zen
   default: opencode/nemotron-3-ultra-free
 ```
 

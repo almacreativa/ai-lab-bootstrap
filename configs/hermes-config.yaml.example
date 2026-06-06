@@ -5,7 +5,7 @@
 # Documentación completa: docs/HERMES_CONFIG_GUIDE.md
 
 model:
-  provider: opencode_go        # proveedor principal (API key: OPENCODE_GO_API_KEY en .env)
+  provider: opencode-go        # proveedor principal (API key: OPENCODE_GO_API_KEY en .env)
   default: deepseek-v4-pro     # modelo principal para tareas generales
 
 terminal:
@@ -47,16 +47,16 @@ platform_toolsets:
 
 # Proveedor de respaldo cuando el principal falla (503, rate limit, etc.)
 fallback_providers:
-  - provider: opencode_zen     # tier gratuito de OpenCode (API key: OPENCODE_ZEN_API_KEY en .env)
+  - provider: opencode-zen     # tier gratuito de OpenCode (API key: OPENCODE_ZEN_API_KEY en .env)
     model: opencode/nemotron-3-ultra-free
 
 # Modelos para tareas internas — no consumen cuota del modelo principal
 auxiliary:
   compression:
-    provider: opencode_zen
+    provider: opencode-zen
     model: opencode/deepseek-v4-flash-free
   vision:
-    provider: opencode_zen
+    provider: opencode-zen
     model: opencode/nemotron-3-ultra-free
 
 # Servidores MCP — Hermes los arranca automáticamente al iniciar
