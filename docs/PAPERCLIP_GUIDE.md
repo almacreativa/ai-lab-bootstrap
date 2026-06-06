@@ -180,18 +180,26 @@ Límites: $12 cada 5h · $30/semana · $60/mes
 
 ### ollama-cloud — tier gratuito (disponibilidad variable)
 
-La lista puede cambiar. Verificar antes de asignar a un agente de producción:
+Modelos de calidad equivalente a Go, sin costo. La lista puede cambiar — verificar disponibilidad
+antes de asignar a un agente de producción:
 
 ```bash
 docker exec paperclip-server-1 opencode models | grep ollama-cloud
 ```
 
-Modelos notables cuando están disponibles:
-- `ollama-cloud/deepseek-v4-flash` — misma calidad que Go, sin costo
-- `ollama-cloud/deepseek-v4-pro` — misma calidad que Go, sin costo
-- `ollama-cloud/kimi-k2.6` — misma calidad que Go, sin costo
-- `ollama-cloud/qwen3-coder:480b` — modelo enorme para código
-- `ollama-cloud/kimi-k2:1t` — 1 trillón de parámetros
+**Modelos confirmados gratuitos (verificado 2026-06-06):**
+
+| Modelo | Perfil de uso |
+|--------|---------------|
+| `ollama-cloud/minimax-m3` | Flagship multimodal, 1M context — estrategia y decisión |
+| `ollama-cloud/gemma4:31b` | Razonamiento sólido — análisis y planificación |
+| `ollama-cloud/nemotron-3-super` | Productividad general — entregables |
+| `ollama-cloud/qwen3-coder-next` | Síntesis, narrativa, creación de contenido |
+| `ollama-cloud/deepseek-v4-flash` | Misma calidad que Go, sin costo |
+| `ollama-cloud/deepseek-v4-pro` | Misma calidad que Go, sin costo |
+| `ollama-cloud/kimi-k2.6` | Misma calidad que Go, sin costo |
+| `ollama-cloud/qwen3-coder:480b` | Modelo enorme para código |
+| `ollama-cloud/kimi-k2:1t` | 1 trillón de parámetros |
 
 ---
 
@@ -275,11 +283,35 @@ FROM agents ORDER BY name;
 
 ---
 
-## 11. Fallback cuando se agota el presupuesto
+## 11. Fallback cuando se agota el presupuesto de opencode-go
 
-Migrar todos los agentes al tier gratuito:
+Hay dos niveles de fallback, en orden de preferencia.
+
+### Fallback nivel 1 — ollama-cloud (gratuito, calidad comparable)
+
+Antes de caer al Zen, probar ollama-cloud — ofrece modelos equivalentes a Go sin costo.
 
 ```bash
+docker exec paperclip-db-1 psql -U paperclip -d paperclip <<'SQL'
+UPDATE agents SET adapter_config = jsonb_set(adapter_config, '{model}', '"ollama-cloud/minimax-m3"')
+  WHERE name = 'Agente-estrategico';
+UPDATE agents SET adapter_config = jsonb_set(adapter_config, '{model}', '"ollama-cloud/gemma4:31b"')
+  WHERE name = 'Agente-analisis';
+UPDATE agents SET adapter_config = jsonb_set(adapter_config, '{model}', '"ollama-cloud/nemotron-3-super"')
+  WHERE name = 'Agente-entregables';
+SQL
+```
+
+> Verificar disponibilidad primero: `docker exec paperclip-server-1 opencode models | grep ollama-cloud`
+
+### Fallback nivel 2 — Zen gratuito garantizado
+
+> **Síntoma típico de quota agotada:** error HTTP 429 en logs, heartbeats quedan en status
+> `running` durante horas sin output (zombies). Limpiar zombies antes de activar el fallback
+> — ver sección "Operaciones de emergencia".
+
+```bash
+# Migrar todos los agentes al tier gratuito
 docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
 UPDATE agents
 SET adapter_config = jsonb_set(adapter_config, '{model}', '\"opencode/big-pickle\"')
@@ -287,7 +319,7 @@ WHERE adapter_type = 'opencode_local';
 "
 ```
 
-Restaurar al inicio del siguiente periodo (ajustar nombres y modelos según tu config):
+### Restaurar Go al inicio del siguiente periodo
 
 ```bash
 docker exec paperclip-db-1 psql -U paperclip -d paperclip <<'SQL'
@@ -322,6 +354,35 @@ docker compose -f ~/ai-lab/repos/paperclip/docker/docker-compose.yml restart ser
 
 ```bash
 docker compose -f ~/ai-lab/repos/paperclip/docker/docker-compose.yml logs -f server
+```
+
+### Heartbeats zombies tras error 429 (quota agotada)
+
+Cuando Go devuelve 429, los procesos pueden quedar colgados en status `running` sin output.
+Limpiarlos antes de activar cualquier fallback:
+
+```bash
+# 1. Forzar fallo de todos los zombies (sin output, >30 min corriendo)
+docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+UPDATE heartbeat_runs
+SET status = 'failed',
+    error = 'Zombie terminado manualmente tras error 429',
+    finished_at = NOW()
+WHERE status IN ('running','queued')
+  AND started_at < NOW() - INTERVAL '30 minutes'
+  AND stdout_excerpt IS NULL;
+"
+
+# 2. Cancelar issues falsos generados por el watchdog
+docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+UPDATE issues SET status = 'cancelled'
+WHERE status NOT IN ('done','cancelled')
+  AND (title LIKE 'Review silent active run%'
+    OR title LIKE 'Company idle%');
+"
+
+# 3. Matar procesos opencode huérfanos en el contenedor
+docker exec paperclip-server-1 sh -c "pkill -f 'opencode run' 2>/dev/null; echo ok"
 ```
 
 ### Agente bloqueado por desbordamiento de contexto
