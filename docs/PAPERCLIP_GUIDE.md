@@ -111,7 +111,52 @@ docker volume create paperclip_paperclip-data
 
 ---
 
-## 5. Levantar los contenedores
+## 5. Ajustes obligatorios en docker-compose.yml
+
+Antes de levantar, verificar que `docker/docker-compose.yml` tenga estas secciones en el servicio `server`.
+Son cambios que no están en el upstream y se aplican manualmente:
+
+```yaml
+name: paperclip      # ← línea 1 del archivo — fija el project name
+
+services:
+  server:
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 30s        # da tiempo al watchdog de limpiar la DB antes de reiniciar
+        max_attempts: 5   # evita crash loop infinito
+        window: 120s
+    mem_limit: 4g         # impide que zombies opencode consuman toda la RAM del host
+    memswap_limit: 4g
+    environment:
+      OPENCODE_ALLOW_ALL_MODELS: "true"
+    volumes:
+      - ${HOME}/.opencode:/paperclip/.opencode:ro
+      - ${HOME}/.config/opencode:/paperclip/.config/opencode:ro
+      - ${HOME}/.local/share/opencode/auth.json:/paperclip/.local/share/opencode/auth.json:ro
+
+volumes:
+  pgdata:
+    external: true
+    name: paperclip_pgdata
+  paperclip-data:
+    external: true
+    name: paperclip_paperclip-data
+```
+
+**Por qué el mem_limit:** los procesos opencode pueden quedar zombies acumulando contexto hasta
+agotar la RAM del host y provocar un OOM en cascada que mata sesiones SSH y procesos del sistema.
+4 GB es suficiente para operación normal (uso real ~1.6 GB) y contiene cualquier fuga.
+
+**Por qué el restart_policy con delay:** al reiniciar inmediatamente después de un OOM, los zombies
+de la sesión anterior siguen en la DB como `running` y se vuelven a ejecutar. El delay de 30 s
+da tiempo al watchdog (cron) de marcarlos como `failed` antes de que Paperclip levante.
+
+---
+
+## 6. Levantar los contenedores
 
 ```bash
 cd ~/ai-lab/repos/paperclip
@@ -127,7 +172,7 @@ docker ps | grep paperclip
 
 ---
 
-## 6. OPENCODE_ALLOW_ALL_MODELS
+## 7. OPENCODE_ALLOW_ALL_MODELS
 
 El `docker-compose.yml` debe tener esta variable en el servicio `server`:
 
@@ -145,7 +190,7 @@ docker inspect paperclip-server-1 | grep OPENCODE_ALLOW
 
 ---
 
-## 7. Modelos disponibles
+## 8. Modelos disponibles
 
 ### opencode-go — suscripción (~$10/mes)
 
@@ -203,7 +248,7 @@ docker exec paperclip-server-1 opencode models | grep ollama-cloud
 
 ---
 
-## 8. Selección de modelo por tipo de agente
+## 9. Selección de modelo por tipo de agente
 
 | Tipo de agente | Modelo recomendado | Razón |
 |---|---|---|
@@ -215,7 +260,7 @@ docker exec paperclip-server-1 opencode models | grep ollama-cloud
 
 ---
 
-## 9. Crear y configurar agentes
+## 10. Crear y configurar agentes
 
 ### Desde la UI
 
@@ -243,7 +288,7 @@ docker exec paperclip-db-1 psql -U paperclip -d paperclip \
 
 ---
 
-## 10. Configuración de heartbeat
+## 11. Configuración de heartbeat
 
 El heartbeat es el pulso periódico de cada agente — aunque no haya tareas pendientes, el agente
 invoca el LLM en cada ciclo. Con el intervalo por defecto de 5 minutos y varios agentes,
@@ -283,7 +328,7 @@ FROM agents ORDER BY name;
 
 ---
 
-## 11. Fallback cuando se agota el presupuesto de opencode-go
+## 12. Fallback cuando se agota el presupuesto de opencode-go
 
 Hay dos niveles de fallback, en orden de preferencia.
 
@@ -334,7 +379,7 @@ SQL
 
 ---
 
-## 12. Operaciones de mantenimiento
+## 13. Operaciones de mantenimiento
 
 ### Rebuild de imagen
 
@@ -406,7 +451,7 @@ docker exec paperclip-server-1 opencode models | grep "opencode-go\|ollama-cloud
 
 ---
 
-## 13. Watchdog automático de zombies
+## 14. Watchdog automático de zombies
 
 Cuando un provider no responde (ollama-cloud inestable, red, timeout), el proceso `opencode`
 queda colgado indefinidamente. Paperclip no detecta esto — el heartbeat aparece como `running`
@@ -454,7 +499,7 @@ ollama-cloud puede no responder y genera zombies.
 
 ---
 
-## 14. Bug conocido: ENOSPC en /tmp
+## 15. Bug conocido: ENOSPC en /tmp
 
 OpenCode extrae una librería en `/tmp` en cada heartbeat y no la limpia.
 Con el tiempo llena el disco y los agentes fallan con `ENOSPC`.
