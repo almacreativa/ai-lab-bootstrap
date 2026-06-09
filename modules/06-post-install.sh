@@ -97,7 +97,37 @@ echo "     # En Mac: instalar Syncthing desde https://syncthing.net/downloads/"
 echo "     Intercambiar Device IDs entre servidor y Mac"
 echo "     Agregar la misma carpeta en el Mac (ej. ~/Documents/knowledge)"
 echo ""
-echo "  ── 11. SEARXNG — activar en Hermes ────────────────────────"
+echo "  ── 11. SSH — keepalive para evitar sesiones colgadas ──────
+     # En el servidor (ya configurado por el bootstrap):
+     # /etc/ssh/sshd_config tiene ClientAliveInterval 30 y ClientAliveCountMax 3
+
+     # En tu Mac — agregar a ~/.ssh/config:
+     Host <nombre-servidor>
+         HostName <ip-tailscale>
+         User $LAB_USER
+         ServerAliveInterval 30
+         ServerAliveCountMax 3
+
+     # Después puedes conectarte con: ssh <nombre-servidor>
+
+  ── 12. TMUX — sesión persistente del lab ───────────────────
+     # La sesión se crea automáticamente al boot via cron (@reboot).
+     # Para abrirla o reconectarla manualmente:
+     lab
+
+     # El script ~/ai-lab/scripts/lab-session.sh crea 4 ventanas:
+     #   1. trabajo  — shell limpio
+     #   2. hermes   — shell limpio (lanzar logs: journalctl -u hermes -f)
+     #   3. paperclip — shell limpio (lanzar logs: docker compose logs -f server)
+     #   4. monitor  — htop corriendo
+     #
+     # Atajos clave (prefijo: Ctrl+a):
+     #   Ctrl+a + 1/2/3/4  → cambiar ventana
+     #   Ctrl+a + d         → desconectarse sin cerrar la sesión
+     #   Ctrl+a + |         → dividir vertical
+     #   Ctrl+a + -         → dividir horizontal
+
+  ── 13. SEARXNG — activar en Hermes ────────────────────────"
 echo "     Agregar a ~/.env_agents:"
 echo "     SEARXNG_URL=http://localhost:8080"
 echo ""

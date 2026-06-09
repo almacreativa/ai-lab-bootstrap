@@ -62,11 +62,14 @@ else
   log "gh ya instalado, saltando."
 fi
 
-# SSH hardening
+# SSH hardening + keepalive para detección de conexiones muertas
 sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo systemctl restart ssh
-log "SSH hardening aplicado (PasswordAuthentication no, PermitRootLogin no)."
+sudo sed -i 's/^#*TCPKeepAlive.*/TCPKeepAlive yes/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 30/' /etc/ssh/sshd_config
+sudo sed -i 's/^#*ClientAliveCountMax.*/ClientAliveCountMax 3/' /etc/ssh/sshd_config
+sudo systemctl reload ssh
+log "SSH hardening aplicado (keepalive 30s, sin root, sin password)."
 
 # Syncthing — sincronización P2P de knowledge/ con otros dispositivos
 if ! command -v syncthing &>/dev/null; then

@@ -104,6 +104,83 @@ else
   log "SearXNG ya existe."
 fi
 
+# Scripts operativos del lab
+mkdir -p "$LAB_DIR/scripts"
+
+# Sesión tmux persistente con 4 ventanas predefinidas
+cat > "$LAB_DIR/scripts/lab-session.sh" << 'TMUXEOF'
+#!/bin/bash
+SESSION="lab"
+BOOT_MODE=false
+[[ "$1" == "--boot" ]] && BOOT_MODE=true
+
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  if ! $BOOT_MODE; then tmux attach-session -t "$SESSION"; fi
+  exit 0
+fi
+
+tmux new-session -d -s "$SESSION" -n "trabajo" -c "$HOME"
+tmux new-window -t "$SESSION" -n "hermes" -c "$HOME"
+tmux new-window -t "$SESSION" -n "paperclip" -c "$HOME"
+tmux new-window -t "$SESSION" -n "monitor" -c "$HOME"
+tmux send-keys -t "$SESSION:monitor" "htop" Enter
+tmux select-window -t "$SESSION:trabajo"
+
+if ! $BOOT_MODE; then tmux attach-session -t "$SESSION"; fi
+TMUXEOF
+chmod +x "$LAB_DIR/scripts/lab-session.sh"
+
+# Watchdog: mata heartbeats zombies de Paperclip cada 15 minutos
+cat > "$LAB_DIR/scripts/paperclip-watchdog.sh" << 'WDEOF'
+#!/bin/bash
+ZOMBIES=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -t -c "
+SELECT COUNT(*) FROM heartbeat_runs
+WHERE status = 'running' AND stdout_excerpt IS NULL
+  AND started_at < NOW() - INTERVAL '10 minutes';
+" 2>/dev/null | tr -d ' ')
+
+if [ "$ZOMBIES" -gt "0" ] 2>/dev/null; then
+  docker exec paperclip-server-1 sh -c \
+    "kill \$(cat /proc/*/cmdline 2>/dev/null | tr '\0\n' '  ' | grep -o '[0-9]* /usr/local/bin/opencode' | awk '{print \$1}') 2>/dev/null" 2>/dev/null
+  docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+    UPDATE heartbeat_runs SET status='failed',
+    error='Watchdog: proceso colgado >10min sin output', finished_at=NOW()
+    WHERE status='running' AND stdout_excerpt IS NULL
+    AND started_at < NOW() - INTERVAL '10 minutes';" 2>/dev/null
+  echo "$(date): watchdog eliminó $ZOMBIES zombie(s)"
+fi
+WDEOF
+chmod +x "$LAB_DIR/scripts/paperclip-watchdog.sh"
+
+# Boot cleanup: limpia zombies en DB tras reinicio inesperado
+cat > "$LAB_DIR/scripts/paperclip-boot-cleanup.sh" << 'BCEOF'
+#!/bin/bash
+MAX_WAIT=120; WAITED=0
+until docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "SELECT 1" &>/dev/null; do
+  sleep 5; WAITED=$((WAITED+5))
+  [ $WAITED -ge $MAX_WAIT ] && echo "$(date): timeout esperando Postgres" && exit 1
+done
+docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+UPDATE heartbeat_runs SET status='failed',
+error='Proceso interrumpido por reinicio del servidor', finished_at=NOW()
+WHERE status IN ('running','queued') AND stdout_excerpt IS NULL;" 2>/dev/null
+echo "$(date): boot cleanup completado"
+BCEOF
+chmod +x "$LAB_DIR/scripts/paperclip-boot-cleanup.sh"
+
+# Registrar cron jobs
+(crontab -l 2>/dev/null | grep -v "paperclip-watchdog\|paperclip-boot\|lab-session\|libopentui"; \
+  echo "0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null"; \
+  echo "*/15 * * * * $LAB_DIR/scripts/paperclip-watchdog.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"; \
+  echo "@reboot $LAB_DIR/scripts/paperclip-boot-cleanup.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"; \
+  echo "@reboot sleep 15 && $LAB_DIR/scripts/lab-session.sh --boot" \
+) | crontab -
+log "Scripts operativos instalados en $LAB_DIR/scripts/ y cron configurado."
+
+# Alias lab en .bashrc
+grep -q "alias lab=" "$HOME/.bashrc" || \
+  echo "alias lab=\"$LAB_DIR/scripts/lab-session.sh\"" >> "$HOME/.bashrc"
+
 warn "Antes de iniciar servicios, completar los secrets usando los templates en: $SCRIPT_DIR/templates/"
 
 log "Módulo 05 completo."
