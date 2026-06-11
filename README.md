@@ -294,10 +294,11 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | Espejos de deliverables | workspaces de agentes → host, separados por empresa | `scripts/backup-deliverables.sh` |
 | Baseline de seguridad | UFW para bare metal + regla de oro: contenedores se protegen con BINDS, no UFW | `scripts/security-apply-sudo.sh` |
 
-**Leer primero:** [`docs/KNOWLEDGE_MANAGEMENT.md`](docs/KNOWLEDGE_MANAGEMENT.md)
-(la arquitectura y el porqué de cada decisión) y
-[`docs/LESSONS.md`](docs/LESSONS.md) (16 lecciones de producción — los errores ya
-los cometimos nosotros).
+**Documentación:**
+- [`docs/KNOWLEDGE_MANAGEMENT.md`](docs/KNOWLEDGE_MANAGEMENT.md) — arquitectura y el porqué de cada decisión
+- [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) — flujos de operación: instalación, semana típica, onboarding de empresa, mantenimiento
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) — síntoma → causa → fix (20+ problemas reales resueltos)
+- [`docs/LESSONS.md`](docs/LESSONS.md) — 16 lecciones de producción
 
 > Los IDs de empresa, rutas y hosts vienen con placeholders `changeme-*` /
 > `<TAILSCALE_IP>` — configurarlos antes de usar. Ningún archivo de este repo
