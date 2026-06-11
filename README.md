@@ -281,6 +281,28 @@ networks:
 
 ---
 
+## Knowledge Management & memoria de agentes (nuevo)
+
+El lab incluye un sistema completo para que los agentes **acumulen conocimiento
+entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
+
+| Componente | Qué hace | Dónde |
+|---|---|---|
+| Pipeline de destilación | sesiones crudas → knowledge estructurado por empresa (cron semanal, incremental) | `scripts/weekly-ingest.sh` + `knowledge-pipeline/` + `skills/` |
+| Mem0 self-hosted | memoria episódica transversal (API REST, namespace por empresa, embeddings locales) | `stacks/mem0/` |
+| Outline | wiki pública curada con flujo de borradores (Google como OIDC + Tailscale serve) | `stacks/outline/` |
+| Espejos de deliverables | workspaces de agentes → host, separados por empresa | `scripts/backup-deliverables.sh` |
+| Baseline de seguridad | UFW para bare metal + regla de oro: contenedores se protegen con BINDS, no UFW | `scripts/security-apply-sudo.sh` |
+
+**Leer primero:** [`docs/KNOWLEDGE_MANAGEMENT.md`](docs/KNOWLEDGE_MANAGEMENT.md)
+(la arquitectura y el porqué de cada decisión) y
+[`docs/LESSONS.md`](docs/LESSONS.md) (16 lecciones de producción — los errores ya
+los cometimos nosotros).
+
+> Los IDs de empresa, rutas y hosts vienen con placeholders `changeme-*` /
+> `<TAILSCALE_IP>` — configurarlos antes de usar. Ningún archivo de este repo
+> contiene secrets: cada stack trae su `.env.example`.
+
 ## Documentación adicional
 
 | Documento | Contenido |

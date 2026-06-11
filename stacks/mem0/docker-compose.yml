@@ -1,0 +1,56 @@
+# Stack de memoria episódica transversal del AI Lab (Fase 1 del plan KM)
+# Mem0 (wrapper propio) + Ollama para embeddings locales. Qdrant va embebido
+# en el contenedor de Mem0 (file-based en ./data), no es un servicio aparte.
+#
+# Deploy:    docker compose up -d --build
+# Post-deploy (una sola vez): docker exec ollama ollama pull nomic-embed-text
+# Smoke test: ver README.md
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    mem_limit: 512m
+    mem_reservation: 384m
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"   # solo host local — los agentes del lab corren acá
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  mem0:
+    build: .
+    container_name: mem0
+    mem_limit: 384m
+    mem_reservation: 256m
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:8765:8765"   # solo host local — Docker bypassea UFW, el bind es la protección real
+    volumes:
+      - ./data:/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/health', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+volumes:
+  ollama:

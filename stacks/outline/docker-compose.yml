@@ -1,0 +1,64 @@
+# Outline — wiki pública del AI Lab (Fase 7 del plan KM)
+# Postgres y Redis propios (NO compartir con Paperclip). Storage local (sin MinIO).
+#
+# Prerequisitos (ver README.md): .env completo + HTTPS vía Tailscale + Google OAuth.
+# Deploy: docker compose up -d
+
+services:
+  outline:
+    image: outlinewiki/outline:latest
+    container_name: outline
+    mem_limit: 1g
+    mem_reservation: 768m
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3010:3000"   # tailscale serve hace de frontend HTTPS; nunca exponer directo
+    volumes:
+      - outline-data:/var/lib/outline/data
+    depends_on:
+      outline-postgres:
+        condition: service_healthy
+      outline-redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  outline-postgres:
+    image: postgres:16-alpine
+    container_name: outline-postgres
+    mem_limit: 384m
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: outline
+      POSTGRES_PASSWORD: ${OUTLINE_DB_PASSWORD}
+      POSTGRES_DB: outline
+    volumes:
+      - outline-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outline -d outline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  outline-redis:
+    image: redis:7-alpine
+    container_name: outline-redis
+    mem_limit: 256m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+volumes:
+  outline-data:
+  outline-pg:
