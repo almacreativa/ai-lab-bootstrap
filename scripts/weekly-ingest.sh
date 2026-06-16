@@ -144,14 +144,18 @@ run_step "refresh insights + AGENTS.md" 1200 \
         ${KNOWLEDGE_DIR}/AGENTS.md: si hay cambios sustanciales (proyectos nuevos,
         decisiones), actualizalo manteniéndolo bajo 500 palabras."
 
-# ── 6. Ping a Uptime Kuma (dead man's switch) ────────────────────────────────
+# ── 6. Sincronizar knowledge a Outline ────────────────────────────────────────
+run_step "sincronizar Outline" 300 \
+  bash "$SCRIPT_DIR/sync-outline.sh" --knowledge --deliverables --company "$COMPANY_ID"
+
+# ── 7. Ping a Uptime Kuma (dead man's switch) ────────────────────────────────
 if [ -n "$KUMA_PUSH_URL" ]; then
   STATUS="up"; [ ${#ERRORS[@]} -gt 0 ] && STATUS="down"
   curl -sf -m 10 "${KUMA_PUSH_URL}?status=${STATUS}&msg=ingest-${COMPANY_ID}" >/dev/null \
     || log "WARN: fallo el ping a Uptime Kuma"
 fi
 
-# ── 7. Notificación final ────────────────────────────────────────────────────
+# ── 8. Notificación final ────────────────────────────────────────────────────
 NEW_FILES=$(find "$SESSIONS_DIR" -name "*.md" -mtime -1 2>/dev/null | wc -l)
 MSG="📊 Ingest semanal — ${COMPANY_ID}
 $(printf '%s\n' "${SUMMARY[@]}")

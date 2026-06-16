@@ -15,7 +15,7 @@ sin contaminación cruzada. Probado con el onboarding real de la segunda empresa
 | Espejos | `~/ai-lab/ops/deliverables-<slug>/` | routing por `issue_prefix` |
 | Ingest | entrada en el `case` de `weekly-ingest.sh` + cron escalonado | estado incremental propio |
 | Mem0 | namespace `user_id="company_<id8>"` | convención + verificado por búsqueda |
-| Outline | colecciones `<Empresa>` y `Borrador — <Empresa>` | colección propia |
+| Outline | colección `<Empresa>` (espejo automático via `sync-outline.sh`) | colección propia + UUID en `.outline-collections.env` |
 | Plugin LLM Wiki | wiki root `/paperclip/knowledge/companies/<id8>/wiki` (rw) | configuración por empresa |
 | NLM | cuaderno propio (cuando hay contenido) | cuaderno por empresa |
 

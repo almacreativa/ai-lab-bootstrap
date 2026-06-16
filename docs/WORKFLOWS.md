@@ -35,6 +35,10 @@ docker compose up -d --build && docker exec ollama ollama pull nomic-embed-text
 # 6. Automatización: cron del ingest + monitoreo (Uptime Kuma + push monitor)
 
 # 7. Capas humanas: Outline (stacks/outline/README.md) + NotebookLM + Obsidian/Syncthing
+
+# 8. Sync a Outline (espejo de solo lectura del knowledge)
+bash scripts/sync-outline.sh --all
+# Crear .outline-collections.env con OUTLINE_<id8>=<collection-uuid> por empresa
 ```
 
 ---
@@ -45,8 +49,7 @@ docker compose up -d --build && docker exec ollama ollama pull nomic-embed-text
 |--------|-----------|--------|
 | Continuo | Agentes leen contexto, escriben su wiki, registran memorias en Mem0 | — |
 | c/2 h | Espejo de deliverables por empresa al host | — |
-| Domingo madrugada | Ingest semanal por empresa: extrae → destila → actualiza insights/AGENTS.md → notifica Telegram + ping al monitor | Leer la notificación |
-| Semanal (~15 min) | — | Revisar colecciones "Borrador" en la wiki pública: aprobar/mover/descartar |
+| Domingo madrugada | Ingest semanal por empresa: extrae → destila → actualiza insights/AGENTS.md → sync Outline → notifica Telegram + ping al monitor | Leer la notificación |
 | Mensual (~10 min) | — | `nlm-sync.sh <empresa> <cuaderno>` (login fresco primero) |
 | Trimestral | — | Auditoría de secrets (permisos + git) y revisión de fuentes |
 
@@ -68,7 +71,7 @@ El flujo completo con todas las dependencias (el orden importa):
    y crear su dir compartido de deliverables en el contenedor
 6. **Plugin wiki:** configurar su wiki root en el panel de la empresa → health check 3× Yes
 7. **Mem0:** solo convención `user_id="company_<id8>"` + documentarla
-8. **Wiki pública:** colecciones `<Empresa>` y `Borrador — <Empresa>`
+8. **Wiki pública:** colección `<Empresa>` en Outline + registrar UUID en `.outline-collections.env`
 9. **AGENTS.md curado** de la empresa (≤500 palabras) + snippet de contexto en las
    instrucciones de cada agente (leer AGENTS.md / tools wiki_* / Mem0 / nunca credenciales)
 10. **Smoke test:** un agente lee su AGENTS.md, escribe en su wiki, guarda una memoria
@@ -100,8 +103,10 @@ ls -lt ~/ai-lab/knowledge/companies/<id8>/sessions/ | head
 ## 5. Mantenimiento del conocimiento (salud de la información)
 
 - **Una sola dirección de escritura:** solo el pipeline escribe el knowledge curado.
-  Los agentes escriben su `wiki/` y proponen en Borrador. Si encontrás contenido
-  curado que nadie escribió por pipeline → algo está mal montado (revisar `:ro`).
+  Los agentes escriben en su `wiki/`. Si encontrás contenido curado que nadie
+  escribió por pipeline → algo está mal montado (revisar `:ro`).
+- **Outline es espejo automático** — `sync-outline.sh` replica knowledge, deliverables
+  y docs con jerarquía completa. No se edita en Outline; se corrige en el filesystem.
 - **insights.md es acumulativo con pesos** — los insights repetidos suben (`visto ×N`);
   no borrar, corregir con nota de fecha (el historial de correcciones también enseña).
 - **AGENTS.md ≤500 palabras siempre** — si crece, mover detalle a patterns/runbooks.

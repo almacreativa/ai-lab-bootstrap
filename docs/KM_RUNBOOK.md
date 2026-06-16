@@ -33,7 +33,6 @@ Operacion, mantenimiento y recuperacion del sistema de conocimiento del lab.
 | Dom 2:00 | `weekly-ingest.sh <COMPANY_UUID_1>` (sesiones + deliverables + insights + AGENTS.md) | `~/ai-lab/logs/ingest-<COMPANY_UUID_1>.log` |
 | Dom 3:30 | `weekly-ingest.sh <COMPANY_UUID_3>` (solo deliverables — ver "atribucion") | `~/ai-lab/logs/ingest-<COMPANY_UUID_3>.log` |
 | Mensual MANUAL | `nlm-sync.sh <company> <notebook>` (cookies ~14 dias: `nlm login` antes) | — |
-| Semanal MANUAL | Revisar colecciones Borrador en Outline (<15 min) | — |
 
 **Atribucion de sesiones:** las sesiones de Claude Code/OpenCode/Hermes son fuentes DEL HOST
 → se atribuyen a la empresa primaria (EXAMPLE) salvo etiqueta `[company:<id>]` en la sesion.
@@ -52,7 +51,7 @@ Operacion, mantenimiento y recuperacion del sistema de conocimiento del lab.
 6. Compose de Paperclip: mounts `companies/<id8>` (ro) + `companies/<id8>/wiki` (rw, anidado) + crear `/paperclip/<nombre>-deliverables` en el contenedor + bloque en backup script
 7. Plugin LLM Wiki: configurar wiki root `/paperclip/knowledge/companies/<id8>/wiki` para esa empresa (Settings del plugin, panel de la empresa)
 8. Mem0: solo convencion — `user_id="company_<id8>"`; actualizar `shared/templates/mem0-namespacing.md`
-9. Outline: colecciones `<Empresa>` + `Borrador — <Empresa>` (API: `collections.create`)
+9. Outline: coleccion `<Empresa>` (API: `collections.create`) + registrar UUID en `.outline-collections.env`
 10. Completar templates de promptTemplate (S2 empresa + S3 por agente) y desplegar con `deploy-agent-prompts.sh <slug>` (ver `ONBOARDING_AGENTE.md`)
 11. NLM: cuaderno propio cuando tenga contenido (`nlm-sync.sh <id8> <notebook_id>`)
 12. Kuma: push monitor para su cron cuando importe

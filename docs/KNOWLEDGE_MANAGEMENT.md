@@ -20,7 +20,7 @@ NIVEL LAB — administrar el laboratorio
 NIVEL EMPRESA — el trabajo de negocio
 └── Plataforma multi-agente (Paperclip): agentes AUTÓNOMOS en loops, sin humano presente,
     enjaulados en Docker, multi-tenant. Mayor PRODUCTOR de conocimiento del lab.
-    Lectura empaquetada (mounts ro + plugin wiki) · salida controlada (espejos + borradores).
+    Lectura empaquetada (mounts ro + plugin wiki) · salida controlada (espejos).
 
 NIVEL TAREA — intervenciones puntuales con el humano presente
 └── CLIs (Claude Code / OpenCode): lectores ricos (filesystem directo), sus sesiones
@@ -74,9 +74,11 @@ CAPAS DE ACCESO (solo lectura del curado):
    agentes necesita escribir (standups, log, ideas). Sub-mount rw `companies/<id>/wiki/`
    dentro del mount ro del curado: colaboran sin poder tocar lo curado, y su wiki es
    una fuente más para la próxima destilación.
-7. **Aprobación no-bloqueante**: los agentes proponen a una colección "Borrador" por
-   empresa en la wiki pública; un humano revisa en batch semanal (<15 min). Nada se
-   bloquea esperando aprobación.
+7. **Outline es espejo de solo lectura**: `sync-outline.sh` publica directamente a
+   Outline con jerarquía completa (docs, knowledge por empresa, deliverables, shared).
+   No hay borradores ni edición en Outline — la fuente de verdad es siempre el
+   filesystem. Si algo está mal, se corrige en el archivo y se re-sincroniza.
+   El ingest semanal incluye el sync automáticamente.
 8. **Monitoreo mínimo que alcanza**: Uptime Kuma (50MB) con healthchecks + push
    monitor como dead-man's-switch del cron semanal + notificaciones Telegram.
 
@@ -90,6 +92,7 @@ CAPAS DE ACCESO (solo lectura del curado):
 | Extractores incrementales de sesiones (Claude Code JSONL, OpenCode SQLite) | `knowledge-pipeline/` |
 | Skills de destilación para el orquestador (clasificación lab/empresa, patrones de deliverables) | `skills/` |
 | Espejo de deliverables por empresa | `scripts/backup-deliverables.sh` |
+| Sync automático a Outline (espejo completo con jerarquía) | `scripts/sync-outline.sh` |
 | Sync semi-manual a NotebookLM | `scripts/nlm-sync.sh` |
 | Baseline de seguridad (UFW para bare metal — Docker se protege con binds) | `scripts/security-apply-sudo.sh` |
 
