@@ -1,0 +1,48 @@
+# =============================================================================
+# Hermes MCP Servers Configuration (Example)
+# =============================================================================
+# Add this block under `mcp_servers:` in your ~/.hermes/config.yaml
+# Each Paperclip MCP server wraps a company-specific endpoint.
+# Replace placeholders before use.
+# =============================================================================
+
+mcp_servers:
+
+  # --- NotebookLM MCP (Google NotebookLM integration) ---
+  notebooklm-mcp:
+    command: uvx
+    args:
+      - --from
+      - notebooklm-mcp-cli
+      - notebooklm-mcp
+
+  # --- Paperclip MCP servers (one per company) ---
+  # Each company gets its own MCP server backed by a wrapper script.
+  # The wrapper script sets PAPERCLIP_BASE_URL, COMPANY_UUID, etc.
+  # See scripts/paperclip-mcp-wrapper.sh.example for the template.
+
+  paperclip_company_a:
+    command: bash
+    args:
+      - $HOME/ai-lab/scripts/paperclip-mcp-company-a.sh
+
+  paperclip_company_b:
+    command: bash
+    args:
+      - $HOME/ai-lab/scripts/paperclip-mcp-company-b.sh
+
+  # Add more companies as needed:
+  # paperclip_company_c:
+  #   command: bash
+  #   args:
+  #     - $HOME/ai-lab/scripts/paperclip-mcp-company-c.sh
+
+# =============================================================================
+# Paperclip MCP wrapper script template (paperclip-mcp-company-X.sh):
+# =============================================================================
+#   #!/usr/bin/env bash
+#   export PAPERCLIP_BASE_URL="http://<SERVER_IP>:3000"
+#   export COMPANY_UUID="<COMPANY_UUID>"
+#   export PAPERCLIP_API_KEY="<YOUR_API_KEY>"
+#   exec npx @paperclip/mcp-server
+# =============================================================================

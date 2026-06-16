@@ -1,0 +1,40 @@
+# =============================================================================
+# Example crontab for AI Lab infrastructure
+# Replace placeholders with your actual values before installing
+# Install with: crontab crontab.example
+# =============================================================================
+
+# --- Cleanup: OpenCode libopentui.so temp files (prevents ENOSPC) ---
+0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null
+
+# --- Paperclip container watchdog (restart if unhealthy) ---
+*/15 * * * * $HOME/ai-lab/scripts/paperclip-watchdog.sh >> $HOME/ai-lab/scripts/watchdog.log 2>&1
+
+# --- Deliverables backup (adapt path to your project) ---
+0 */2 * * * $HOME/<PROJECT_DIR>/ops/backup-deliverables.sh >> $HOME/<PROJECT_DIR>/ops/backup.log 2>&1
+
+# --- Paperclip boot cleanup (on server restart) ---
+@reboot $HOME/ai-lab/scripts/paperclip-boot-cleanup.sh >> $HOME/ai-lab/scripts/watchdog.log 2>&1
+
+# --- Lab session auto-start on reboot ---
+@reboot sleep 15 && $HOME/ai-lab/scripts/lab-session.sh --boot
+
+# --- Weekly knowledge ingestion per company (stagger to avoid overlap) ---
+# Company A
+0 2 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_A_UUID> >> $HOME/ai-lab/logs/ingest-company-a.log 2>&1
+# Company B
+30 3 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_B_UUID> >> $HOME/ai-lab/logs/ingest-company-b.log 2>&1
+# Company C
+0 4 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_C_UUID> >> $HOME/ai-lab/logs/ingest-company-c.log 2>&1
+
+# --- Log rotation ---
+30 1 * * 0 /usr/sbin/logrotate --state $HOME/.local/state/logrotate.state $HOME/ai-lab/logrotate.conf
+
+# --- NotebookLM gateway auto-start ---
+@reboot sleep 20 && $HOME/ai-lab/stacks/nlm-gateway/start.sh >> $HOME/ai-lab/logs/nlm-gateway.log 2>&1
+
+# --- Periodic knowledge sync (adapt for your companies) ---
+*/30 * * * * $HOME/ai-lab/scripts/sync-knowledge.sh >> $HOME/ai-lab/logs/sync-knowledge.log 2>&1
+
+# --- Weekly maintenance check ---
+0 9 * * 1 $HOME/ai-lab/scripts/maintenance-check.sh >> $HOME/ai-lab/logs/maintenance.log 2>&1

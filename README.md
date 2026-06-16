@@ -76,8 +76,35 @@ templates/
 ├── agents.env.example      ← API keys para agentes
 └── paperclip.env.example   ← config de Paperclip
 configs/
-├── hermes.service      ← template systemd ({{LAB_USER}} como variable)
-└── hermes-start.sh     ← launcher de Hermes
+├── hermes.service          ← template systemd ({{LAB_USER}} como variable)
+├── hermes-start.sh         ← launcher de Hermes
+├── hermes-config.yaml.example  ← config completo de Hermes con comentarios
+├── hermes-mcp-servers.yaml.example ← servidores MCP (Paperclip, Engram, NLM)
+└── crontab.example         ← crons típicos del lab (ingest, backups, polling)
+scripts/
+├── onboard-company.sh      ← alta de empresa completa (DB + dirs + crons)
+├── deploy-agent-prompts.sh ← deploy de promptTemplate (S1+S2+S3 → DB)
+├── create-routine.sh       ← crear routines Paperclip con trigger y revision
+├── paperclip-poll-done.sh  ← polling de issues completados (state tracking)
+├── paperclip-notify-done.sh← formatear polling para notificaciones
+├── paperclip-boot-cleanup.sh ← limpieza post-restart de Paperclip
+├── paperclip-watchdog.sh   ← monitor de salud de contenedores
+├── paperclip-mcp-company.sh.template ← template para instancias MCP por empresa
+├── backup-deliverables.sh  ← espejo de workspaces de agentes al host
+├── weekly-ingest.sh        ← pipeline semanal de destilación de sesiones
+├── nlm-sync.sh             ← sync de knowledge a NotebookLM
+├── security-apply-sudo.sh  ← baseline de seguridad UFW
+├── telegram-notify.sh      ← envío de notificaciones via Telegram
+└── cleanup-tmp.sh          ← limpieza de archivos temporales
+skills/                     ← skills de Hermes (plantillas genéricas)
+├── devops/paperclip/       ← operación de Paperclip (routines, heartbeat, DB)
+├── wiki-ingest/            ← destilación de sesiones → wiki knowledge
+├── hermes-history-ingest/  ← ingest de historial de Hermes
+├── software-development/   ← skills de desarrollo (subagent-driven, session-continuity)
+└── autonomous-ai-agents/   ← skills para agentes autónomos
+docs/                       ← documentación genérica del lab (ver tabla abajo)
+knowledge-pipeline/         ← scripts Python del pipeline de destilación
+stacks/                     ← docker-compose de servicios (Outline, Mem0, etc.)
 ```
 
 ---
@@ -304,13 +331,89 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 > `<TAILSCALE_IP>` — configurarlos antes de usar. Ningún archivo de este repo
 > contiene secrets: cada stack trae su `.env.example`.
 
-## Documentación adicional
+## Documentación completa
+
+### Operación y arquitectura
 
 | Documento | Contenido |
 |---|---|
-| `docs/HERMES_CONFIG_GUIDE.md` | Configuración de providers (opencode_go, fallback, auxiliares), cada sección del `config.yaml` explicada, comandos operativos |
-| `docs/PAPERCLIP_GUIDE.md` | Infraestructura Docker, providers OpenCode vía `auth.json`, configuración de agentes, troubleshooting |
-| `configs/hermes-config.yaml.example` | Template completo del `config.yaml` de Hermes con comentarios |
+| `docs/GUIA_OPERADOR.md` | Guía del operador — rutina diaria, puertas de entrada, flujos de trabajo |
+| `docs/KNOWLEDGE_MANAGEMENT.md` | Arquitectura KM — pipeline, Mem0, Outline, decisiones |
+| `docs/KM_PLAN.md` | Plan de ejecución KM v3.2 — las 8 fases implementadas |
+| `docs/KM_RUNBOOK.md` | Runbook de operaciones — mantenimiento, recuperación, troubleshooting |
+| `docs/SERVICIOS.md` | Inventario de servicios — puertos, contenedores, estado |
+| `docs/WORKFLOWS.md` | Flujos de operación — instalación, semana típica, onboarding |
+| `docs/DECISIONES_KM.md` | ADRs — decisiones de arquitectura con contexto y razones |
+| `docs/ADR-ENGRAM.md` | ADR específico de Engram — memoria compartida entre agentes |
+
+### Hermes y Paperclip
+
+| Documento | Contenido |
+|---|---|
+| `docs/HERMES_CONFIG_GUIDE.md` | Configuración de providers, secciones del config.yaml, comandos |
+| `docs/HERMES_RUNBOOK.md` | Operación de Hermes — deploy, monitoreo, recuperación |
+| `docs/HERMES_BARE_METAL_MIGRATION.md` | Guía de migración a bare metal (no Docker) |
+| `docs/HERMES_DEPLOY_HANDOFF.md` | Handoff de deploy — pasos para puesta en producción |
+| `docs/PAPERCLIP_GUIDE.md` | Infraestructura Docker, providers, agentes, troubleshooting |
+| `docs/DB_OPERATIONS.md` | Operaciones de DB — scripts, recetas, pitfalls de routines |
+| `docs/DIRECTRICES_AUTOMATIZACIONES.md` | 8 reglas para crons/skills/integraciones |
+
+### Onboarding y seguridad
+
+| Documento | Contenido |
+|---|---|
+| `docs/ONBOARDING_EMPRESA.md` | Alta de empresa/cliente — script + pasos manuales |
+| `docs/ONBOARDING_AGENTE.md` | Alta/modificación de agentes — promptTemplate, modelos |
+| `docs/SECURITY_GUIDE.md` | Baseline de seguridad — UFW, secrets, contenedores |
+| `docs/SECRETS_INVENTORY.md` | Inventario de secrets — ubicación, rotación, permisos |
+
+### Referencia
+
+| Documento | Contenido |
+|---|---|
+| `docs/TROUBLESHOOTING.md` | Síntoma → causa → fix (20+ problemas reales resueltos) |
+| `docs/LESSONS.md` | 16 lecciones de producción |
+| `configs/hermes-config.yaml.example` | Template completo del config.yaml de Hermes |
+
+---
+
+## Hermes ↔ Paperclip MCP
+
+Hermes controla Paperclip via MCP (Model Context Protocol) con una instancia stdio
+por empresa. Cada instancia expone 21 herramientas aisladas a su empresa.
+
+```bash
+# Template para crear una instancia MCP por empresa
+# Ver: scripts/paperclip-mcp-company.sh.template
+cp scripts/paperclip-mcp-company.sh.template scripts/mcp-company-a.sh
+# Editar placeholders: {{PAPERCLIP_HOST}}, {{COMPANY_ID}}
+chmod +x scripts/mcp-company-a.sh
+```
+
+Configurar en `~/.hermes/mcp-servers.yaml`:
+```yaml
+paperclip_company_a:
+  command: ~/ai-lab/scripts/mcp-company-a.sh
+  transport: stdio
+```
+
+### Routines (trabajo recurrente)
+
+Paperclip tiene un scheduler interno que crea issues automáticamente por cron.
+Crear routines con el script (no por INSERT directo — requiere `next_run_at`):
+
+```bash
+bash scripts/create-routine.sh PREFIJO AGENTE "Título" "0 9 * * 1"
+# Ejemplo: crear informe semanal del CEO, lunes 09:00
+```
+
+### Polling de issues completados
+
+```bash
+# Ejecutar manualmente o via cron de Hermes
+bash scripts/paperclip-poll-done.sh          # JSON con issues recién completados
+bash scripts/paperclip-notify-done.sh        # formato legible para Telegram
+```
 
 ---
 

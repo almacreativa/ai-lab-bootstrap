@@ -1,0 +1,5 @@
+#!/bin/bash
+export PAPERCLIP_BASE_URL="http://{{PAPERCLIP_HOST}}:3100/api"
+export PAPERCLIP_API_KEY=$(grep PCP_BOARD_KEY ${HOME}/.hermes/.env | cut -d= -f2)
+export PAPERCLIP_COMPANY_ID="{{COMPANY_ID}}"
+exec uvx paperclip-mcp --transport stdio "$@"
