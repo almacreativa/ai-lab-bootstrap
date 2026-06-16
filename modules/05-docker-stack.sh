@@ -43,16 +43,22 @@ if [ "$INSTALL_HERMES" = "true" ]; then
   HERMES_SERVICE_SRC="$SCRIPT_DIR/configs/hermes.service"
   HERMES_START_SRC="$SCRIPT_DIR/configs/hermes-start.sh"
 
-  if [ -f "$HERMES_SERVICE_SRC" ]; then
+  if [ -f /etc/systemd/system/hermes.service ]; then
+    log "hermes.service ya existe — no se sobreescribe."
+  elif [ -f "$HERMES_SERVICE_SRC" ]; then
     NODE_VERSION=$(node --version 2>/dev/null || echo "v24.16.0")
     sed "s|{{LAB_USER}}|$LAB_USER|g; s|{{NODE_VERSION}}|$NODE_VERSION|g" "$HERMES_SERVICE_SRC" \
       | sudo tee /etc/systemd/system/hermes.service > /dev/null
-    log "hermes.service instalado (Node $NODE_VERSION)."
+    sudo systemctl daemon-reload
+    sudo systemctl enable hermes
+    log "hermes.service instalado y habilitado (Node $NODE_VERSION)."
   else
     warn "configs/hermes.service no encontrado — instalar manualmente."
   fi
 
-  if [ -f "$HERMES_START_SRC" ]; then
+  if [ -f /usr/local/bin/hermes-start.sh ]; then
+    log "hermes-start.sh ya existe — no se sobreescribe."
+  elif [ -f "$HERMES_START_SRC" ]; then
     sed "s|{{LAB_USER}}|$LAB_USER|g" "$HERMES_START_SRC" \
       | sudo tee /usr/local/bin/hermes-start.sh > /dev/null
     sudo chmod +x /usr/local/bin/hermes-start.sh
@@ -60,10 +66,6 @@ if [ "$INSTALL_HERMES" = "true" ]; then
   else
     warn "configs/hermes-start.sh no encontrado — instalar manualmente."
   fi
-
-  sudo systemctl daemon-reload
-  sudo systemctl enable hermes
-  log "hermes.service habilitado (no iniciado — configurar secrets primero)."
 fi
 
 # Red Docker dedicada para el lab
@@ -108,6 +110,9 @@ fi
 mkdir -p "$LAB_DIR/scripts"
 
 # Sesión tmux persistente con 4 ventanas predefinidas
+if [ -f "$LAB_DIR/scripts/lab-session.sh" ]; then
+  log "lab-session.sh ya existe — no se sobreescribe."
+else
 cat > "$LAB_DIR/scripts/lab-session.sh" << 'TMUXEOF'
 #!/bin/bash
 SESSION="lab"
@@ -129,8 +134,12 @@ tmux select-window -t "$SESSION:trabajo"
 if ! $BOOT_MODE; then tmux attach-session -t "$SESSION"; fi
 TMUXEOF
 chmod +x "$LAB_DIR/scripts/lab-session.sh"
+fi
 
 # Watchdog: mata heartbeats zombies de Paperclip cada 15 minutos
+if [ -f "$LAB_DIR/scripts/paperclip-watchdog.sh" ]; then
+  log "paperclip-watchdog.sh ya existe — no se sobreescribe."
+else
 cat > "$LAB_DIR/scripts/paperclip-watchdog.sh" << 'WDEOF'
 #!/bin/bash
 ZOMBIES=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -t -c "
@@ -151,8 +160,12 @@ if [ "$ZOMBIES" -gt "0" ] 2>/dev/null; then
 fi
 WDEOF
 chmod +x "$LAB_DIR/scripts/paperclip-watchdog.sh"
+fi
 
 # Boot cleanup: limpia zombies en DB tras reinicio inesperado
+if [ -f "$LAB_DIR/scripts/paperclip-boot-cleanup.sh" ]; then
+  log "paperclip-boot-cleanup.sh ya existe — no se sobreescribe."
+else
 cat > "$LAB_DIR/scripts/paperclip-boot-cleanup.sh" << 'BCEOF'
 #!/bin/bash
 MAX_WAIT=120; WAITED=0
@@ -167,15 +180,33 @@ WHERE status IN ('running','queued') AND stdout_excerpt IS NULL;" 2>/dev/null
 echo "$(date): boot cleanup completado"
 BCEOF
 chmod +x "$LAB_DIR/scripts/paperclip-boot-cleanup.sh"
+fi
 
-# Registrar cron jobs
-(crontab -l 2>/dev/null | grep -v "paperclip-watchdog\|paperclip-boot\|lab-session\|libopentui"; \
-  echo "0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null"; \
-  echo "*/15 * * * * $LAB_DIR/scripts/paperclip-watchdog.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"; \
-  echo "@reboot $LAB_DIR/scripts/paperclip-boot-cleanup.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"; \
-  echo "@reboot sleep 15 && $LAB_DIR/scripts/lab-session.sh --boot" \
-) | crontab -
-log "Scripts operativos instalados en $LAB_DIR/scripts/ y cron configurado."
+# Registrar cron jobs (solo si no existen ya)
+CRON_CHANGED=false
+CURRENT_CRON=$(crontab -l 2>/dev/null || true)
+
+add_cron_if_missing() {
+  local pattern="$1" entry="$2"
+  if ! echo "$CURRENT_CRON" | grep -q "$pattern"; then
+    CURRENT_CRON="$CURRENT_CRON
+$entry"
+    CRON_CHANGED=true
+  fi
+}
+
+add_cron_if_missing "paperclip-watchdog" "*/15 * * * * $LAB_DIR/scripts/paperclip-watchdog.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"
+add_cron_if_missing "paperclip-boot-cleanup" "@reboot $LAB_DIR/scripts/paperclip-boot-cleanup.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"
+add_cron_if_missing "lab-session.sh --boot" "@reboot sleep 15 && $LAB_DIR/scripts/lab-session.sh --boot"
+add_cron_if_missing "find /tmp -name" "0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null"
+
+if [ "$CRON_CHANGED" = true ]; then
+  echo "$CURRENT_CRON" | crontab -
+  log "Cron jobs del lab agregados (sin tocar los existentes)."
+else
+  log "Cron jobs del lab ya existen — no se modifican."
+fi
+log "Scripts operativos verificados en $LAB_DIR/scripts/"
 
 # Alias lab en .bashrc
 grep -q "alias lab=" "$HOME/.bashrc" || \
