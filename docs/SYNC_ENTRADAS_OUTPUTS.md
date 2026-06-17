@@ -100,6 +100,14 @@ docker exec paperclip-db-1 psql -U paperclip -d paperclip \
 /paperclip/knowledge/companies/<primeros-8-chars>/wiki
 ```
 
+**Campo `extra_container_dirs`**: directorios adicionales dentro del contenedor que se quieren copiar a `outputs/`. Útil para carpetas de deliverables que los agentes usan fuera de sus workspaces:
+```json
+"extra_container_dirs": [
+  { "container_path": "/paperclip/miempresa-deliverables", "output_name": "deliverables" }
+]
+```
+Dejar como `[]` si la empresa no tiene directorios extra.
+
 **Campo `entradas_routing`**: define a qué agente llega cada entrada. Por defecto va al CEO. Se pueden agregar reglas por keyword en el nombre del archivo:
 ```json
 "rules": [
