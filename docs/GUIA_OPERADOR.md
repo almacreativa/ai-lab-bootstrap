@@ -12,7 +12,7 @@ Esto es lo que haces VOS. Lo que hace el sistema solo esta en `KM_RUNBOOK.md`.
 | **Hermes (Telegram)** | tu chat del bot | Pedir cosas en lenguaje natural |
 | **Hermes dashboard** | `http://<SERVER_IP>:9119` | Ver sesiones y actividad del orquestador |
 | **Paperclip** | `http://<SERVER_IP>:3100` | Empresas, agentes, issues, plugins |
-| **Outline (wiki)** | `https://<TAILSCALE_DOMAIN>` | Leer la documentacion curada; **revisar los Borradores semanales** |
+| **Outline (wiki)** | `https://<TAILSCALE_DOMAIN>` | Leer la documentacion curada (espejo automatico del knowledge) |
 | **Uptime Kuma** | `http://<SERVER_IP>:3001` | Estado de todos los servicios |
 | **Status page** | `http://<SERVER_IP>:3001/status/general` | Tablero de monitores sin login |
 | **Portainer** | `https://<SERVER_IP>:9443` | Gestion Docker |
@@ -35,6 +35,7 @@ Esto es lo que haces VOS. Lo que hace el sistema solo esta en `KM_RUNBOOK.md`.
 | Como crear/modificar un agente | `docs/ONBOARDING_AGENTE.md` + `scripts/live/deploy-agent-prompts.sh` |
 | Operaciones de DB | `docs/DB_OPERATIONS.md` + `scripts/live/create-routine.sh` |
 | Que modelos usa cada agente | `knowledge/shared/model-map.md` |
+| Sesion tmux del lab | `configs/tmux/lab-session.sh` + `configs/tmux/tmux.conf` |
 | La historia (planes viejos) | `archive/` |
 
 > Clona este repo (`gh repo clone <GITHUB_USER>/<REPO_NAME>`) y tenes
@@ -46,8 +47,6 @@ Esto es lo que haces VOS. Lo que hace el sistema solo esta en `KM_RUNBOOK.md`.
 `KM_RUNBOOK.md` § "Si el ingest no llego" o TROUBLESHOOTING.
 
 **Domingo/lunes (2 min):** llegaron los resumenes del ingest semanal por Telegram.
-
-**Semanal (~15 min):** Outline -> colecciones `Borrador — *` -> aprobar/mover/descartar.
 
 **Mensual (~10 min):** `nlm login` (si expiro) + `nlm-sync.sh <empresa> <cuaderno>`.
 
@@ -67,6 +66,45 @@ revisar fuentes de conocimiento, y `engram stats` + `engram doctor`.
 3. **Claude Code / OpenCode (terminal)** — ingenieria del lab. Sus sesiones se
    destilan solas al knowledge semanalmente. Comparten memoria de proyecto via
    **Engram** (MCP stdio).
+
+## Sesion tmux del lab
+
+El lab incluye una sesion tmux preconfigurada con ventanas para monitoreo y trabajo.
+
+```bash
+# Primera vez: instalar la config de tmux
+cp configs/tmux/tmux.conf ~/.tmux.conf
+
+# Iniciar (o reconectar) la sesion del lab
+bash configs/tmux/lab-session.sh
+
+# Opcional: alias para acceso rapido (agregar a ~/.bashrc)
+alias lab="bash ~/ai-lab/configs/tmux/lab-session.sh"
+```
+
+**Ventanas predefinidas:**
+
+| # | Nombre | Que muestra |
+|---|--------|-------------|
+| 1 | temps | Temperatura y fan del procesador (`watch sensors`) |
+| 2 | hermes-logs | Logs del orquestador en tiempo real |
+| 3 | docker | Logs de contenedores (Paperclip + servicios) |
+| 4 | shell | Terminal libre en `~/ai-lab` |
+
+**Personalizar:** el script tiene ejemplos comentados al final para agregar
+ventanas de Claude Code, OpenCode, htop, o cualquier proyecto. Editar y copiar
+al directorio live del lab:
+```bash
+cp configs/tmux/lab-session.sh ~/ai-lab/configs/tmux/lab-session.sh
+```
+
+**Atajos de tmux (con la config incluida):**
+- `Ctrl+a` es el prefijo (no `Ctrl+b`)
+- `Ctrl+a |` — split vertical
+- `Ctrl+a -` — split horizontal
+- `Alt+flechas` — navegar entre paneles (sin prefijo)
+- `Ctrl+a r` — recargar config
+- Mouse activo para scroll y click
 
 ## Como se mantiene actualizada esta documentacion
 
