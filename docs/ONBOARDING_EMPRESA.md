@@ -103,7 +103,30 @@ curl -s -X POST http://127.0.0.1:8765/search -H "Content-Type: application/json"
 # → debe dar 0 resultados
 ```
 
-### G) Diferidos hasta que haya contenido
+### G) Sistema de entradas y outputs (sync automático)
+
+Crear la estructura de carpetas y el config JSON para que los agentes reciban input y sus outputs sean accesibles:
+
+```bash
+# 1. Carpetas
+mkdir -p ~/ai-lab/knowledge/<slug>/{entradas,outputs}
+mkdir -p ~/ai-lab/stacks/sync-config/
+
+# 2. Config JSON (completar con UUIDs reales de Paperclip)
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/sync-config.example.json \
+   ~/ai-lab/stacks/sync-config/<slug>.json
+
+# 3. Agregar al crontab (escalonar 5 min respecto a otras empresas)
+crontab -e
+# Agregar: 15,45 * * * * /home/USER/ai-lab/scripts/sync-company.sh <slug> >> /home/USER/ai-lab/logs/sync-<slug>.log 2>&1
+
+# 4. Probar
+bash ~/ai-lab/scripts/sync-company.sh <slug>
+```
+
+Ver guía completa: `docs/SYNC_ENTRADAS_OUTPUTS.md`
+
+### H) Diferidos hasta que haya contenido
 - Cuaderno NLM propio (`nlm-sync.sh <id8> <notebook_id>`, mensual manual)
 - Push monitor en Kuma para su cron
 - Si va a manejar datos sensibles de clientes → evaluar sandbox provider (ADR #11)

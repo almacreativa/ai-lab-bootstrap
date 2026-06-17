@@ -1,0 +1,50 @@
+{
+  "slug": "miempresa",
+  "display_name": "Mi Empresa",
+  "company_id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+  "issue_prefix": "EMP",
+  "project_id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+
+  "knowledge_host_path": "/home/USER/ai-lab/knowledge/miempresa",
+  "container_knowledge_path": "/paperclip/instances/default/companies/COMPANY_ID/knowledge",
+  "wiki_container_path": "/paperclip/knowledge/companies/COMPANY_SHORT_ID/wiki",
+
+  "agents": [
+    {"name": "CEO",  "id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"},
+    {"name": "CSO",  "id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"},
+    {"name": "Analyst", "id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"}
+  ],
+
+  "ceo_agent_id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+
+  "entradas_routing": {
+    "default_agent_id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+    "rules": [
+      {
+        "keyword": "contenido",
+        "agent_id": "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+      }
+    ]
+  },
+
+  "extra_container_dirs": [
+    {
+      "container_path": "/paperclip/miempresa-deliverables",
+      "output_name": "miempresa-deliverables"
+    }
+  ],
+
+  "repo": {
+    "enabled": false,
+
+    "host_path": "/home/USER/dev/mi-repo",
+    "branch": "main",
+    "bot_authors": ["tubot@users.noreply.github.com"],
+    "sync_repo_to_container_dirs": ["fuentes", "contenidos"],
+    "sync_root_files": ["README.md", "plan-trabajo.md"],
+    "sync_container_to_repo_dirs": ["contenidos"],
+    "sync_entradas_from_repo": true,
+    "produccion_from_workspaces": true,
+    "sync_wiki_to_repo": true
+  }
+}
