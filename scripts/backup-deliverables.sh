@@ -54,7 +54,7 @@ while IFS='|' read -r agent_name agent_id company_prefix; do
   esac
 
   if docker exec "$CONTAINER" test -d "$src" 2>/dev/null; then
-    sync_dir "$agent_name" "$src" "$company_dest/$agent_name"
+    sync_dir "${company_prefix}-${agent_name}" "$src" "$company_dest/$agent_name"
   fi
 done < <(docker exec "$DB_CONTAINER" psql -U paperclip -d paperclip -tA \
   -c "SELECT a.name, a.id, c.issue_prefix FROM agents a JOIN companies c ON c.id = a.company_id ORDER BY a.name;")

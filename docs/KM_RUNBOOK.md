@@ -32,6 +32,7 @@ Operacion, mantenimiento y recuperacion del sistema de conocimiento del lab.
 | Dom 1:30 | logrotate user-level | — |
 | Dom 2:00 | `weekly-ingest.sh <COMPANY_UUID_1>` (sesiones + deliverables + insights + AGENTS.md) | `~/ai-lab/logs/ingest-<COMPANY_UUID_1>.log` |
 | Dom 3:30 | `weekly-ingest.sh <COMPANY_UUID_3>` (solo deliverables — ver "atribucion") | `~/ai-lab/logs/ingest-<COMPANY_UUID_3>.log` |
+| Lun 9:00 | `maintenance-check.sh` (updates de hermes/opencode con ventana de estabilidad) | `~/ai-lab/logs/maintenance.log` |
 | Mensual MANUAL | `nlm-sync.sh <company> <notebook>` (cookies ~14 dias: `nlm login` antes) | — |
 
 **Atribucion de sesiones:** las sesiones de Claude Code/OpenCode/Hermes son fuentes DEL HOST

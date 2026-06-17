@@ -94,6 +94,7 @@ CAPAS DE ACCESO (solo lectura del curado):
 | Espejo de deliverables por empresa | `scripts/backup-deliverables.sh` |
 | Sync automático a Outline (espejo completo con jerarquía) | `scripts/sync-outline.sh` |
 | Sync semi-manual a NotebookLM | `scripts/nlm-sync.sh` |
+| Detección de updates con ventana de estabilidad + SearXNG | `scripts/maintenance-check.sh` |
 | Baseline de seguridad (UFW para bare metal — Docker se protege con binds) | `scripts/security-apply-sudo.sh` |
 
 ## Orden de implementación recomendado
