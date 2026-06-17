@@ -19,7 +19,7 @@ DB_CONTAINER="paperclip-db-1"            # nombre del contenedor de postgres
 CONFIG_DIR="${HOME}/ai-lab/stacks/sync-config"
 STATE_DIR="${HOME}/ai-lab/knowledge/.state"
 LOG_DIR="${HOME}/ai-lab/logs"
-SYNC_AUTHOR="${PCSYNC_AUTHOR:-"Operador Bot <bot@tuorganizacion.com>"}"  # autor de los commits automáticos
+SYNC_AUTHOR="${PCSYNC_AUTHOR:-Operador Bot <bot@tuorganizacion.com>}"  # autor de los commits automáticos (o exportar PCSYNC_AUTHOR)
 
 # ─── VALIDACIÓN DE ARGUMENTOS ──────────────────────────────────────────────────
 SLUG="${1:-}"
