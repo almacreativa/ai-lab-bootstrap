@@ -33,7 +33,8 @@ bash ~/ai-lab/scripts/onboard-company.sh "Mi Empresa"
 
 Automatiza: detección de UUID/prefijo, limpieza opcional de workspaces clonados,
 carpetas de knowledge, routing de espejos, mapa del ingest, cron escalonado,
-colecciones de Outline, doc de namespace Mem0, AGENTS.md esqueleto,
+colección de Outline (+ registro en .outline-collections.env),
+goal de empresa, doc de namespace Mem0, AGENTS.md esqueleto,
 plantilla S2 de empresa y esqueletos S3 por agente (promptTemplate). Todo idempotente.
 
 ## Pasos manuales (el script los imprime con valores ya resueltos)

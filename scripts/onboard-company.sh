@@ -106,17 +106,46 @@ def api(path, payload):
         data=json.dumps(payload).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     return json.load(urllib.request.urlopen(req))['data']
-existing = [c['name'] for c in api('collections.list', {"limit": 50})]
-for cname, desc in [(name, f"Documentación publicada de {name} ({id8})."),
-                    (f"Borrador — {name}", f"Propuestas de agentes de {name} pendientes de revisión.")]:
-    if cname not in existing:
-        c = api('collections.create', {"name": cname, "description": desc})
-        print(f"[onboard] Outline: colección '{cname}' → {c['id']}")
+existing = {c['name']: c['id'] for c in api('collections.list', {"limit": 50})}
+cname = name
+desc = f"Documentación publicada de {name} ({id8})."
+if cname not in existing:
+    c = api('collections.create', {"name": cname, "description": desc})
+    coll_id = c['id']
+    print(f"[onboard] Outline: colección '{cname}' → {coll_id}")
+else:
+    coll_id = existing[cname]
+    print(f"[onboard] Outline: '{cname}' ya existía → {coll_id}")
+import os
+env_file = os.path.expanduser("~/ai-lab/knowledge/.outline-collections.env")
+entry = f"OUTLINE_{id8}={coll_id}"
+if os.path.exists(env_file):
+    content = open(env_file).read()
+    if f"OUTLINE_{id8}=" not in content:
+        open(env_file, 'a').write(f"\n{entry}\n")
+        print(f"[onboard] .outline-collections.env: {entry} agregado")
     else:
-        print(f"[onboard] Outline: '{cname}' ya existía")
+        print(f"[onboard] .outline-collections.env: OUTLINE_{id8} ya existía")
+else:
+    open(env_file, 'w').write(f"{entry}\n")
+    print(f"[onboard] .outline-collections.env creado con {entry}")
 PYEOF
 else
-  log "⚠️  Outline .apikey no encontrada — crear colecciones '$NAME' y 'Borrador — $NAME' a mano"
+  log "⚠️  Outline .apikey no encontrada — crear colección '$NAME' a mano y registrar UUID en .outline-collections.env"
+fi
+
+# ── 7.5 Goal de empresa en Paperclip ─────────────────────────────────────────
+GOAL_EXISTS=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -tA \
+  -c "SELECT count(*) FROM goals WHERE company_id = '$UUID' AND level = 'company';")
+if [ "$GOAL_EXISTS" = "0" ]; then
+  docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+    INSERT INTO goals (id, company_id, title, level, status, created_at, updated_at)
+    VALUES (gen_random_uuid(), '$UUID',
+      '[COMPLETAR: misión general de $NAME — qué hace, para quién, qué la diferencia]',
+      'company', 'active', now(), now());" >/dev/null
+  log "Goal de empresa creado (esqueleto) → COMPLETAR el título con la misión real ✓"
+else
+  log "Goal de empresa ya existe ✓"
 fi
 
 # ── 8. Convención Mem0 (documentar el namespace) ─────────────────────────────
@@ -188,7 +217,6 @@ Prefijo de issues: \`$PREFIX\`.
 - Todo en español. Commits firmados solo por el equipo, sin co-author de IA.
 - NUNCA credenciales en wiki, memorias ni deliverables.
 - Aislamiento: prohibido leer/referenciar datos de otras empresas.
-- Propuestas a la wiki pública: SOLO en la colección "Borrador — $NAME".
 EOF
   log "AGENTS.md esqueleto creado → COMPLETAR la sección 'Qué es' ✓"
 fi
@@ -218,6 +246,9 @@ D) Instrucciones de los agentes de $NAME (UI): pegar el snippet de contexto
    (ver docs/ONBOARDING_EMPRESA.md §D) con company_$ID8.
 
 E) Completar AGENTS.md: $AGMD
+
+E2) Completar el goal de empresa en Paperclip (UI o DB):
+    editar el título del goal con la misión real de $NAME.
 
 F) Smoke test: tarea a un agente — leer AGENTS.md + wiki_write_page + Mem0.
 
