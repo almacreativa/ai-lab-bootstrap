@@ -182,6 +182,111 @@ BCEOF
 chmod +x "$LAB_DIR/scripts/paperclip-boot-cleanup.sh"
 fi
 
+# Health-check: repara redes Docker faltantes (p. ej. tras un reinicio en frío,
+# uptime-kuma puede perder su conexión a mem0_default/paperclip_default y
+# reportar Ollama/Mem0 como caídos aunque estén sanos) y reinicia contenedores
+# que no respondan en su endpoint HTTP.
+if [ -f "$LAB_DIR/scripts/lab-health-check.sh" ]; then
+  log "lab-health-check.sh ya existe — no se sobreescribe."
+else
+cat > "$LAB_DIR/scripts/lab-health-check.sh" << 'HCEOF'
+#!/usr/bin/env bash
+# lab-health-check.sh — Verifica que cada contenedor del lab esté arriba y
+# conectado a las redes Docker que necesita; reconecta/reinicia si no.
+# Cron sugerido: @reboot (con sleep) + cada 10-15 min para detectar drift.
+
+set -uo pipefail
+
+LOG="$HOME/ai-lab/logs/lab-health.log"
+NOTIFY_SCRIPT="$HOME/ai-lab/scripts/telegram-notify.sh"
+ENV_FILE="$HOME/.hermes/.env"
+
+mkdir -p "$(dirname "$LOG")"
+exec >> "$LOG" 2>&1
+echo "=== lab-health-check $(date -u '+%Y-%m-%d %H:%M UTC') ==="
+
+CHAT_ID=""
+if [[ -f "$ENV_FILE" ]]; then
+  CHAT_ID=$(grep -E '^TELEGRAM_CHAT_ID=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 || true)
+  [[ -z "$CHAT_ID" ]] && \
+    CHAT_ID=$(grep -E '^TELEGRAM_ALLOWED_USERS=' "$ENV_FILE" 2>/dev/null | cut -d= -f2 | cut -d, -f1 || true)
+fi
+
+ISSUES=()
+
+notify() {
+  local msg="$1"
+  echo "[NOTIFY] $msg"
+  if [[ -n "$CHAT_ID" && -x "$NOTIFY_SCRIPT" ]]; then
+    TELEGRAM_CHAT_ID="$CHAT_ID" "$NOTIFY_SCRIPT" "$msg" "WARN" 2>/dev/null || true
+  fi
+}
+
+container_networks() {
+  docker inspect "$1" --format '{{json .NetworkSettings.Networks}}' 2>/dev/null \
+    | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin).keys()))" 2>/dev/null
+}
+
+# Mapa declarativo: contenedor -> redes requeridas (según docs/SERVICIOS.md)
+declare -A REQUIRED_NETWORKS=(
+  [uptime-kuma]="outline_default mem0_default paperclip_default"
+  [mem0]="mem0_default paperclip_default"
+  [ollama]="mem0_default"
+)
+
+for container in "${!REQUIRED_NETWORKS[@]}"; do
+  if ! docker ps --format '{{.Names}}' | grep -qx "$container"; then
+    if docker ps -a --format '{{.Names}}' | grep -qx "$container"; then
+      echo "  $container existe pero no está corriendo — iniciando..."
+      docker start "$container" >/dev/null 2>&1
+      ISSUES+=("$container estaba detenido — se inició")
+    else
+      echo "  $container no existe — fuera de alcance de este script"
+      continue
+    fi
+  fi
+
+  current=$(container_networks "$container")
+  for net in ${REQUIRED_NETWORKS[$container]}; do
+    if ! echo " $current " | grep -q " $net "; then
+      echo "  $container: falta red $net — conectando..."
+      if docker network connect "$net" "$container" 2>&1; then
+        ISSUES+=("$container reconectado a red $net")
+      else
+        ISSUES+=("$container: fallo al conectar a $net")
+      fi
+    fi
+  done
+done
+
+# Endpoints HTTP a verificar tras el saneo de redes (host networking)
+declare -A HEALTH_URLS=(
+  [mem0]="http://127.0.0.1:8765/health"
+  [ollama]="http://127.0.0.1:11434/api/tags"
+)
+
+for container in "${!HEALTH_URLS[@]}"; do
+  url="${HEALTH_URLS[$container]}"
+  if ! curl -sf --max-time 5 "$url" >/dev/null 2>&1; then
+    echo "  $container: no responde en $url — reiniciando contenedor..."
+    docker restart "$container" >/dev/null 2>&1
+    ISSUES+=("$container no respondía en $url — se reinició")
+  fi
+done
+
+if [[ ${#ISSUES[@]} -gt 0 ]]; then
+  SUMMARY="🔧 lab-health-check encontró y corrigió:
+$(printf '  • %s\n' "${ISSUES[@]}")"
+  notify "$SUMMARY"
+else
+  echo "  Todo sano. Sin acciones."
+fi
+
+echo "=== fin $(date -u '+%H:%M UTC') ==="
+HCEOF
+chmod +x "$LAB_DIR/scripts/lab-health-check.sh"
+fi
+
 # Registrar cron jobs (solo si no existen ya)
 CRON_CHANGED=false
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
@@ -199,6 +304,8 @@ add_cron_if_missing "paperclip-watchdog" "*/15 * * * * $LAB_DIR/scripts/papercli
 add_cron_if_missing "paperclip-boot-cleanup" "@reboot $LAB_DIR/scripts/paperclip-boot-cleanup.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"
 add_cron_if_missing "lab-session.sh --boot" "@reboot sleep 15 && $LAB_DIR/scripts/lab-session.sh --boot"
 add_cron_if_missing "find /tmp -name" "0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null"
+add_cron_if_missing "lab-health-check.sh" "@reboot sleep 60 && $LAB_DIR/scripts/lab-health-check.sh
+*/15 * * * * $LAB_DIR/scripts/lab-health-check.sh"
 
 if [ "$CRON_CHANGED" = true ]; then
   echo "$CURRENT_CRON" | crontab -
