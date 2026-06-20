@@ -19,8 +19,11 @@ sudo apt install -y \
   lsb-release \
   xvfb
 
-# Docker CE (oficial)
-if ! command -v docker &>/dev/null; then
+# Docker CE (oficial) — en WSL2 se omite: Docker Desktop del host Windows
+# ya expone el daemon via integración WSL2 (ver bootstrap-windows.ps1)
+if [ -n "$WSL_DISTRO_NAME" ]; then
+  log "WSL2 detectado — saltando Docker CE (usar integración WSL2 de Docker Desktop)."
+elif ! command -v docker &>/dev/null; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
     | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -40,8 +43,10 @@ else
   log "Docker ya instalado, saltando."
 fi
 
-# Tailscale
-if ! command -v tailscale &>/dev/null; then
+# Tailscale — en WSL2 se omite: correr desde el host Windows (mejor soporte de red)
+if [ -n "$WSL_DISTRO_NAME" ]; then
+  log "WSL2 detectado — saltando Tailscale (usar la instalación del host Windows)."
+elif ! command -v tailscale &>/dev/null; then
   curl -fsSL https://tailscale.com/install.sh | sh
   log "Tailscale instalado — activar manualmente al final: sudo tailscale up"
 else
@@ -62,17 +67,24 @@ else
   log "gh ya instalado, saltando."
 fi
 
-# SSH hardening + keepalive para detección de conexiones muertas
-sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo sed -i 's/^#*TCPKeepAlive.*/TCPKeepAlive yes/' /etc/ssh/sshd_config
-sudo sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 30/' /etc/ssh/sshd_config
-sudo sed -i 's/^#*ClientAliveCountMax.*/ClientAliveCountMax 3/' /etc/ssh/sshd_config
-sudo systemctl reload ssh
-log "SSH hardening aplicado (keepalive 30s, sin root, sin password)."
+# SSH hardening + keepalive — en WSL2 se omite: el acceso remoto entra por el
+# OpenSSH Server del host Windows, no por uno dentro de la distro
+if [ -n "$WSL_DISTRO_NAME" ]; then
+  log "WSL2 detectado — saltando SSH hardening (gestionado por el host Windows)."
+else
+  sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+  sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+  sudo sed -i 's/^#*TCPKeepAlive.*/TCPKeepAlive yes/' /etc/ssh/sshd_config
+  sudo sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 30/' /etc/ssh/sshd_config
+  sudo sed -i 's/^#*ClientAliveCountMax.*/ClientAliveCountMax 3/' /etc/ssh/sshd_config
+  sudo systemctl reload ssh
+  log "SSH hardening aplicado (keepalive 30s, sin root, sin password)."
+fi
 
-# Syncthing — sincronización P2P de knowledge/ con otros dispositivos
-if ! command -v syncthing &>/dev/null; then
+# Syncthing — en WSL2 se omite: correr desde el host Windows (acceso de red más simple)
+if [ -n "$WSL_DISTRO_NAME" ]; then
+  log "WSL2 detectado — saltando Syncthing (usar la instalación del host Windows)."
+elif ! command -v syncthing &>/dev/null; then
   curl -s https://syncthing.net/release-key.txt \
     | sudo gpg --dearmor -o /etc/apt/keyrings/syncthing.gpg
   echo "deb [signed-by=/etc/apt/keyrings/syncthing.gpg] https://apt.syncthing.net/ syncthing stable" \

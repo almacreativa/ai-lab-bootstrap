@@ -4,7 +4,15 @@
 log "Paso 4/6 — Herramientas AI..."
 
 # Chromium — necesario para logins headless via CDP (nlm, OAuth flows)
-if ! snap list chromium &>/dev/null 2>&1; then
+# snap no es confiable dentro de WSL2 (squashfs/AppArmor) — usar apt ahí
+if [ -n "$WSL_DISTRO_NAME" ]; then
+  if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
+    sudo apt install -y chromium-browser || sudo apt install -y chromium
+    log "Chromium instalado via apt (WSL2)."
+  else
+    log "Chromium ya instalado, saltando."
+  fi
+elif ! snap list chromium &>/dev/null 2>&1; then
   sudo snap install chromium
   log "Chromium instalado via snap."
 else

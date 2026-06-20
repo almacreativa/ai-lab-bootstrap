@@ -97,19 +97,67 @@ bash bootstrap-macos.sh
 
 ---
 
+## Windows 11
+
+Hay una variante para Windows 11, pensada también para desarrollo/testing. A diferencia de macOS y Linux, **no es un port directo a PowerShell** — el stack completo de agentes corre dentro de **WSL2 con Ubuntu**, y el host Windows solo aporta Docker Desktop + apps GUI (Tailscale, Syncthing). Esta decisión está respaldada por research: Claude Code en Windows nativo (sin WSL2) tiene fallos documentados — BSOD con HVCI activado y cascadas OOM por fan-out de subprocesos en tareas con subagentes.
+
+```powershell
+# PowerShell como Administrador
+git clone https://github.com/almacreativa/ai-lab-bootstrap.git
+cd ai-lab-bootstrap
+.\bootstrap-windows.ps1
+```
+
+El script del host (`bootstrap-windows.ps1`) hace tres cosas:
+1. Instala prerrequisitos via **WinGet** (Docker Desktop con backend WSL2, Git, GitHub CLI, Tailscale, Syncthing, Chromium) y habilita long paths
+2. Provisiona **WSL2 + Ubuntu**, habilita `systemd` en `/etc/wsl.conf` (necesario para reusar `hermes.service` tal cual), clona el repo dentro de la distro y ejecuta **el mismo `bootstrap.sh` de Linux** dentro de WSL2
+3. Imprime las instrucciones manuales finales
+
+### Por qué WSL2 y no PowerShell nativo
+
+| Aspecto | Decisión | Motivo |
+|---|---|---|
+| Entorno de ejecución | WSL2 + Ubuntu | Evita BSOD (#61614, HVCI) y cascadas OOM de Claude Code en Windows nativo |
+| Docker | Docker Desktop en el host, backend `wsl-2`, integración WSL2 activada | No se duplica el daemon dentro de la distro |
+| Servicio de Hermes | `systemd` dentro de WSL2 (reusa `hermes.service` sin cambios) | WSL2 en Windows 11 soporta systemd nativo — evita NSSM (sin mantenimiento desde 2014) y WinSW (abandonado) |
+| Gestor de paquetes (host) | WinGet | Estándar oficial Microsoft, soporta instalación desatendida |
+| Tailscale / Syncthing / SSH | Se instalan en el **host** Windows, no dentro de WSL2 | Mejor soporte de red y persistencia; `modules/01-system.sh` detecta `$WSL_DISTRO_NAME` y los salta automáticamente |
+| Chromium (para nlm) | WinGet en el host, o apt dentro de WSL2 si hay WSLg | Login con navegador real, igual que en macOS |
+
+### Variable opcional
+
+```powershell
+$env:LAB_INSTALL_SSH_SERVER = "true"   # solo si esta máquina debe aceptar SSH remoto
+.\bootstrap-windows.ps1
+```
+
+### Limitaciones conocidas
+
+- Si la máquina se suspende (sleep), WSL2 y sus servicios `systemd` se detienen — no es un servidor 24/7 salvo que quede siempre encendida.
+- WSL2 no arranca solo al boot de Windows — el módulo de post-install incluye el `Register-ScheduledTask` necesario para autoarrancar la distro al iniciar sesión.
+- Sin acceso a una máquina Windows real durante el desarrollo de este script — la sintaxis de los `.ps1` se revisó manualmente (balance de llaves/paréntesis) pero **no se ejecutó de punta a punta**. Probar módulo por módulo antes de confiar en él para un setup real.
+
+---
+
 ## Estructura del repo
 
 ```
 bootstrap.sh            ← script principal Linux (sourcea los módulos)
 bootstrap-macos.sh      ← script principal macOS (sourcea modules/macos/)
+bootstrap-windows.ps1   ← script principal Windows host (sourcea modules/windows-host/)
 modules/
 ├── 01-system.sh        ← apt, Docker CE, Tailscale, GitHub CLI, SSH hardening
+│                          (detecta $WSL_DISTRO_NAME y se adapta para WSL2)
 ├── 02-node.sh          ← NVM + Node 24 + Gemini CLI
 ├── 03-python.sh        ← uv, Hermes venv, notebooklm-mcp-cli
 ├── 04-ai-tools.sh      ← Chromium, Opencode, aliases .bashrc
 ├── 05-docker-stack.sh  ← red ai-lab, Portainer, repos, Hermes service
 ├── 06-post-install.sh  ← instrucciones de pasos manuales finales
-└── macos/              ← equivalentes 01-06 para macOS (Homebrew, launchd, etc.)
+├── macos/              ← equivalentes 01-06 para macOS (Homebrew, launchd, etc.)
+└── windows-host/
+    ├── 01-host-prereqs.ps1   ← long paths, WSL2, WinGet packages, OpenSSH Server opcional
+    ├── 02-wsl-provision.ps1  ← provisiona Ubuntu en WSL2 y corre bootstrap.sh adentro
+    └── 03-post-install.ps1   ← instrucciones de pasos manuales finales (host + WSL2)
 templates/
 ├── hermes.env.example      ← secrets de Hermes Agent
 ├── agents.env.example      ← API keys para agentes
