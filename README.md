@@ -30,7 +30,7 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 
 ## Requisitos
 
-- Ubuntu Server 24.04 LTS (limpio)
+- Ubuntu Server 24.04 LTS (limpio) — o macOS (ver sección abajo)
 - Usuario con acceso `sudo`
 - Conexión a internet
 
@@ -60,24 +60,65 @@ bash bootstrap.sh
 
 ---
 
+## macOS
+
+Hay una variante equivalente para correr el lab en macOS (Sonoma/Sequoia), pensada para desarrollo/testing — no como servidor productivo 24/7 salvo que el Mac quede siempre encendido.
+
+```bash
+git clone https://github.com/almacreativa/ai-lab-bootstrap.git
+cd ai-lab-bootstrap
+bash bootstrap-macos.sh
+```
+
+### Diferencias clave vs. Linux
+
+| Aspecto | Linux (`bootstrap.sh`) | macOS (`bootstrap-macos.sh`) |
+|---|---|---|
+| Gestor de paquetes | apt | Homebrew |
+| Docker | Docker CE (daemon nativo) | Docker Desktop (requiere abrirse 1 vez) |
+| Servicio de Hermes | systemd (`hermes.service`) | launchd LaunchAgent (`com.almacreativa.hermes.plist`) |
+| SSH hardening | sshd_config + `systemctl reload ssh` | sshd_config + `systemsetup -setremotelogin` + `launchctl kickstart` |
+| Login de nlm (NotebookLM) | Headless via Xvfb + túnel CDP (sin pantalla) | Navegador real, sin Xvfb ni túnel — más simple |
+| Chromium | `snap install chromium` | `brew install --cask chromium` |
+| Cron `@reboot` | Dispara siempre al boot | Solo dispara en reinicio real, no al despertar de sleep |
+| Shell rc para aliases | `.bashrc` | `.zshrc` (o `.bash_profile` si usas bash) |
+
+### Variables configurables (iguales en ambas variantes)
+
+```bash
+export LAB_USER="miusuario"
+export LAB_DIR="$HOME/ai-lab"
+export INSTALL_PAPERCLIP=true
+export INSTALL_HERMES=true
+export INSTALL_NLM=true
+
+bash bootstrap-macos.sh
+```
+
+---
+
 ## Estructura del repo
 
 ```
-bootstrap.sh            ← script principal (sourcea los módulos)
+bootstrap.sh            ← script principal Linux (sourcea los módulos)
+bootstrap-macos.sh      ← script principal macOS (sourcea modules/macos/)
 modules/
 ├── 01-system.sh        ← apt, Docker CE, Tailscale, GitHub CLI, SSH hardening
 ├── 02-node.sh          ← NVM + Node 24 + Gemini CLI
 ├── 03-python.sh        ← uv, Hermes venv, notebooklm-mcp-cli
 ├── 04-ai-tools.sh      ← Chromium, Opencode, aliases .bashrc
 ├── 05-docker-stack.sh  ← red ai-lab, Portainer, repos, Hermes service
-└── 06-post-install.sh  ← instrucciones de pasos manuales finales
+├── 06-post-install.sh  ← instrucciones de pasos manuales finales
+└── macos/              ← equivalentes 01-06 para macOS (Homebrew, launchd, etc.)
 templates/
 ├── hermes.env.example      ← secrets de Hermes Agent
 ├── agents.env.example      ← API keys para agentes
 └── paperclip.env.example   ← config de Paperclip
 configs/
-├── hermes.service          ← template systemd ({{LAB_USER}} como variable)
-├── hermes-start.sh         ← launcher de Hermes
+├── hermes.service              ← template systemd Linux ({{LAB_USER}} como variable)
+├── hermes-start.sh             ← launcher de Hermes (Linux)
+├── com.almacreativa.hermes.plist ← template launchd macOS ({{HOME}}, {{NODE_VERSION}})
+├── hermes-start-macos.sh       ← launcher de Hermes (macOS)
 ├── hermes-config.yaml.example  ← config completo de Hermes con comentarios
 ├── hermes-mcp-servers.yaml.example ← servidores MCP (Paperclip, Engram, NLM)
 └── crontab.example         ← crons típicos del lab (ingest, backups, polling)
