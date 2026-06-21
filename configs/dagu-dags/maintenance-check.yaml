@@ -1,0 +1,8 @@
+description: Chequeo semanal de mantenimiento del lab
+schedule: "0 9 * * 1"
+group: semanal
+
+steps:
+  - name: maintenance
+    run: ${SCRIPTS_DIR}/maintenance-check.sh
+    timeout_sec: 600

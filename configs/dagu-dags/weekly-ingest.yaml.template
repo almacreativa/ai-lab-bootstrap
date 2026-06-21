@@ -1,0 +1,27 @@
+# Template: ajustar empresas y UUIDs según tu instalación
+description: Ingest semanal secuencial por empresa
+schedule: "0 2 * * 0"
+group: semanal
+
+defaults:
+  retry_policy:
+    limit: 2
+    interval_sec: 120
+
+steps:
+  - name: ingest-company-a
+    run: ${SCRIPTS_DIR}/weekly-ingest.sh {{COMPANY_A_UUID}}
+    timeout_sec: 3600
+    continue_on:
+      failure: true
+
+  - name: ingest-company-b
+    run: ${SCRIPTS_DIR}/weekly-ingest.sh {{COMPANY_B_UUID}}
+    timeout_sec: 3600
+    depends: [ingest-company-a]
+    continue_on:
+      failure: true
+
+handler_on:
+  success:
+    run: ${SCRIPTS_DIR}/telegram-notify.sh "Weekly ingest completado" INFO

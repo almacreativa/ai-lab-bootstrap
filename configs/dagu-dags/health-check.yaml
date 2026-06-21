@@ -1,0 +1,8 @@
+description: Verifica contenedores Docker y reconecta redes caídas
+schedule: "*/15 * * * *"
+group: salud
+
+steps:
+  - name: health-check
+    run: ${SCRIPTS_DIR}/lab-health-check.sh
+    timeout_sec: 300

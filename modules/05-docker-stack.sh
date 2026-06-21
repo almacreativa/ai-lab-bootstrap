@@ -287,7 +287,58 @@ HCEOF
 chmod +x "$LAB_DIR/scripts/lab-health-check.sh"
 fi
 
-# Registrar cron jobs (solo si no existen ya)
+# ── Dagu (workflow orchestrator — reemplaza crontab) ──
+if ! command -v dagu &>/dev/null && [ ! -f "$HOME/.local/bin/dagu" ]; then
+  log "Instalando Dagu..."
+  curl -sSL https://raw.githubusercontent.com/dagu-org/dagu/main/scripts/installer.sh | bash
+  log "Dagu $(dagu version 2>/dev/null || echo 'instalado')."
+else
+  log "Dagu ya instalado ($(dagu version 2>/dev/null || echo "$HOME/.local/bin/dagu"))."
+fi
+
+# Dagu config
+mkdir -p "$HOME/.config/dagu/dags"
+DAGU_CONFIG_SRC="$SCRIPT_DIR/configs/dagu-config.yaml.example"
+DAGU_BASE_SRC="$SCRIPT_DIR/configs/dagu-base.yaml.example"
+DAGU_SERVICE_SRC="$SCRIPT_DIR/configs/dagu.service"
+
+if [ ! -f "$HOME/.config/dagu/config.yaml" ] && [ -f "$DAGU_CONFIG_SRC" ]; then
+  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
+  log "Dagu config.yaml creado."
+fi
+
+if [ ! -f "$HOME/.config/dagu/base.yaml" ] && [ -f "$DAGU_BASE_SRC" ]; then
+  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_BASE_SRC" > "$HOME/.config/dagu/base.yaml"
+  log "Dagu base.yaml creado."
+fi
+
+# Copiar DAGs base (no sobreescribe si ya existen)
+if [ -d "$SCRIPT_DIR/configs/dagu-dags" ]; then
+  for dag in "$SCRIPT_DIR/configs/dagu-dags"/*.yaml; do
+    dagname=$(basename "$dag")
+    if [ ! -f "$HOME/.config/dagu/dags/$dagname" ]; then
+      cp "$dag" "$HOME/.config/dagu/dags/$dagname"
+      log "DAG copiado: $dagname"
+    fi
+  done
+  log "DAGs base instalados. Templates (.template) requieren configuración manual."
+fi
+
+# Dagu systemd user service
+mkdir -p "$HOME/.config/systemd/user"
+if [ ! -f "$HOME/.config/systemd/user/dagu.service" ] && [ -f "$DAGU_SERVICE_SRC" ]; then
+  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+  systemctl --user daemon-reload
+  systemctl --user enable dagu.service
+  log "dagu.service instalado y habilitado (systemd user)."
+  warn "Iniciar con: systemctl --user start dagu"
+else
+  log "dagu.service ya existe — no se sobreescribe."
+fi
+
+# Crontab mínimo — solo lab-session (todo lo demás va en Dagu)
 CRON_CHANGED=false
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
 
@@ -300,18 +351,13 @@ $entry"
   fi
 }
 
-add_cron_if_missing "paperclip-watchdog" "*/15 * * * * $LAB_DIR/scripts/paperclip-watchdog.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"
-add_cron_if_missing "paperclip-boot-cleanup" "@reboot $LAB_DIR/scripts/paperclip-boot-cleanup.sh >> $LAB_DIR/scripts/watchdog.log 2>&1"
 add_cron_if_missing "lab-session.sh --boot" "@reboot sleep 15 && $LAB_DIR/scripts/lab-session.sh --boot"
-add_cron_if_missing "find /tmp -name" "0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null"
-add_cron_if_missing "lab-health-check.sh" "@reboot sleep 60 && $LAB_DIR/scripts/lab-health-check.sh
-*/15 * * * * $LAB_DIR/scripts/lab-health-check.sh"
 
 if [ "$CRON_CHANGED" = true ]; then
   echo "$CURRENT_CRON" | crontab -
-  log "Cron jobs del lab agregados (sin tocar los existentes)."
+  log "Crontab mínimo instalado (solo lab-session @reboot — el resto va en Dagu)."
 else
-  log "Cron jobs del lab ya existen — no se modifican."
+  log "Crontab ya configurado."
 fi
 log "Scripts operativos verificados en $LAB_DIR/scripts/"
 

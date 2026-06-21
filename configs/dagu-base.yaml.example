@@ -1,0 +1,21 @@
+# Dagu base configuration — inherited by all DAGs
+# Copy to ~/.config/dagu/base.yaml
+# All DAGs inherit these settings; individual DAGs can override any field.
+
+type: graph
+overlap_policy: skip
+log_output: merged
+hist_retention_days: 30
+max_clean_up_time_sec: 5
+catchup_window: "6h"
+
+dotenv:
+  - /home/{{LAB_USER}}/.hermes/.env
+
+env:
+  - SCRIPTS_DIR: /home/{{LAB_USER}}/ai-lab/scripts
+  - LOG_DIR: /home/{{LAB_USER}}/ai-lab/logs
+
+handler_on:
+  failure:
+    run: /home/{{LAB_USER}}/ai-lab/scripts/telegram-notify.sh "DAG ${DAG_NAME} falló (run ${DAG_RUN_ID})" CRITICAL

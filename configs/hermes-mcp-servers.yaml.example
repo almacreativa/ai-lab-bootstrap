@@ -37,6 +37,15 @@ mcp_servers:
   #   args:
   #     - $HOME/ai-lab/scripts/paperclip-mcp-company-c.sh
 
+  # --- Dagu MCP (workflow orchestrator) ---
+  # Bridge stdio: gets fresh JWT then runs mcp-proxy
+  # Requires: DAGU_AUTH_USER + DAGU_AUTH_PASS in ~/.hermes/.env
+  # Requires: uvx (uv) installed for mcp-proxy
+  dagu:
+    command: bash
+    args:
+      - $HOME/ai-lab/scripts/dagu-mcp.sh
+
 # =============================================================================
 # Paperclip MCP wrapper script template (paperclip-mcp-company-X.sh):
 # =============================================================================

@@ -1,0 +1,8 @@
+description: Limpia .so y temporales en /tmp
+schedule: "0 * * * *"
+group: mantenimiento
+
+steps:
+  - name: cleanup
+    run: ${SCRIPTS_DIR}/cleanup-tmp.sh
+    timeout_sec: 120

@@ -1,0 +1,14 @@
+[Unit]
+Description=Dagu Workflow Orchestrator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/{{LAB_USER}}/.local/bin/dagu start-all --config=/home/{{LAB_USER}}/.config/dagu/config.yaml
+Restart=always
+RestartSec=10
+Environment=HOME=/home/{{LAB_USER}}
+
+[Install]
+WantedBy=default.target

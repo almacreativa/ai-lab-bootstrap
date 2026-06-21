@@ -1,0 +1,8 @@
+description: Rotación de logs user-level
+schedule: "30 1 * * 0"
+group: mantenimiento
+
+steps:
+  - name: logrotate
+    run: /usr/sbin/logrotate --state ${HOME}/.local/state/logrotate.state ${HOME}/ai-lab/logrotate.conf
+    timeout_sec: 120

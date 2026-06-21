@@ -1,40 +1,32 @@
 # =============================================================================
 # Example crontab for AI Lab infrastructure
-# Replace placeholders with your actual values before installing
-# Install with: crontab crontab.example
+# NOTA: Desde v1.5.0 todas las tareas recurrentes se gestionan con Dagu
+# (orquestador YAML en ~/.config/dagu/dags/). Este archivo es solo referencia.
+#
+# El único crontab activo en producción es:
+#   @reboot sleep 15 && $HOME/ai-lab/scripts/lab-session.sh --boot
+#
+# Para migrar: crear DAG YAML equivalente en ~/.config/dagu/dags/
+# Docs: docs/DAGU_OPERACION.md en el repo i7local-lab
 # =============================================================================
 
-# --- Cleanup: OpenCode libopentui.so temp files (prevents ENOSPC) ---
-0 * * * * find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete 2>/dev/null
-
-# --- Paperclip container watchdog (restart if unhealthy) ---
-*/15 * * * * $HOME/ai-lab/scripts/paperclip-watchdog.sh >> $HOME/ai-lab/scripts/watchdog.log 2>&1
-
-# --- Deliverables backup (adapt path to your project) ---
-0 */2 * * * $HOME/<PROJECT_DIR>/ops/backup-deliverables.sh >> $HOME/<PROJECT_DIR>/ops/backup.log 2>&1
-
-# --- Paperclip boot cleanup (on server restart) ---
-@reboot $HOME/ai-lab/scripts/paperclip-boot-cleanup.sh >> $HOME/ai-lab/scripts/watchdog.log 2>&1
-
-# --- Lab session auto-start on reboot ---
+# --- Lab session auto-start on reboot (ÚNICO cron activo) ---
 @reboot sleep 15 && $HOME/ai-lab/scripts/lab-session.sh --boot
 
-# --- Weekly knowledge ingestion per company (stagger to avoid overlap) ---
-# Company A
-0 2 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_A_UUID> >> $HOME/ai-lab/logs/ingest-company-a.log 2>&1
-# Company B
-30 3 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_B_UUID> >> $HOME/ai-lab/logs/ingest-company-b.log 2>&1
-# Company C
-0 4 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <COMPANY_C_UUID> >> $HOME/ai-lab/logs/ingest-company-c.log 2>&1
-
-# --- Log rotation ---
-30 1 * * 0 /usr/sbin/logrotate --state $HOME/.local/state/logrotate.state $HOME/ai-lab/logrotate.conf
-
-# --- NotebookLM gateway auto-start ---
-@reboot sleep 20 && $HOME/ai-lab/stacks/nlm-gateway/start.sh >> $HOME/ai-lab/logs/nlm-gateway.log 2>&1
-
-# --- Periodic knowledge sync (adapt for your companies) ---
-*/30 * * * * $HOME/ai-lab/scripts/sync-knowledge.sh >> $HOME/ai-lab/logs/sync-knowledge.log 2>&1
-
-# --- Weekly maintenance check ---
-0 9 * * 1 $HOME/ai-lab/scripts/maintenance-check.sh >> $HOME/ai-lab/logs/maintenance.log 2>&1
+# =============================================================================
+# LEGACY — las siguientes entradas están migradas a DAGs en Dagu.
+# Se mantienen como referencia del mapeo crontab → DAG.
+#
+# crontab entry                          → DAG equivalente
+# ─────────────────────────────────────────────────────────
+# */15 * * * * paperclip-watchdog.sh     → paperclip-watchdog.yaml
+# */15 * * * * lab-health-check.sh       → health-check.yaml
+# 0 * * * * find /tmp -name '*.so'...   → cleanup-tmp.yaml
+# */30 * * * * sync-company.sh           → sync-katun/alma/expansia.yaml
+# 0 */2 * * * backup-deliverables.sh    → backup-deliverables.yaml (ahora c/6h)
+# 0 2 * * 0 weekly-ingest.sh            → weekly-ingest.yaml
+# 30 1 * * 0 logrotate                  → logrotate.yaml
+# 0 9 * * 1 maintenance-check.sh        → maintenance-check.yaml
+# @reboot paperclip-boot-cleanup.sh     → paperclip-boot-cleanup.service (systemd)
+# @reboot nlm-gateway                   → nlm-gateway.service (systemd)
+# =============================================================================

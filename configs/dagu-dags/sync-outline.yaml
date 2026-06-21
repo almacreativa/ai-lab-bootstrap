@@ -1,0 +1,11 @@
+description: Espejo completo del knowledge a Outline
+schedule: "15,45 * * * *"
+group: sync
+
+steps:
+  - name: sync-outline
+    run: ${SCRIPTS_DIR}/sync-outline.sh --all
+    timeout_sec: 600
+    retry_policy:
+      limit: 1
+      interval_sec: 30

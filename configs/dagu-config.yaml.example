@@ -1,0 +1,19 @@
+# Dagu server configuration
+# Copy to ~/.config/dagu/config.yaml and adjust host/port
+# Docs: https://dagu.readthedocs.io/
+
+host: 0.0.0.0
+port: 8480
+dags_dir: /home/{{LAB_USER}}/.config/dagu/dags
+base_config: /home/{{LAB_USER}}/.config/dagu/base.yaml
+default_shell: /bin/bash
+tz: America/Costa_Rica
+auth:
+  mode: builtin
+ui:
+  navbar_title: "i7local Lab"
+  navbar_color: "#1a1a2e"
+env_passthrough_prefixes:
+  - TELEGRAM_
+  - PAPERCLIP_
+  - DAGU_

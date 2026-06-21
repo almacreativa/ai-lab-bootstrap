@@ -1,0 +1,13 @@
+# Template: copiar como sync-<empresa>.yaml y ajustar schedule
+# Escalonar +5 min del anterior para evitar overlap en docker exec
+description: "Sync entradas/salidas empresa {{COMPANY}}"
+schedule: "{{SCHEDULE}}"
+group: sync
+
+steps:
+  - name: sync
+    run: ${SCRIPTS_DIR}/sync-company.sh {{COMPANY_SLUG}}
+    timeout_sec: 600
+    retry_policy:
+      limit: 1
+      interval_sec: 30

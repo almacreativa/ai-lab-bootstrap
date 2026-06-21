@@ -1,0 +1,8 @@
+description: Mata heartbeats zombies de Paperclip (>10 min sin output)
+schedule: "*/15 * * * *"
+group: salud
+
+steps:
+  - name: watchdog
+    run: ${SCRIPTS_DIR}/paperclip-watchdog.sh
+    timeout_sec: 120

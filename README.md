@@ -20,6 +20,7 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 | notebooklm-mcp-cli | Servidor MCP para Google NotebookLM |
 | Chromium + Xvfb | Logins headless via CDP (sin pantalla física) |
 | Opencode | IDE AI en terminal |
+| Dagu v2.8.2 | Orquestador de tareas YAML — reemplaza crontab (UI, retry, logs, MCP) |
 | Portainer | UI web para gestión Docker |
 | Paperclip | Frontend AI con múltiples providers |
 | SearXNG | Motor de búsqueda self-hosted — backend nativo de Hermes |
@@ -168,8 +169,12 @@ configs/
 ├── com.almacreativa.hermes.plist ← template launchd macOS ({{HOME}}, {{NODE_VERSION}})
 ├── hermes-start-macos.sh       ← launcher de Hermes (macOS)
 ├── hermes-config.yaml.example  ← config completo de Hermes con comentarios
-├── hermes-mcp-servers.yaml.example ← servidores MCP (Paperclip, Engram, NLM)
-└── crontab.example         ← crons típicos del lab (ingest, backups, polling)
+├── hermes-mcp-servers.yaml.example ← servidores MCP (Paperclip, Dagu, NLM)
+├── dagu.service                ← template systemd user para Dagu
+├── dagu-config.yaml.example    ← config del servidor Dagu
+├── dagu-base.yaml.example      ← config base heredada por todos los DAGs
+├── dagu-dags/                  ← DAGs base + templates por empresa
+└── crontab.example         ← referencia legacy (migrado a Dagu)
 scripts/
 ├── onboard-company.sh      ← alta de empresa completa (DB + dirs + crons)
 ├── deploy-agent-prompts.sh ← deploy de promptTemplate (S1+S2+S3 → DB)
@@ -184,7 +189,9 @@ scripts/
 ├── nlm-sync.sh             ← sync de knowledge a NotebookLM
 ├── security-apply-sudo.sh  ← baseline de seguridad UFW
 ├── telegram-notify.sh      ← envío de notificaciones via Telegram
-└── cleanup-tmp.sh          ← limpieza de archivos temporales
+├── cleanup-tmp.sh          ← limpieza de archivos temporales
+├── dagu-mcp.sh             ← bridge stdio→HTTP para Dagu MCP (JWT + mcp-proxy)
+└── lab-daily-briefing.sh   ← briefing diario de infra (no-agent → agent si alertas)
 skills/                     ← skills de Hermes (plantillas genéricas)
 ├── devops/paperclip/       ← operación de Paperclip (routines, heartbeat, DB)
 ├── wiki-ingest/            ← destilación de sesiones → wiki knowledge
@@ -506,10 +513,53 @@ bash scripts/paperclip-notify-done.sh        # formato legible para Telegram
 
 ---
 
+## Dagu — orquestador de tareas (reemplaza crontab)
+
+Dagu v2.8.2 gestiona todas las tareas recurrentes del lab como DAGs declarativos en YAML.
+Web UI con logs, historial, retry automático y notificaciones a Telegram.
+
+### Tres capas de automatización
+
+| Capa | Qué ejecuta | Gestión |
+|------|-------------|---------|
+| **Dagu** | Scripts bash recurrentes (sync, health, backup, ingest) | `~/.config/dagu/dags/*.yaml` + UI |
+| **Hermes crons** | Tareas con LLM o scripts que necesitan contexto Hermes | `hermes cron list/add` |
+| **systemd** | Procesos persistentes y boot (dagu, nlm-gateway, hermes) | `systemctl` |
+
+### Crear un DAG nuevo
+
+```bash
+# 1. Crear YAML (usar templates de configs/dagu-dags/ como referencia)
+vi ~/.config/dagu/dags/mi-tarea.yaml
+
+# 2. Validar
+dagu validate ~/.config/dagu/dags/mi-tarea.yaml
+
+# 3. Probar
+dagu start ~/.config/dagu/dags/mi-tarea.yaml
+
+# 4. Verificar en UI: http://<TAILSCALE_IP>:8480
+```
+
+### Hermes ↔ Dagu MCP
+
+Hermes se conecta a Dagu via MCP para tener visibilidad de la infraestructura:
+
+```
+Hermes → dagu-mcp.sh (JWT fresco) → mcp-proxy (stdio→HTTP) → Dagu /mcp
+```
+
+Tools disponibles: `mcp_dagu_read`, `mcp_dagu_execute`, `mcp_dagu_change`.
+El `lab-daily-briefing.sh` corre diario como cron de Hermes (no-agent) y dispara
+análisis inteligente si detecta anomalías.
+
+---
+
 ## Decisiones de diseño
 
 | Decisión | Motivo |
 |---|---|
+| Dagu en lugar de crontab | UI con logs/retry/dependencias, MCP nativo para Hermes, YAML declarativo |
 | Sin modelos locales (Ollama) | Sin GPU requerida — inferencia delegada a APIs externas |
 | Hermes bare metal (no Docker) | Acceso nativo a herramientas del host (claude, opencode, gh) |
 | Docker para agentes PoC | Aislamiento — un agente que falle no rompe el host |
