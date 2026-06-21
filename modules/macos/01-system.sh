@@ -1,5 +1,5 @@
 #!/bin/bash
-# Módulo 01 (macOS) — Homebrew, Docker Desktop, Tailscale, GitHub CLI, SSH, Syncthing
+# Módulo 01 (macOS) — Homebrew, PostgreSQL 17, Tailscale, GitHub CLI, SSH, Syncthing
 
 log "Paso 1/6 — Sistema base (macOS)..."
 
@@ -20,14 +20,27 @@ brew update -q
 
 brew install -q git curl wget tmux gnupg || true
 
-# Docker Desktop
-if ! command -v docker &>/dev/null; then
-  brew install --cask docker
-  log "Docker Desktop instalado — abrirlo manualmente al menos una vez: open -a Docker"
-  warn "Docker Desktop requiere abrirse y aceptar permisos antes de poder usar 'docker' en terminal."
+# PostgreSQL 17 nativo (reemplaza Docker)
+if ! brew list postgresql@17 &>/dev/null 2>&1; then
+  brew install -q postgresql@17
+  log "PostgreSQL 17 instalado via Homebrew."
 else
-  log "Docker ya instalado, saltando."
+  log "PostgreSQL 17 ya instalado, saltando."
 fi
+
+if ! brew services list | grep -q "postgresql@17.*started"; then
+  brew services start postgresql@17
+  sleep 3
+  log "PostgreSQL 17 iniciado via brew services."
+else
+  log "PostgreSQL 17 ya corriendo."
+fi
+
+createuser -s paperclip 2>/dev/null || true
+createdb -O paperclip paperclip 2>/dev/null || true
+psql -d paperclip -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" 2>/dev/null || true
+psql -d paperclip -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;" 2>/dev/null || true
+log "Base de datos 'paperclip' lista (usuario: paperclip, extensiones: pg_trgm, fuzzystrmatch)."
 
 # Tailscale
 if ! command -v tailscale &>/dev/null; then

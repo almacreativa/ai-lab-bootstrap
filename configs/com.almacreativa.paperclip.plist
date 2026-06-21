@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.almacreativa.paperclip</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/paperclip-start.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{HOME}}/ai-lab/repos/paperclip</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>PORT</key>
+        <string>3100</string>
+        <key>SERVE_UI</key>
+        <string>true</string>
+        <key>PATH</key>
+        <string>{{HOME}}/.nvm/versions/node/{{NODE_VERSION}}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/ai-lab/logs/paperclip.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/ai-lab/logs/paperclip.log</string>
+</dict>
+</plist>

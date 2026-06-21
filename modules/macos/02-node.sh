@@ -14,6 +14,13 @@ nvm use 24
 nvm alias default 24
 log "Node $(node --version) activo."
 
+if ! command -v pnpm &>/dev/null; then
+  npm install -g pnpm@9
+  log "pnpm $(pnpm --version) instalado."
+else
+  log "pnpm ya instalado ($(pnpm --version))."
+fi
+
 if ! command -v gemini &>/dev/null; then
   npm install -g @google/gemini-cli
   log "Gemini CLI instalado."

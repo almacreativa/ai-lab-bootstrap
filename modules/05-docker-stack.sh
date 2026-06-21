@@ -303,12 +303,12 @@ DAGU_BASE_SRC="$SCRIPT_DIR/configs/dagu-base.yaml.example"
 DAGU_SERVICE_SRC="$SCRIPT_DIR/configs/dagu.service"
 
 if [ ! -f "$HOME/.config/dagu/config.yaml" ] && [ -f "$DAGU_CONFIG_SRC" ]; then
-  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
+  sed "s|{{HOME}}|$HOME|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
   log "Dagu config.yaml creado."
 fi
 
 if [ ! -f "$HOME/.config/dagu/base.yaml" ] && [ -f "$DAGU_BASE_SRC" ]; then
-  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_BASE_SRC" > "$HOME/.config/dagu/base.yaml"
+  sed "s|{{HOME}}|$HOME|g" "$DAGU_BASE_SRC" > "$HOME/.config/dagu/base.yaml"
   log "Dagu base.yaml creado."
 fi
 
@@ -327,7 +327,7 @@ fi
 # Dagu systemd user service
 mkdir -p "$HOME/.config/systemd/user"
 if [ ! -f "$HOME/.config/systemd/user/dagu.service" ] && [ -f "$DAGU_SERVICE_SRC" ]; then
-  sed "s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
+  sed "s|{{HOME}}|$HOME|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
   systemctl --user daemon-reload

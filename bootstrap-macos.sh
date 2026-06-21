@@ -19,10 +19,11 @@
 #
 # Diferencias clave vs. bootstrap.sh (Linux):
 #   - Homebrew en vez de apt
-#   - Docker Desktop en vez de Docker CE
-#   - launchd (LaunchAgent) en vez de systemd para Hermes
+#   - Sin Docker — todo corre nativo (PostgreSQL via brew, Paperclip via Node.js)
+#   - launchd (LaunchAgent) en vez de systemd para Hermes, Paperclip, Dagu
 #   - nlm login usa navegador real, no requiere Xvfb/CDP tunnel
 #   - SSH hardening usa systemsetup + sshd_config (Remote Login)
+#   - SearXNG remoto via Tailscale (apunta al servidor Linux)
 # ============================================================
 
 set -e
@@ -78,5 +79,5 @@ source "$SCRIPT_DIR/modules/macos/01-system.sh"
 source "$SCRIPT_DIR/modules/macos/02-node.sh"
 source "$SCRIPT_DIR/modules/macos/03-python.sh"
 source "$SCRIPT_DIR/modules/macos/04-ai-tools.sh"
-source "$SCRIPT_DIR/modules/macos/05-docker-stack.sh"
+source "$SCRIPT_DIR/modules/macos/05-native-stack.sh"
 source "$SCRIPT_DIR/modules/macos/06-post-install.sh"

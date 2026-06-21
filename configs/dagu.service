@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/home/{{LAB_USER}}/.local/bin/dagu start-all --config=/home/{{LAB_USER}}/.config/dagu/config.yaml
+ExecStart={{HOME}}/.local/bin/dagu start-all --config={{HOME}}/.config/dagu/config.yaml
 Restart=always
 RestartSec=10
-Environment=HOME=/home/{{LAB_USER}}
+Environment=HOME={{HOME}}
 
 [Install]
 WantedBy=default.target

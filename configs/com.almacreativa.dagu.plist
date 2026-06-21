@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.almacreativa.dagu</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{HOME}}/.local/bin/dagu</string>
+        <string>start-all</string>
+        <string>--config={{HOME}}/.config/dagu/config.yaml</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>{{HOME}}</string>
+        <key>PATH</key>
+        <string>{{HOME}}/.local/bin:{{HOME}}/.nvm/versions/node/{{NODE_VERSION}}/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/ai-lab/logs/dagu.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/ai-lab/logs/dagu.log</string>
+</dict>
+</plist>
