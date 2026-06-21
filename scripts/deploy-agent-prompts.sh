@@ -5,8 +5,8 @@
 #
 # Usage:
 #   bash deploy-agent-prompts.sh all                  # all companies
-#   bash deploy-agent-prompts.sh katun                # all agents in a company (slug from templates dir)
-#   bash deploy-agent-prompts.sh katun content-producer  # single agent
+#   bash deploy-agent-prompts.sh company-a                # all agents in a company (slug from templates dir)
+#   bash deploy-agent-prompts.sh company-a content-producer  # single agent
 #
 # Templates live in ~/ai-lab/knowledge/shared/templates/
 # Companies are discovered automatically from prompt-section2-*.md files in the templates dir.

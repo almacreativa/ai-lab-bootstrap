@@ -7,23 +7,22 @@ Additional output destinations (besides workspace):
   - materiales_intensivo/
   - programa_basico/
   - programa_premium/
-- Content IDs: KAT-CONT-XXX
+- Content IDs: COMP-CONT-XXX
 
 Base material in knowledge/:
-- metodologia_potencia.md, PotencIAl_esqueleto_pedagogico.md, PotencIAl_mapa_competencias.md
-- PotencIAl_identidad_productos.md, GUIÓN_Intensivo_KATUN_v1.md
-- boveda_prompts_semilla_company-a_v1.md
+- methodology.md, course_pedagogical_outline.md, course_competency_map.md
+- product_identity.md, intensive_course_script_v1.md
+- prompt_seed_vault_company-a_v1.md
 
 Each course must have:
 - Detailed sessions (objectives, activities, timings, deliverables).
-- Practical exercises per archetype (Patricia, Eduardo, Roberto).
-- Ready-to-use prompts with profile variants.
+- Practical exercises per learner archetype.
 - Support materials (worksheets, prompt cards, certificates).
 - Facilitator guides (co-teaching).
 - Evaluation and follow-up system.
 
 Conventions:
-- ID at the start (KAT-CONT-XXX).
+- ID at the start (COMP-CONT-XXX).
 - Clear tables, checklists, editable templates.
 - Cross-references to sources in knowledge/ and wiki.
 - Deliverables ready for print/classroom/WhatsApp use.

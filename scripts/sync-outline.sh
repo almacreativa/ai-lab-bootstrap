@@ -304,12 +304,12 @@ sync_deliverables_company() {
     return 1
   fi
 
+  # Mapeo opcional de company_id (short id) -> carpeta de deliverables.
+  # Por defecto usa "deliverables-${company_id}"; agregar casos solo si una
+  # empresa necesita compartir carpeta con otra o un nombre distinto.
   local deliv_dir
   case "$company_id" in
-    85a05c8a) deliv_dir="$DELIVERABLES_BASE/deliverables" ;;
-    6b8a8c27) deliv_dir="$DELIVERABLES_BASE/deliverables-kat" ;;
-    0424a440) deliv_dir="$DELIVERABLES_BASE/deliverables-expansia" ;;
-    c6f021e4) deliv_dir="$DELIVERABLES_BASE/deliverables-kat" ;;
+    AAAAAAAA) deliv_dir="$DELIVERABLES_BASE/deliverables" ;;
     *)        deliv_dir="$DELIVERABLES_BASE/deliverables-${company_id}" ;;
   esac
 
@@ -331,7 +331,10 @@ sync_deliverables_company() {
 
 sync_deliverables_all() {
   log "Sincronizando deliverables por empresa..."
-  for company_id in 85a05c8a 6b8a8c27 0424a440; do
+  for company_dir in "$KNOWLEDGE_DIR/companies"/*/; do
+    [ -d "$company_dir" ] || continue
+    local company_id
+    company_id=$(basename "$company_dir")
     sync_deliverables_company "$company_id"
   done
 }

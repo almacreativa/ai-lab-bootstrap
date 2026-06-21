@@ -4,7 +4,7 @@
 #
 # Flujos por empresa:
 #   A) Entradas:   host entradas/ → guardrails → issue Paperclip → container knowledge/entradas/
-#   B) Outputs:    container workspaces → host outputs/ (+ extras como alma-deliverables)
+#   B) Outputs:    container workspaces → host outputs/ (+ extras definidos en extra_container_dirs)
 #   C) Repo loop:  git pull → detectar externos → issue → sync dirs → git push   (solo si repo.enabled)
 #
 # Config: ~/ai-lab/stacks/sync-config/<slug>.json
@@ -23,7 +23,7 @@ SYNC_AUTHOR="${PCSYNC_AUTHOR:-Operador Bot <bot@tuorganizacion.com>}"  # autor d
 
 # ─── VALIDACIÓN DE ARGUMENTOS ──────────────────────────────────────────────────
 SLUG="${1:-}"
-[ -z "$SLUG" ] && { echo "Uso: $0 <slug>  (katun|alma|expansia)"; exit 1; }
+[ -z "$SLUG" ] && { echo "Uso: $0 <slug>  (ej: miempresa, segun stacks/sync-config/<slug>.json)"; exit 1; }
 
 CONFIG="${CONFIG_DIR}/${SLUG}.json"
 [ -f "$CONFIG" ] || { echo "Config no encontrado: $CONFIG"; exit 1; }
@@ -304,7 +304,7 @@ for a in json.load(open('${CONFIG}'))['agents']:
     rm -rf "$tmp"
   done
 
-  # Directorios extra del contenedor (alma-deliverables, expansia-deliverables, etc.)
+  # Directorios extra del contenedor (segun extra_container_dirs en el config de la empresa)
   python3 -c "
 import json
 for e in json.load(open('${CONFIG}')).get('extra_container_dirs', []):

@@ -67,7 +67,7 @@ bootstrap salvo que se indique lo contrario.
 | `paperclip-monitor.sh` | Monitor de Paperclip sin LLM |
 | `paperclip-poll-done.sh` / `paperclip-notify-done.sh` | Polling de heartbeats completados + formateo legible |
 | `paperclip-usage.sh` | Reporte semanal de tokens (lee `heartbeat_runs.usage_json` directo de la DB) |
-| `paperclip-mcp-{alma,katun,expansia}.sh` | Levantan el servidor MCP de Paperclip por empresa |
+| `paperclip-mcp-<slug>.sh` | Levantan el servidor MCP de Paperclip por empresa |
 | `sync-agent-instructions.sh` | Reconcilia instrucciones de agentes con la DB |
 | `deploy-agent-prompts.sh` | Despliega `promptTemplate` (S1 contrato + S2 reglas empresa + S3 rol) vía DB |
 
@@ -76,8 +76,8 @@ bootstrap salvo que se indique lo contrario.
 | Script | Disparador | Función |
 |---|---|---|
 | `onboard-company.sh` | manual | Onboarding completo de empresa nueva (aislamiento en todas las capas) |
-| `sync-company.sh <slug>` | cron escalonado (KATÚN `*/30`, ALMA `5,35`, ExpansIA `10,40`) | entradas/ → validar → issue → contenedor → outputs/ → repo. Config en `stacks/sync-config/<slug>.json` |
-| `sync-katun-knowledge.sh` | manual | Sync específico KATÚN: contenedor↔repo `potencia-capacitaciones` |
+| `sync-company.sh <slug>` | cron escalonado por empresa (minutos distintos para evitar solapamiento) | entradas/ → validar → issue → contenedor → outputs/ → repo. Config en `stacks/sync-config/<slug>.json` |
+| `sync-<slug>-knowledge.sh` | manual | Sync específico de una empresa: contenedor↔repo de contenido propio |
 | `sync-outline.sh --all` | cron `15,45 * * * *` | Espejo completo del knowledge a Outline |
 | `weekly-ingest.sh <uuid>` | cron domingo (escalonado por empresa) | Ingesta semanal de KM por empresa (Fase 6) |
 | `nlm-sync.sh` | manual | Sync semi-manual knowledge → cuaderno NotebookLM (Fase 5) |
@@ -101,11 +101,11 @@ No son scripts sueltos sino mini-servicios con su propio `docker-compose.yml`/ap
 | `nlm-gateway/` | `app.py` + `start.sh` + `notebooks.yaml` — gateway HTTP a NotebookLM (puerto 8770, bare-metal, cron `@reboot sleep 20`) |
 | `outline/` | `docker-compose.yml` del wiki Outline |
 | `paperclip-config/` | `opencode.jsonc` — config compartida de los agentes Paperclip |
-| `sync-config/` | `{alma,expansia,katun}.json` — config por empresa que lee `sync-company.sh` |
+| `sync-config/` | `<slug>.json` por empresa — config que lee `sync-company.sh` |
 
 ### Fuera de `ai-lab/` por completo
 
-- `~/alma/ops/backup-deliverables.sh` — cron `0 */6 * * *`, backup global de `deliverables*` por empresa (independiente del real-time que ya maneja `sync-company.sh`)
+- `~/<empresa>/ops/backup-deliverables.sh` — cron `0 */6 * * *`, backup global de `deliverables*` por empresa (independiente del real-time que ya maneja `sync-company.sh`)
 - `hermes.service` (systemd, `Restart=always`) — `ExecStart=/usr/local/bin/hermes-start.sh`, único servicio bare-metal fuera de Docker, lee `~/.hermes/.env`
 
 ### Cron — fuente de verdad
