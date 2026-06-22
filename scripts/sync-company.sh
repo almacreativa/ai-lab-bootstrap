@@ -247,7 +247,7 @@ ${file_content}
 El archivo original está disponible en el contenedor: \`${CONTAINER_KNOWLEDGE}/entradas/${filename}\`"
 
     local issue_id
-    issue_id=$(create_issue "${ISSUE_PREFIX}: Entrada — ${base_name}" "$body" "$agent_id")
+    issue_id=$(create_issue "${ISSUE_PREFIX}: Entrada — ${base_name}" "$body" "$agent_id" | tail -n1)
 
     # Actualizar manifest (siempre, éxito o fallo en issue creation)
     python3 -c "
