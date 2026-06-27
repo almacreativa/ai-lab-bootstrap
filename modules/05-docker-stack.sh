@@ -124,7 +124,8 @@ fi
 mkdir -p "$LAB_DIR/stacks/glance/config"
 if ! docker ps -a --format '{{.Names}}' | grep -q "^glance$"; then
   if [ ! -f "$LAB_DIR/stacks/glance/config/glance.yml" ]; then
-    cat > "$LAB_DIR/stacks/glance/config/glance.yml" << 'GLANCEEOF'
+    TS_IP=$(tailscale ip -4 2>/dev/null || echo "127.0.0.1")
+    cat > "$LAB_DIR/stacks/glance/config/glance.yml" << GLANCEEOF
 pages:
   - name: Lab
     columns:
@@ -134,12 +135,10 @@ pages:
             title: Servicios
             cache: 1m
             sites:
-              - title: Paperclip
-                url: http://localhost:3100
               - title: Dagu
-                url: http://localhost:8480
+                url: http://${TS_IP}:8480
               - title: Uptime Kuma
-                url: http://localhost:3001
+                url: http://${TS_IP}:3001
 GLANCEEOF
     log "Glance config base creado — personalizar en $LAB_DIR/stacks/glance/config/glance.yml"
   fi
@@ -149,7 +148,8 @@ services:
     image: glanceapp/glance
     container_name: glance
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "9000:8080"
     volumes:
       - ./config:/app/config:ro
       - /etc/timezone:/etc/timezone:ro
@@ -401,7 +401,7 @@ DAGU_BASE_SRC="$SCRIPT_DIR/configs/dagu-base.yaml.example"
 DAGU_SERVICE_SRC="$SCRIPT_DIR/configs/dagu.service"
 
 if [ ! -f "$HOME/.config/dagu/config.yaml" ] && [ -f "$DAGU_CONFIG_SRC" ]; then
-  sed "s|{{HOME}}|$HOME|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
+  sed "s|{{HOME}}|$HOME|g; s|{{HOSTNAME}}|$(hostname -s)|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
   log "Dagu config.yaml creado."
 fi
 
@@ -425,7 +425,8 @@ fi
 # Dagu systemd user service
 mkdir -p "$HOME/.config/systemd/user"
 if [ ! -f "$HOME/.config/systemd/user/dagu.service" ] && [ -f "$DAGU_SERVICE_SRC" ]; then
-  sed "s|{{HOME}}|$HOME|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
+  DAGU_BIN=$(command -v dagu 2>/dev/null || echo "$HOME/.local/bin/dagu")
+  sed "s|{{HOME}}|$HOME|g; s|{{DAGU_PATH}}|$DAGU_BIN|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
   systemctl --user daemon-reload

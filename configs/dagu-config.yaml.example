@@ -11,7 +11,7 @@ tz: America/Costa_Rica
 auth:
   mode: builtin
 ui:
-  navbar_title: "i7local Lab"
+  navbar_title: "{{HOSTNAME}} Lab"
   navbar_color: "#1a1a2e"
 env_passthrough_prefixes:
   - TELEGRAM_

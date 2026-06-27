@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart={{HOME}}/.local/bin/dagu start-all --config={{HOME}}/.config/dagu/config.yaml
+ExecStart={{DAGU_PATH}} start-all --config={{HOME}}/.config/dagu/config.yaml
 Restart=always
 RestartSec=10
 Environment=HOME={{HOME}}
