@@ -53,6 +53,7 @@ if [ -z "$NEW_IP" ]; then
   exit 1
 fi
 NEW_HOSTNAME=$(hostname -s)
+NEW_HOME="$HOME"
 
 # --- Detectar identidad VIEJA (del manifest restaurado o del restore) ---
 if [ -z "$OLD_IP" ] || [ -z "$OLD_HOSTNAME" ]; then
@@ -101,8 +102,19 @@ if [ -z "$OLD_IP" ]; then
   exit 1
 fi
 
-if [ "$OLD_IP" = "$NEW_IP" ] && [ "$OLD_HOSTNAME" = "$NEW_HOSTNAME" ]; then
-  log "La identidad no cambió (IP: $NEW_IP, hostname: $NEW_HOSTNAME). Nada que hacer."
+# --- Detectar home path viejo (del restore) ---
+OLD_HOME=""
+if [ -n "$FOUND_MANIFEST" ]; then
+  # Extraer /home/<user> del path del manifest restaurado
+  OLD_HOME=$(echo "$FOUND_MANIFEST" | grep -oP '/home/[^/]+' | head -1)
+fi
+if [ -z "$OLD_HOME" ]; then
+  # Intentar desde los compose files restaurados
+  OLD_HOME=$(grep -rhP '/home/[^/]+/ai-lab' "$LAB_DIR/stacks/" 2>/dev/null | grep -oP '/home/[^/]+' | head -1 || echo "")
+fi
+
+if [ "$OLD_IP" = "$NEW_IP" ] && [ "$OLD_HOSTNAME" = "$NEW_HOSTNAME" ] && { [ -z "$OLD_HOME" ] || [ "$OLD_HOME" = "$NEW_HOME" ]; }; then
+  log "La identidad no cambió (IP: $NEW_IP, hostname: $NEW_HOSTNAME, home: $NEW_HOME). Nada que hacer."
   exit 0
 fi
 
@@ -110,8 +122,8 @@ echo "============================================"
 echo "  rehome.sh — Adaptación de identidad"
 echo "============================================"
 echo ""
-echo "  ORIGEN:   $OLD_HOSTNAME ($OLD_IP)"
-echo "  DESTINO:  $NEW_HOSTNAME ($NEW_IP)"
+echo "  ORIGEN:   $OLD_HOSTNAME ($OLD_IP) ${OLD_HOME:+home=$OLD_HOME}"
+echo "  DESTINO:  $NEW_HOSTNAME ($NEW_IP) home=$NEW_HOME"
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
@@ -182,7 +194,17 @@ while IFS= read -r compose_file; do
   replace_in_file "$compose_file" "$OLD_IP" "$NEW_IP" "Stack: $(dirname "$compose_file" | xargs basename)"
 done < <(find "$LAB_DIR/stacks" -name "docker-compose.yml" -o -name "docker-compose.yaml" 2>/dev/null)
 
-# --- 5. Tailscale DNS names (si existen) ---
+# --- 5. Home path (rutas absolutas en compose/configs) ---
+if [ -n "$OLD_HOME" ] && [ "$OLD_HOME" != "$NEW_HOME" ]; then
+  log "Verificando rutas absolutas (home path)..."
+  while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    replace_in_file "$file" "$OLD_HOME" "$NEW_HOME" "Home path: $(basename "$file")"
+  done < <(find "$LAB_DIR/stacks" -name "docker-compose.yml" -o -name "docker-compose.yaml" -o -name ".env*" 2>/dev/null)
+  replace_in_file "$PCP_ENV" "$OLD_HOME" "$NEW_HOME" "Paperclip: home path"
+fi
+
+# --- 6. Tailscale DNS names (si existen) ---
 if [ -n "$OLD_HOSTNAME" ]; then
   OLD_TS_DOMAIN="${OLD_HOSTNAME}.tail"
   NEW_TS_DOMAIN="${NEW_HOSTNAME}.tail"
