@@ -2,15 +2,11 @@ description: Reporte semanal de snapshots de backup — inventario y uso de espa
 schedule: "30 4 * * 0"
 group: ops
 
-env:
-  - LAB_DIR: "${HOME}/ai-lab"
-
 steps:
   - name: report
-    command: bash
-    script: |
+    run: |
       export PATH="$HOME/.local/bin:$PATH"
-      source "${HOME}/ai-lab/scripts/.env"
+      source "$HOME/ai-lab/scripts/.env"
       export RESTIC_REPOSITORY
       export B2_ACCOUNT_ID
       export B2_ACCOUNT_KEY="$B2_BACKUP_KEY"
@@ -27,7 +23,7 @@ steps:
 
       MSG="Backup retention: ${SNAP_COUNT} snapshots, último: ${LATEST}, tamaño: ${STATS}"
       echo "$MSG"
-      if [ -x "${HOME}/ai-lab/scripts/telegram-notify.sh" ]; then
-        "${HOME}/ai-lab/scripts/telegram-notify.sh" "$MSG" INFO 2>/dev/null || true
+      if [ -x "$HOME/ai-lab/scripts/telegram-notify.sh" ]; then
+        "$HOME/ai-lab/scripts/telegram-notify.sh" "$MSG" INFO 2>/dev/null || true
       fi
     timeout_sec: 300

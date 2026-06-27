@@ -2,39 +2,29 @@ description: Auditoría semanal del lab — core, bootstrap, perfiles activos
 schedule: "0 5 * * 0"
 group: ops
 
-env:
-  - LAB_DIR: "${HOME}/ai-lab"
-
 steps:
   - name: generate-manifest
-    command: bash
-    script: |
-      ${HOME}/ai-lab/ops/manifests/generate-core-manifest.sh
+    run: $HOME/ai-lab/ops/manifests/generate-core-manifest.sh
     timeout_sec: 120
 
   - name: core-guard
-    command: bash
-    script: |
-      ${HOME}/ai-lab/ops/guards/core-guard.sh
+    run: $HOME/ai-lab/ops/guards/core-guard.sh
     depends:
       - generate-manifest
     timeout_sec: 120
 
   - name: bootstrap-guard
-    command: bash
-    script: |
-      ${HOME}/ai-lab/ops/guards/bootstrap-guard.sh
+    run: $HOME/ai-lab/ops/guards/bootstrap-guard.sh
     depends:
       - core-guard
     timeout_sec: 120
 
   - name: profile-guards
-    command: bash
-    script: |
-      for profile_dir in ${HOME}/ai-lab/data/profiles/*/; do
+    run: |
+      for profile_dir in $HOME/ai-lab/data/profiles/*/; do
         [ -d "$profile_dir" ] || continue
         profile=$(basename "$profile_dir")
-        ${HOME}/ai-lab/ops/guards/profile-guard.sh "$profile" || true
+        $HOME/ai-lab/ops/guards/profile-guard.sh "$profile" || true
       done
     depends:
       - bootstrap-guard
