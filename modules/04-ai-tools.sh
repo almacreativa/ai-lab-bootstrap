@@ -3,16 +3,11 @@
 
 log "Paso 4/6 — Herramientas AI..."
 
-# Asegurar que nvm/node/npm estén en PATH (módulo 02 los instala pero
-# el PATH solo se persiste en .bashrc, no en esta sesión de bootstrap)
+# Asegurar que nvm/node/npm y binarios locales estén en PATH
+# (módulo 02 los instala pero el PATH solo se persiste en .bashrc)
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
-
-if ! command -v npm &>/dev/null; then
-  warn "npm no encontrado en PATH — Claude Code y Opencode no se instalarán."
-  warn "Verificar que el módulo 02-node.sh completó correctamente."
-fi
+export PATH="$HOME/.local/bin:$PATH"
 
 # Chromium — necesario para logins headless via CDP (nlm, OAuth flows)
 # snap no es confiable dentro de WSL2 (squashfs/AppArmor) — usar apt ahí
@@ -30,49 +25,36 @@ else
   log "Chromium ya instalado, saltando."
 fi
 
-# Claude Code via npm
+# Claude Code — instalador oficial (auto-update incluido)
 if ! command -v claude &>/dev/null; then
-  if command -v npm &>/dev/null; then
-    npm install -g @anthropic-ai/claude-code 2>&1 || warn "npm install -g claude-code falló"
-    # npm global bin puede no estar en PATH — buscar y agregar
-    NPM_BIN=$(npm config get prefix 2>/dev/null)/bin
-    [ -d "$NPM_BIN" ] && export PATH="$NPM_BIN:$PATH"
+  if curl -fsSL https://claude.ai/install.sh | bash 2>&1; then
     if command -v claude &>/dev/null; then
       log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
       warn "Completar login después del bootstrap: claude"
     else
-      warn "Claude Code: npm install completó pero 'claude' no está en PATH."
-      warn "Verificar con: npm list -g @anthropic-ai/claude-code"
+      warn "Claude Code: instalador completó pero 'claude' no está en PATH."
     fi
   else
-    warn "Claude Code no instalado — npm no disponible."
+    warn "Claude Code: instalador falló — ver https://code.claude.com/docs/en/quickstart"
   fi
 else
   log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
 fi
 
-# Opencode
-if ! command -v opencode &>/dev/null && [ ! -f "$HOME/.opencode/bin/opencode" ]; then
-  if command -v npm &>/dev/null; then
-    mkdir -p "$HOME/.opencode"
-    cd "$HOME/.opencode"
-    if npm install opencode-ai 2>&1; then
-      mkdir -p "$HOME/.opencode/bin"
-      ln -sf "$HOME/.opencode/node_modules/.bin/opencode" "$HOME/.opencode/bin/opencode" 2>/dev/null || true
-      if [ -x "$HOME/.opencode/bin/opencode" ]; then
-        log "Opencode instalado en ~/.opencode/bin/opencode"
-      else
-        warn "Opencode: npm install completó pero el binario no existe en node_modules/.bin/"
-      fi
+# OpenCode — instalador oficial
+if ! command -v opencode &>/dev/null; then
+  if curl -fsSL https://opencode.ai/install | bash 2>&1; then
+    if command -v opencode &>/dev/null; then
+      log "OpenCode instalado ($(opencode --version 2>/dev/null | head -1))."
+      warn "Completar login después del bootstrap: opencode"
     else
-      warn "npm install opencode-ai falló — instalar manualmente desde opencode.ai"
+      warn "OpenCode: instalador completó pero 'opencode' no está en PATH."
     fi
-    cd - > /dev/null
   else
-    warn "Opencode no instalado — npm no disponible."
+    warn "OpenCode: instalador falló — ver https://opencode.ai"
   fi
 else
-  log "Opencode ya instalado, saltando."
+  log "OpenCode ya instalado ($(opencode --version 2>/dev/null | head -1))."
 fi
 
 # Aliases en .bashrc
@@ -80,7 +62,6 @@ BASHRC="$HOME/.bashrc"
 if ! grep -q "alias claude-d=" "$BASHRC"; then
   echo "" >> "$BASHRC"
   echo "# AI Lab" >> "$BASHRC"
-  echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\"" >> "$BASHRC"
   echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$BASHRC"
   echo "alias claude-d='claude --dangerously-skip-permissions'" >> "$BASHRC"
   [ "$INSTALL_HERMES" = "true" ] && echo "alias hermes='\$HOME/.hermes-env/bin/hermes'" >> "$BASHRC"

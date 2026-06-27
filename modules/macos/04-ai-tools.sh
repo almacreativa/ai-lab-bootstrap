@@ -11,27 +11,36 @@ else
   log "Chromium ya instalado, saltando."
 fi
 
-# Claude Code via npm (instalación automática — login es manual al final)
+# Claude Code — instalador oficial (auto-update incluido)
 if ! command -v claude &>/dev/null; then
-  npm install -g @anthropic-ai/claude-code
-  log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
-  warn "Completar login después del bootstrap: claude"
+  if curl -fsSL https://claude.ai/install.sh | bash 2>&1; then
+    if command -v claude &>/dev/null; then
+      log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
+      warn "Completar login después del bootstrap: claude"
+    else
+      warn "Claude Code: instalador completó pero 'claude' no está en PATH."
+    fi
+  else
+    warn "Claude Code: instalador falló — ver https://code.claude.com/docs/en/quickstart"
+  fi
 else
   log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
 fi
 
-# Opencode
-if [ ! -f "$HOME/.opencode/bin/opencode" ]; then
-  mkdir -p "$HOME/.opencode"
-  cd "$HOME/.opencode"
-  npm install opencode-ai 2>/dev/null \
-    || warn "npm install opencode-ai falló — instalar manualmente desde opencode.ai"
-  mkdir -p "$HOME/.opencode/bin"
-  ln -sf "$HOME/.opencode/node_modules/.bin/opencode" "$HOME/.opencode/bin/opencode" 2>/dev/null || true
-  cd -
-  log "Opencode instalado."
+# OpenCode — instalador oficial
+if ! command -v opencode &>/dev/null; then
+  if curl -fsSL https://opencode.ai/install | bash 2>&1; then
+    if command -v opencode &>/dev/null; then
+      log "OpenCode instalado ($(opencode --version 2>/dev/null | head -1))."
+      warn "Completar login después del bootstrap: opencode"
+    else
+      warn "OpenCode: instalador completó pero 'opencode' no está en PATH."
+    fi
+  else
+    warn "OpenCode: instalador falló — ver https://opencode.ai"
+  fi
 else
-  log "Opencode ya instalado, saltando."
+  log "OpenCode ya instalado ($(opencode --version 2>/dev/null | head -1))."
 fi
 
 # Aliases — detectar shell (zsh es el default en macOS desde Catalina)
@@ -41,7 +50,6 @@ SHELL_RC="$HOME/.zshrc"
 if ! grep -q "alias claude-d=" "$SHELL_RC" 2>/dev/null; then
   echo "" >> "$SHELL_RC"
   echo "# AI Lab" >> "$SHELL_RC"
-  echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\"" >> "$SHELL_RC"
   echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$SHELL_RC"
   echo "alias claude-d='claude --dangerously-skip-permissions'" >> "$SHELL_RC"
   [ "$INSTALL_HERMES" = "true" ] && echo "alias hermes='\$HOME/.hermes-env/bin/hermes'" >> "$SHELL_RC"
