@@ -16,9 +16,8 @@ fi
 # Hermes requiere Python >=3.11,<3.14 — se usa uv para garantizar la versión exacta
 if [ "$INSTALL_HERMES" = "true" ]; then
   if [ ! -f "$HOME/.hermes-env/bin/hermes" ]; then
-    uv venv "$HOME/.hermes-env" --python 3.12
-    "$HOME/.hermes-env/bin/pip" install --upgrade pip -q
-    "$HOME/.hermes-env/bin/pip" install hermes-agent -q
+    uv venv "$HOME/.hermes-env" --python 3.12 --seed
+    uv pip install --python "$HOME/.hermes-env/bin/python" hermes-agent -q
     log "Hermes Agent instalado en ~/.hermes-env (Python $("$HOME/.hermes-env/bin/python" --version))"
   else
     log "Hermes ya instalado (Python $("$HOME/.hermes-env/bin/python" --version)), saltando."
