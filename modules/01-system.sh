@@ -98,4 +98,36 @@ else
   log "Syncthing ya instalado, saltando."
 fi
 
+# Herramientas de backup y cifrado
+if ! command -v restic &>/dev/null; then
+  sudo apt install -y restic
+  log "restic instalado ($(restic version 2>/dev/null | head -1))."
+else
+  log "restic ya instalado ($(restic version 2>/dev/null | head -1)), saltando."
+fi
+
+if ! command -v age &>/dev/null; then
+  sudo apt install -y age
+  log "age instalado — cifrado de secrets disponible."
+else
+  log "age ya instalado, saltando."
+fi
+
+if ! command -v sqlite3 &>/dev/null; then
+  sudo apt install -y sqlite3
+  log "sqlite3 instalado."
+else
+  log "sqlite3 ya instalado, saltando."
+fi
+
+# etckeeper — auto-commitea cambios en /etc tras cada apt install
+if ! dpkg -l etckeeper &>/dev/null 2>&1; then
+  sudo apt install -y etckeeper
+  sudo etckeeper init 2>/dev/null || true
+  sudo etckeeper commit "etckeeper: init tras bootstrap" 2>/dev/null || true
+  log "etckeeper instalado — /etc bajo control de versiones automático."
+else
+  log "etckeeper ya instalado, saltando."
+fi
+
 log "Módulo 01 completo."

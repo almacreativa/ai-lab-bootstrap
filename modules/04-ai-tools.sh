@@ -54,4 +54,65 @@ if ! grep -q "alias claude-d=" "$BASHRC"; then
   log "Aliases y PATH agregados a .bashrc."
 fi
 
+# Engram — memoria persistente cross-session para agentes AI (binario Go estático)
+if ! command -v engram &>/dev/null; then
+  ENGRAM_VERSION="latest"
+  ENGRAM_URL="https://github.com/Gentleman-Programming/engram/releases/${ENGRAM_VERSION}/download/engram-linux-amd64"
+  ENGRAM_TMP="/tmp/engram-download"
+  mkdir -p "$HOME/.local/bin"
+  if curl -fsSL -o "$ENGRAM_TMP" "$ENGRAM_URL" 2>/dev/null; then
+    mv "$ENGRAM_TMP" "$HOME/.local/bin/engram"
+    chmod +x "$HOME/.local/bin/engram"
+    log "Engram instalado ($(engram version 2>/dev/null || echo 'OK'))."
+  else
+    rm -f "$ENGRAM_TMP"
+    warn "Engram: descarga falló — instalar manualmente desde github.com/Gentleman-Programming/engram"
+  fi
+else
+  log "Engram ya instalado ($(engram version 2>/dev/null || echo 'presente')), saltando."
+fi
+
+# MoolMesh — observatorio de sesiones de agentes AI
+if ! command -v mool &>/dev/null; then
+  if command -v uv &>/dev/null; then
+    uv tool install moolmesh
+    log "MoolMesh instalado ($(mool --version 2>/dev/null || echo 'OK'))."
+  else
+    warn "MoolMesh requiere uv — instalar uv primero."
+  fi
+else
+  log "MoolMesh ya instalado ($(mool --version 2>/dev/null || echo 'presente')), saltando."
+fi
+
+# MoolMesh systemd user service
+mkdir -p "$HOME/.config/systemd/user"
+if [ ! -f "$HOME/.config/systemd/user/moolmesh.service" ]; then
+  if command -v mool &>/dev/null; then
+    MOOL_PATH=$(which mool)
+    cat > "$HOME/.config/systemd/user/moolmesh.service" << MOOLEOF
+[Unit]
+Description=MoolMesh AI Agent Observatory
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${MOOL_PATH} daemon start --host 0.0.0.0 --port 5200
+Restart=on-failure
+RestartSec=10
+Environment=HOME=${HOME}
+
+[Install]
+WantedBy=default.target
+MOOLEOF
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+    systemctl --user daemon-reload
+    systemctl --user enable moolmesh.service
+    log "moolmesh.service instalado y habilitado (systemd user)."
+    warn "Iniciar con: systemctl --user start moolmesh"
+  fi
+else
+  log "moolmesh.service ya existe — no se sobreescribe."
+fi
+
 log "Módulo 04 completo."

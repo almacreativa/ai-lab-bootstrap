@@ -106,6 +106,104 @@ else
   log "SearXNG ya existe."
 fi
 
+# Uptime Kuma — monitoreo de servicios con alertas push
+if ! docker ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
+  docker run -d \
+    --name uptime-kuma \
+    --restart unless-stopped \
+    -p 3001:3001 \
+    -v uptime-kuma-data:/app/data \
+    louislam/uptime-kuma:latest
+  log "Uptime Kuma arrancado en :3001"
+  warn "Abrir http://<IP>:3001 para crear usuario admin y configurar monitores."
+else
+  log "Uptime Kuma ya existe."
+fi
+
+# Glance — Centro de Comando (dashboard de estado del lab)
+mkdir -p "$LAB_DIR/stacks/glance/config"
+if ! docker ps -a --format '{{.Names}}' | grep -q "^glance$"; then
+  if [ ! -f "$LAB_DIR/stacks/glance/config/glance.yml" ]; then
+    cat > "$LAB_DIR/stacks/glance/config/glance.yml" << 'GLANCEEOF'
+pages:
+  - name: Lab
+    columns:
+      - size: full
+        widgets:
+          - type: monitor
+            title: Servicios
+            cache: 1m
+            sites:
+              - title: Paperclip
+                url: http://localhost:3100
+              - title: Dagu
+                url: http://localhost:8480
+              - title: Uptime Kuma
+                url: http://localhost:3001
+GLANCEEOF
+    log "Glance config base creado — personalizar en $LAB_DIR/stacks/glance/config/glance.yml"
+  fi
+  cat > "$LAB_DIR/stacks/glance/docker-compose.yml" << 'GLANCEDCEOF'
+services:
+  glance:
+    image: glanceapp/glance
+    container_name: glance
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./config:/app/config:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+GLANCEDCEOF
+  cd "$LAB_DIR/stacks/glance"
+  docker compose up -d
+  cd -
+  log "Glance (Centro de Comando) arrancado en :9000"
+else
+  log "Glance ya existe."
+fi
+
+# Estructura de datos persistentes (convención de volúmenes)
+mkdir -p "$LAB_DIR/data/core"
+mkdir -p "$LAB_DIR/data/profiles"
+log "Estructura data/ creada en $LAB_DIR/data/ (core/ + profiles/)"
+
+# Framework operativo (ops/)
+mkdir -p "$LAB_DIR/ops/guards"
+mkdir -p "$LAB_DIR/ops/backup"
+mkdir -p "$LAB_DIR/ops/runbooks"
+mkdir -p "$LAB_DIR/ops/manifests"
+mkdir -p "$LAB_DIR/logs/guard"
+log "Estructura ops/ creada en $LAB_DIR/ops/"
+
+# Copiar scripts operativos del bootstrap si existen
+BOOTSTRAP_OPS="$SCRIPT_DIR/ops"
+if [ -d "$BOOTSTRAP_OPS" ]; then
+  for subdir in guards backup manifests; do
+    if [ -d "$BOOTSTRAP_OPS/$subdir" ]; then
+      for script in "$BOOTSTRAP_OPS/$subdir"/*.sh; do
+        [ -f "$script" ] || continue
+        target="$LAB_DIR/ops/$subdir/$(basename "$script")"
+        if [ ! -f "$target" ]; then
+          cp "$script" "$target"
+          chmod +x "$target"
+          log "ops/$subdir/$(basename "$script") copiado."
+        fi
+      done
+    fi
+  done
+  if [ -d "$BOOTSTRAP_OPS/runbooks" ]; then
+    for doc in "$BOOTSTRAP_OPS/runbooks"/*.md; do
+      [ -f "$doc" ] || continue
+      target="$LAB_DIR/ops/runbooks/$(basename "$doc")"
+      if [ ! -f "$target" ]; then
+        cp "$doc" "$target"
+      fi
+    done
+    log "Runbooks copiados a $LAB_DIR/ops/runbooks/"
+  fi
+fi
+
 # Scripts operativos del lab
 mkdir -p "$LAB_DIR/scripts"
 
