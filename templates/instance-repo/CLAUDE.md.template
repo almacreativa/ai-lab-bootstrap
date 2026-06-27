@@ -1,0 +1,26 @@
+# {{HOSTNAME}}-lab — Documentación y operación del laboratorio de IA
+
+## Proyecto
+Repositorio privado de documentación, scripts y configuración del lab {{HOSTNAME}}.
+Contiene: decisiones, configuraciones, changelog, scripts operativos locales.
+
+## Convenciones
+- Commits siempre como {{GIT_NAME}} ({{GIT_USER}}), nunca Co-Authored-By de IA
+- Documentación en español
+- Secrets NUNCA en el repo (ver bootstrap: docs/SECRETS_INVENTORY.md)
+- ~/dev/ está PROHIBIDO para agentes
+
+## Memory Protocol (Engram)
+
+Al iniciar una sesión en este repo, busca contexto previo:
+- Usa `mem_search` con el tema de trabajo para ver si hay decisiones o patrones previos
+- Usa `mem_context` para obtener el contexto reciente del proyecto
+
+Al tomar una decisión importante o resolver un problema no trivial:
+- Usa `mem_save` con un título descriptivo, tipo apropiado (decision/pattern/bug/insight), y `topic_key` si es un tema que evoluciona
+- Incluye el "por qué", no solo el "qué"
+
+NO guardes en Engram:
+- Preferencias del usuario (eso va en auto-memory de Claude)
+- Conocimiento de empresa (eso va en Mem0)
+- Reglas estáticas (eso va aquí en CLAUDE.md)

@@ -1,0 +1,9 @@
+# Changelog — {{HOSTNAME}}-lab
+
+## v1.0.0 — {{CREATED_DATE}}
+
+### Inicialización
+- Lab creado con `ai-lab-bootstrap`
+- Repo de instancia generado automáticamente por `setup-instance.sh`
+- Framework operativo instalado (guards, manifests, backup, runbooks)
+- Servicios base: Dagu, MoolMesh, Uptime Kuma, Glance, Portainer, SearXNG

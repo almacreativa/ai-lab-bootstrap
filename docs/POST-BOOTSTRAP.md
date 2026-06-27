@@ -124,13 +124,22 @@ sudo tailscale up --ssh
 tailscale status
 ```
 
-### 2.2 GitHub CLI
+### 2.2 GitHub CLI + Repo de instancia
 
 ```bash
 gh auth login
 # Verificar:
 gh auth status
+
+# Publicar el repo de instancia (creado por setup-instance.sh):
+HOSTNAME=$(hostname -s)
+cd ~/ai-lab/repos/${HOSTNAME}-lab
+gh repo create <tu-usuario>/${HOSTNAME}-lab --private --source=. --push
 ```
+
+El repo `<hostname>-lab` es privado y contiene la configuración,
+changelog y decisiones específicas de esta instancia. Fue creado
+automáticamente por `setup-instance.sh` con estructura base.
 
 ### 2.3 Claude Code
 

@@ -46,7 +46,7 @@ echo ""
 # -----------------------------------------------
 # Paso 1: Secrets
 # -----------------------------------------------
-log "Paso 1/7: Secrets"
+log "Paso 1/8: Secrets"
 
 SCRIPTS_ENV="$LAB_DIR/scripts/.env"
 HERMES_ENV="$HOME/.hermes/.env"
@@ -155,7 +155,7 @@ fi
 # -----------------------------------------------
 # Paso 2: Backup
 # -----------------------------------------------
-log "Paso 2/7: Backup"
+log "Paso 2/8: Backup"
 
 if [ "$SKIP_BACKUP" = true ]; then
   log "Backup saltado (--skip-backup)"
@@ -179,7 +179,7 @@ fi
 # -----------------------------------------------
 # Paso 3: Copiar ops/ al host
 # -----------------------------------------------
-log "Paso 3/7: Framework operativo (ops/)"
+log "Paso 3/8: Framework operativo (ops/)"
 
 OPS_DEST="$LAB_DIR/ops"
 mkdir -p "$OPS_DEST"/{guards,backup,manifests,runbooks}
@@ -203,7 +203,7 @@ log "ops/ copiado a $OPS_DEST ($(find "$OPS_DEST" -type f | wc -l) archivos)"
 # -----------------------------------------------
 # Paso 4: Generar core-manifest.yaml
 # -----------------------------------------------
-log "Paso 4/7: Core manifest"
+log "Paso 4/8: Core manifest"
 
 if [ -x "$OPS_DEST/manifests/generate-core-manifest.sh" ]; then
   "$OPS_DEST/manifests/generate-core-manifest.sh"
@@ -215,7 +215,7 @@ fi
 # -----------------------------------------------
 # Paso 5: Instalar DAGs operativos
 # -----------------------------------------------
-log "Paso 5/7: DAGs operativos"
+log "Paso 5/8: DAGs operativos"
 
 DAGS_DIR="$HOME/.config/dagu/dags"
 mkdir -p "$DAGS_DIR"
@@ -234,7 +234,7 @@ done
 # -----------------------------------------------
 # Paso 6: Generar CLAUDE.md
 # -----------------------------------------------
-log "Paso 6/7: CLAUDE.md"
+log "Paso 6/8: CLAUDE.md"
 
 TEMPLATE="$BOOTSTRAP_DIR/templates/CLAUDE.md.template"
 CLAUDE_MD="$HOME/CLAUDE.md"
@@ -288,9 +288,68 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 7: Servicios
+# Paso 7: Repo de instancia (<hostname>-lab)
 # -----------------------------------------------
-log "Paso 7/7: Servicios"
+log "Paso 7/8: Repo de instancia"
+
+INSTANCE_HOSTNAME=$(hostname -s)
+INSTANCE_REPO_DIR="$LAB_DIR/repos/${INSTANCE_HOSTNAME}-lab"
+INSTANCE_TEMPLATES="$BOOTSTRAP_DIR/templates/instance-repo"
+
+if [ -d "$INSTANCE_REPO_DIR/.git" ]; then
+  log "Repo ${INSTANCE_HOSTNAME}-lab ya existe — no se sobreescribe"
+elif [ ! -d "$INSTANCE_TEMPLATES" ]; then
+  warn "Templates de repo de instancia no encontrados en $INSTANCE_TEMPLATES"
+else
+  log "Creando repo ${INSTANCE_HOSTNAME}-lab..."
+
+  HOSTNAME_VAL="$INSTANCE_HOSTNAME"
+  CREATED_DATE=$(date +%Y-%m-%d)
+  OS_VERSION_VAL=$(lsb_release -ds 2>/dev/null || grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "Linux")
+  TS_IP_VAL=$(tailscale ip -4 2>/dev/null || echo "no configurado")
+  GIT_NAME_VAL=$(git config user.name 2>/dev/null || echo "sin configurar")
+  GIT_EMAIL_VAL=$(git config user.email 2>/dev/null || echo "sin configurar")
+  GIT_USER_VAL=$(echo "$GIT_EMAIL_VAL" | sed 's/@.*//')
+
+  mkdir -p "$INSTANCE_REPO_DIR"/{docs,configs,stacks,scripts}
+
+  for tmpl in "$INSTANCE_TEMPLATES"/*.template; do
+    [ -f "$tmpl" ] || continue
+    filename=$(basename "$tmpl" .template)
+    # gitignore.template → .gitignore
+    if [ "$filename" = "gitignore" ]; then
+      dest="$INSTANCE_REPO_DIR/.gitignore"
+    elif [ "$filename" = "CHANGELOG.md" ]; then
+      dest="$INSTANCE_REPO_DIR/docs/CHANGELOG.md"
+    else
+      dest="$INSTANCE_REPO_DIR/$filename"
+    fi
+    sed -e "s|{{HOSTNAME}}|${HOSTNAME_VAL}|g" \
+        -e "s|{{CREATED_DATE}}|${CREATED_DATE}|g" \
+        -e "s|{{OS_VERSION}}|${OS_VERSION_VAL}|g" \
+        -e "s|{{TAILSCALE_IP}}|${TS_IP_VAL}|g" \
+        -e "s|{{GIT_NAME}}|${GIT_NAME_VAL}|g" \
+        -e "s|{{GIT_EMAIL}}|${GIT_EMAIL_VAL}|g" \
+        -e "s|{{GIT_USER}}|${GIT_USER_VAL}|g" \
+        "$tmpl" > "$dest"
+  done
+
+  cd "$INSTANCE_REPO_DIR"
+  git init -q
+  git add -A
+  git commit -q -m "init: repo de instancia ${INSTANCE_HOSTNAME}-lab"
+  cd - > /dev/null
+
+  log "Repo creado en $INSTANCE_REPO_DIR"
+  log "Para publicar en GitHub (después de gh auth login):"
+  log "  cd $INSTANCE_REPO_DIR"
+  log "  gh repo create ${GIT_USER_VAL}/${INSTANCE_HOSTNAME}-lab --private --source=. --push"
+fi
+
+# -----------------------------------------------
+# Paso 8: Servicios
+# -----------------------------------------------
+log "Paso 8/8: Servicios"
 
 if [ "$SKIP_SERVICES" = true ]; then
   log "Inicio de servicios saltado (--skip-services)"
@@ -321,6 +380,7 @@ echo "  Guards:      $LAB_DIR/ops/guards/"
 echo "  Backup:      $LAB_DIR/ops/backup/lab-backup.sh"
 echo "  Runbooks:    $LAB_DIR/ops/runbooks/"
 echo "  CLAUDE.md:   $CLAUDE_MD"
+echo "  Repo:        $LAB_DIR/repos/$(hostname -s)-lab/"
 echo ""
 
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "100.x.x.x")

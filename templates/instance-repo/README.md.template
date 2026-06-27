@@ -1,0 +1,43 @@
+# {{HOSTNAME}}-lab
+
+Documentación, configuración y scripts de operación del laboratorio de IA **{{HOSTNAME}}**.
+Repo privado — fuente de verdad de cómo está armado el lab, qué corre, por qué se decidió así,
+y cómo recuperarlo desde cero.
+
+**Creado automáticamente** por `ai-lab-bootstrap` el {{CREATED_DATE}}.
+
+---
+
+## Qué es este lab
+
+Un servidor {{OS_VERSION}} corriendo la plataforma de agentes AI del ecosistema ai-lab-bootstrap.
+Operado vía Tailscale (IP: {{TAILSCALE_IP}}).
+
+## Arquitectura
+
+```
+ai-lab-bootstrap (público)     →  Infraestructura base genérica
+{{HOSTNAME}}-lab (este repo)   →  Estado y configuración de esta instancia
+lab-profiles (privado)         →  Perfiles de servicios desplegables
+```
+
+## Estructura
+
+```
+docs/           ← decisiones, runbooks, changelog de esta instancia
+configs/        ← configuraciones específicas (Dagu, Hermes, system)
+stacks/         ← docker-compose de servicios propios de esta instancia
+scripts/        ← scripts operativos locales
+```
+
+## Estado del lab
+
+Ver `docs/CHANGELOG.md` para el historial de cambios.
+Correr `~/ai-lab/ops/guards/core-guard.sh` para auditar el estado actual.
+
+## Convenciones
+
+- Commits como {{GIT_NAME}} ({{GIT_USER}}), nunca Co-Authored-By de IA
+- Documentación en español
+- Secrets NUNCA en el repo (ver bootstrap: `docs/SECRETS_INVENTORY.md`)
+- `~/dev/` prohibido para agentes
