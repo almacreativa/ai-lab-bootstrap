@@ -51,7 +51,16 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 git clone https://github.com/almacreativa/ai-lab-bootstrap.git
 cd ai-lab-bootstrap
 bash bootstrap.sh
+
+# Después del bootstrap: configurar la instancia
+# Opción A: con bundle de secrets encriptado (ver ops/runbooks/secrets-management.md)
+./setup-instance.sh --secrets ~/secrets.age
+
+# Opción B: interactivo
+./setup-instance.sh
 ```
+
+`setup-instance.sh` configura secrets, inicializa backup (restic + B2), copia el framework operativo (`ops/`), genera `core-manifest.yaml`, instala DAGs operativos, genera `~/CLAUDE.md` e inicia servicios.
 
 ### Variables configurables
 

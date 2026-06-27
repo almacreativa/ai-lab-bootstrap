@@ -82,7 +82,7 @@ echo "backup:" >> "$MANIFEST"
 if [ -f "$LAB_DIR/scripts/.env" ] && grep -q "RESTIC_PASSWORD" "$LAB_DIR/scripts/.env" 2>/dev/null; then
   echo "  configured: true" >> "$MANIFEST"
   source "$LAB_DIR/scripts/.env" 2>/dev/null || true
-  export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-b2:lab-backpus}"
+  export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-}"
   export B2_ACCOUNT_ID="${B2_ACCOUNT_ID:-}"
   export B2_ACCOUNT_KEY="${B2_BACKUP_KEY:-}"
   export RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
