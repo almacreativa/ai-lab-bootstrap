@@ -1,0 +1,16 @@
+# Portainer CE — UI de gestión de containers Docker
+# Desplegado en stacks/portainer/ por setup-instance.sh
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "{{TAILSCALE_IP}}:9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+volumes:
+  portainer_data:

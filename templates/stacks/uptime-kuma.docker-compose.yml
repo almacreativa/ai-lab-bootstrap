@@ -1,0 +1,26 @@
+# Uptime Kuma — monitoreo de servicios del lab
+# Se conecta a las redes de otros stacks para monitorear containers por nombre DNS.
+# Agregar redes de stacks nuevos que necesiten monitoreo por nombre.
+# Desplegado en stacks/uptime-kuma/ por setup-instance.sh
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "{{TAILSCALE_IP}}:3001:3001"
+    volumes:
+      - uptime-kuma:/app/data
+    networks:
+      - mem0_default
+      - outline_default
+
+volumes:
+  uptime-kuma:
+
+networks:
+  mem0_default:
+    external: true
+  outline_default:
+    external: true

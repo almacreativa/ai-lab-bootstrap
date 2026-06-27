@@ -1,0 +1,17 @@
+# SearXNG — metabuscador privado para agentes del lab
+# Solo accesible desde localhost y la red Docker ai-lab-net
+# Desplegado en stacks/searxng/ por setup-instance.sh
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - ai-lab-net
+
+networks:
+  ai-lab-net:
+    external: true
