@@ -19,12 +19,20 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 | uv | Gestor Python rápido (Astral) |
 | notebooklm-mcp-cli | Servidor MCP para Google NotebookLM |
 | Chromium + Xvfb | Logins headless via CDP (sin pantalla física) |
+| Claude Code | Agente de desarrollo AI en terminal |
 | Opencode | IDE AI en terminal |
+| Engram | Memoria persistente cross-session para agentes AI (MCP stdio) |
+| MoolMesh | Observatorio de sesiones de agentes AI (dashboard + MCP) |
 | Dagu v2.8.2 | Orquestador de tareas YAML — reemplaza crontab (UI, retry, logs, MCP) |
 | Portainer | UI web para gestión Docker |
+| Uptime Kuma | Monitoreo de servicios con alertas push |
+| Glance | Centro de Comando — dashboard de estado del lab |
 | Paperclip | Frontend AI con múltiples providers |
 | SearXNG | Motor de búsqueda self-hosted — backend nativo de Hermes |
 | Syncthing | Sincronización P2P de `~/ai-lab/knowledge/` con otros dispositivos |
+| restic | Backup incremental encriptado a Backblaze B2 |
+| age | Cifrado de secrets para transferencia segura entre labs |
+| etckeeper | Control de versiones automático de `/etc/` |
 | Red Docker `ai-lab` | Red aislada para todos los contenedores del lab |
 
 ---
@@ -147,12 +155,13 @@ bootstrap.sh            ← script principal Linux (sourcea los módulos)
 bootstrap-macos.sh      ← script principal macOS (sourcea modules/macos/)
 bootstrap-windows.ps1   ← script principal Windows host (sourcea modules/windows-host/)
 modules/
-├── 01-system.sh        ← apt, Docker CE, Tailscale, GitHub CLI, SSH hardening
-│                          (detecta $WSL_DISTRO_NAME y se adapta para WSL2)
+├── 01-system.sh        ← apt, Docker CE, Tailscale, GitHub CLI, SSH hardening,
+│                          restic, age, etckeeper, sqlite3
 ├── 02-node.sh          ← NVM + Node 24 + Gemini CLI
 ├── 03-python.sh        ← uv, Hermes venv, notebooklm-mcp-cli
-├── 04-ai-tools.sh      ← Chromium, Opencode, aliases .bashrc
-├── 05-docker-stack.sh  ← red ai-lab, Portainer, repos, Hermes service
+├── 04-ai-tools.sh      ← Claude Code, Opencode, Engram, MoolMesh, aliases
+├── 05-docker-stack.sh  ← red ai-lab, Portainer, Uptime Kuma, Glance, Dagu,
+│                          repos, Hermes service, ops/ framework, data/ dirs
 ├── 06-post-install.sh  ← instrucciones de pasos manuales finales
 ├── macos/              ← equivalentes 01-06 para macOS (Homebrew, launchd, etc.)
 └── windows-host/
@@ -198,9 +207,42 @@ skills/                     ← skills de Hermes (plantillas genéricas)
 ├── hermes-history-ingest/  ← ingest de historial de Hermes
 ├── software-development/   ← skills de desarrollo (subagent-driven, session-continuity)
 └── autonomous-ai-agents/   ← skills para agentes autónomos
+ops/                        ← framework operativo (copiado a ~/ai-lab/ops/ por módulo 05)
+├── guards/                 ← scripts de auditoría automática
+│   ├── core-guard.sh       ← audita core contra core-manifest.yaml
+│   ├── profile-guard.sh    ← audita perfil contra profile.yaml
+│   ├── bootstrap-guard.sh  ← audita cobertura del bootstrap
+│   └── guard-lib.sh        ← funciones compartidas (JSON output, Telegram)
+├── backup/                 ← scripts de backup y disaster recovery
+│   ├── lab-backup.sh       ← backup incremental restic (genérico)
+│   ├── setup-backup.sh     ← wizard de configuración de backup
+│   └── dr-restore.sh       ← procedimiento de disaster recovery
+├── manifests/
+│   └── generate-core-manifest.sh ← escanea el sistema y genera core-manifest.yaml
+└── runbooks/               ← lecciones aprendidas codificadas
 docs/                       ← documentación genérica del lab (ver tabla abajo)
 knowledge-pipeline/         ← scripts Python del pipeline de destilación
-stacks/                     ← docker-compose de servicios (Outline, Mem0, etc.)
+stacks/                     ← docker-compose de servicios (Outline, Mem0, Glance, etc.)
+```
+
+### Directorios creados en el host por el bootstrap
+
+```
+~/ai-lab/
+├── data/                   ← datos persistentes (respaldados por restic)
+│   ├── core/               ← datos del core (nunca se borran por perfiles)
+│   └── profiles/           ← datos por perfil (aislados entre sí)
+├── ops/                    ← framework operativo (copiado desde el bootstrap)
+│   ├── guards/
+│   ├── backup/
+│   ├── runbooks/
+│   └── manifests/
+├── logs/guard/             ← reportes JSON de auditorías semanales
+├── scripts/                ← scripts operativos del lab
+├── repos/                  ← repositorios clonados (paperclip, hermes-agent)
+├── stacks/                 ← docker-compose de servicios (glance, etc.)
+├── knowledge/              ← base de conocimiento (sincronizada con Syncthing)
+└── workspace/              ← workspaces de agentes
 ```
 
 ---
