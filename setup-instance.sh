@@ -335,12 +335,18 @@ else
   done
 
   cd "$INSTANCE_REPO_DIR"
-  git init -q
-  git add -A
-  git commit -q -m "init: repo de instancia ${INSTANCE_HOSTNAME}-lab"
+  if git config user.name &>/dev/null && git config user.email &>/dev/null; then
+    git init -q
+    git add -A
+    git commit -q -m "init: repo de instancia ${INSTANCE_HOSTNAME}-lab"
+    log "Repo creado en $INSTANCE_REPO_DIR"
+  else
+    git init -q
+    warn "git user.name/email no configurados — repo inicializado pero sin commit."
+    warn "Configurar con: git config --global user.name '...' && git config --global user.email '...'"
+    warn "Luego: cd $INSTANCE_REPO_DIR && git add -A && git commit -m 'init: repo de instancia'"
+  fi
   cd - > /dev/null
-
-  log "Repo creado en $INSTANCE_REPO_DIR"
   log "Para publicar en GitHub (después de gh auth login):"
   log "  cd $INSTANCE_REPO_DIR"
   log "  gh repo create ${GIT_USER_VAL}/${INSTANCE_HOSTNAME}-lab --private --source=. --push"
