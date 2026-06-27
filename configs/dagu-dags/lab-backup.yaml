@@ -1,0 +1,13 @@
+description: Backup diario del lab — restic + B2
+schedule: "0 3 * * *"
+group: ops
+
+env:
+  - LAB_DIR: "${HOME}/ai-lab"
+
+steps:
+  - name: backup
+    command: bash
+    script: |
+      ${HOME}/ai-lab/ops/backup/lab-backup.sh
+    timeout_sec: 1800

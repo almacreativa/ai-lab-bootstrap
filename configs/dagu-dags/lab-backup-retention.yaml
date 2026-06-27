@@ -1,0 +1,33 @@
+description: Reporte semanal de snapshots de backup — inventario y uso de espacio
+schedule: "30 4 * * 0"
+group: ops
+
+env:
+  - LAB_DIR: "${HOME}/ai-lab"
+
+steps:
+  - name: report
+    command: bash
+    script: |
+      export PATH="$HOME/.local/bin:$PATH"
+      source "${HOME}/ai-lab/scripts/.env"
+      export RESTIC_REPOSITORY
+      export B2_ACCOUNT_ID
+      export B2_ACCOUNT_KEY="$B2_BACKUP_KEY"
+      export RESTIC_PASSWORD
+
+      SNAP_COUNT=$(restic snapshots --json 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
+      LATEST=$(restic snapshots --latest 1 --json 2>/dev/null | python3 -c "import json,sys; s=json.load(sys.stdin); print(s[0]['time'][:19] if s else 'ninguno')" 2>/dev/null || echo "?")
+      STATS=$(restic stats --json 2>/dev/null | python3 -c "
+      import json,sys
+      s=json.load(sys.stdin)
+      gb=s.get('total_size',0)/1024/1024/1024
+      print(f'{gb:.2f} GB')
+      " 2>/dev/null || echo "?")
+
+      MSG="Backup retention: ${SNAP_COUNT} snapshots, último: ${LATEST}, tamaño: ${STATS}"
+      echo "$MSG"
+      if [ -x "${HOME}/ai-lab/scripts/telegram-notify.sh" ]; then
+        "${HOME}/ai-lab/scripts/telegram-notify.sh" "$MSG" INFO 2>/dev/null || true
+      fi
+    timeout_sec: 300
