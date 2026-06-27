@@ -9,6 +9,56 @@ Cada fase tiene prerrequisitos, pasos y verificación.
 
 ---
 
+## Arquitectura del lab
+
+Un lab tiene 3 capas de servicios:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  AGENTES CORE (la razón de ser del lab)             │
+│  Paperclip · Hermes · Odysseus                      │
+├─────────────────────────────────────────────────────┤
+│  INFRAESTRUCTURA (setup-instance.sh los genera)     │
+│  Portainer · Uptime Kuma · SearXNG · Glance · Dagu │
+├─────────────────────────────────────────────────────┤
+│  BASE (bootstrap.sh los instala)                    │
+│  Docker · Node · Python · Tailscale · restic        │
+└─────────────────────────────────────────────────────┘
+```
+
+### Agentes core — qué hace cada uno
+
+| Agente | Rol | Corre como | Dependencias |
+|--------|-----|------------|-------------|
+| **Hermes** | Agente conversacional vía Telegram. Orquesta tareas, consulta Paperclip via MCP, ejecuta skills. | systemd (Python nativo en venv) | Telegram bot token, API keys de LLM |
+| **Paperclip** | Gestión de proyectos + orquestación de agentes de código. UI web para issues, boards, agentes. | Docker (3 containers: server, db, xai-proxy) | PostgreSQL (incluido), Hermes (para MCP) |
+| **Odysseus** | AI workspace. Chat multi-modelo, RAG, búsqueda web, research. UI web. | Docker (2 containers: app, chromadb) | SearXNG (búsqueda), ChromaDB (incluido) |
+
+### Orden de instalación
+
+```
+1. Hermes    ← primero porque Paperclip lo necesita como canal MCP
+2. Paperclip ← segundo porque los agentes necesitan el board de trabajo
+3. Odysseus  ← tercero, independiente de los otros dos
+```
+
+### Patrón de despliegue
+
+Cada servicio Docker sigue esta estructura:
+```
+repos/<proyecto>/           ← código clonado de GitHub (intocable)
+  └── Dockerfile            ← cómo construir la imagen
+
+stacks/<proyecto>/          ← config de PRODUCCIÓN de esta instancia
+  └── docker-compose.yml    ← puertos, IPs, volumes, limits de memoria
+  └── .env                  ← secrets de producción (chmod 600)
+
+data/core/<proyecto>/       ← datos persistentes (si usa bind mounts)
+```
+
+El compose de producción usa `build: ${HOME}/ai-lab/repos/<proyecto>`
+para construir la imagen desde el código del repo.
+
 ## Orden de fases
 
 ```
@@ -16,9 +66,9 @@ Fase 0: Verificar base         ← confirmar que bootstrap completó bien
 Fase 1: Secrets                 ← sin esto nada arranca
 Fase 2: Autenticaciones         ← logins interactivos (requiere humano)
 Fase 3: Servicios core          ← Hermes, Dagu, MoolMesh
-Fase 4: Stack de agentes        ← Paperclip, Ollama, Mem0
+Fase 4: Stack de agentes        ← Paperclip, Odysseus, Ollama, Mem0
 Fase 5: Observabilidad          ← Uptime Kuma, Glance, guards
-Fase 6: Colaboración            ← Outline, Syncthing
+Fase 6: Colaboración            ← Outline, file sharing
 Fase 7: Verificación final      ← guards limpios, todo verde
 ```
 
@@ -238,62 +288,73 @@ sudo systemctl is-active hermes
 
 **Prerrequisito:** Fase 1.4 completada, Docker corriendo.
 
+Cada servicio Docker usa la convención `stacks/`: código en `repos/`,
+compose de producción en `stacks/`, datos persistentes en `data/core/`.
+
 ### 4.1 Paperclip
 
 ```bash
-cd ~/ai-lab/repos/paperclip
-docker compose -f docker/docker-compose.yml \
-  --env-file .env.paperclip \
-  --project-name paperclip \
-  up -d --build
+# 1. Clonar el repo (si no existe)
+cd ~/ai-lab/repos
+git clone <url-del-repo-paperclip> paperclip
 
-# Verificar:
+# 2. Crear compose de producción en stacks/
+mkdir -p ~/ai-lab/stacks/paperclip
+# Copiar template o crear docker-compose.yml con:
+#   build.context: ${HOME}/ai-lab/repos/paperclip
+#   ports, volumes, env según la instancia
+
+# 3. Crear .env con secrets
+cp ~/ai-lab-bootstrap/templates/paperclip.env.example ~/ai-lab/stacks/paperclip/.env
+chmod 600 ~/ai-lab/stacks/paperclip/.env
+# EDITAR: POSTGRES_PASSWORD, BETTER_AUTH_SECRET, PAPERCLIP_PUBLIC_URL
+
+# 4. Desplegar
+cd ~/ai-lab/stacks/paperclip
+docker compose up -d --build
+
+# 5. Verificar
 docker ps --filter name=paperclip
-curl -s http://localhost:3100/health || echo "Esperando arranque..."
+curl -s -o /dev/null -w "%{http_code}" http://<TAILSCALE_IP>:3100
 ```
 
-### 4.2 Ollama
+### 4.2 Mem0 + Ollama
 
 ```bash
-docker run -d \
-  --name ollama \
-  --restart unless-stopped \
-  -p 127.0.0.1:11434:11434 \
-  -v ollama_data:/root/.ollama \
-  --memory=512m \
-  ollama/ollama:latest
+# Mem0 incluye Ollama como dependencia en su compose
+cd ~/ai-lab/stacks/mem0
+docker compose up -d
 
 # Descargar modelo de embeddings:
 docker exec ollama ollama pull nomic-embed-text
 
 # Verificar:
+curl -s http://localhost:8765/health
 curl -s http://localhost:11434/api/tags | head -1
 ```
 
-### 4.3 Mem0
+### 4.3 Odysseus
 
 ```bash
-# Requiere stack en ~/ai-lab/stacks/mem0/
-# Si existe docker-compose:
-cd ~/ai-lab/stacks/mem0
-docker compose up -d
+# 1. Clonar el repo (si no existe)
+cd ~/ai-lab/repos
+git clone <url-del-repo-odysseus> odysseus
 
-# Verificar:
-curl -s http://localhost:8765/health
-```
+# 2. Crear compose de producción en stacks/
+mkdir -p ~/ai-lab/stacks/odysseus
+# docker-compose.yml con:
+#   build: ${HOME}/ai-lab/repos/odysseus
+#   ports, env, chromadb según la instancia
 
-### 4.4 Redes Docker (conectar servicios)
+# 3. Crear .env con secrets
+# EDITAR: ODYSSEUS_ADMIN_USER, ODYSSEUS_ADMIN_PASSWORD, API keys
 
-```bash
-# Conectar Uptime Kuma a las redes de los stacks para monitoreo:
-docker network connect paperclip_default uptime-kuma 2>/dev/null || true
-docker network connect mem0_default uptime-kuma 2>/dev/null || true
+# 4. Desplegar
+cd ~/ai-lab/stacks/odysseus
+docker compose up -d --build
 
-# Conectar Mem0 a la red de Paperclip:
-docker network connect paperclip_default mem0 2>/dev/null || true
-
-# Conectar Ollama a la red de Mem0:
-docker network connect mem0_default ollama 2>/dev/null || true
+# 5. Verificar
+curl -s -o /dev/null -w "%{http_code}" http://<TAILSCALE_IP>:7000
 ```
 
 **Verificación de fase:**
@@ -305,39 +366,43 @@ docker ps --format "table {{.Names}}\t{{.Status}}" | sort
 
 ## Fase 5 — Observabilidad
 
-### 5.1 Uptime Kuma
+### 5.1 Desplegar stacks de infraestructura
+
+`setup-instance.sh` genera los compose en `stacks/` desde templates.
+Solo falta levantar los containers:
 
 ```bash
-# Ya desplegado por el bootstrap
-# Abrir http://<TAILSCALE_IP>:3001
-# Crear usuario admin
-# Agregar monitores para cada servicio
+# Levantar infraestructura
+for stack in portainer searxng uptime-kuma; do
+  cd ~/ai-lab/stacks/$stack && docker compose up -d
+done
+
+# Portainer: abrir https://<TAILSCALE_IP>:9443
+# Crear usuario admin (dentro de los primeros 5 minutos)
+
+# Uptime Kuma: abrir http://<TAILSCALE_IP>:3001
+# Crear usuario admin, agregar monitores
 ```
 
-**Monitores sugeridos:**
-| Servicio | Tipo | URL/comando |
-|----------|------|-------------|
+**Monitores sugeridos en Uptime Kuma:**
+| Servicio | Tipo | URL |
+|----------|------|-----|
 | Hermes | HTTP | `http://localhost:9119/health` |
-| Paperclip | HTTP | `http://localhost:3100/health` |
-| Dagu | HTTP | `http://localhost:8480` |
-| Ollama | HTTP | `http://localhost:11434/api/tags` |
-| Mem0 | HTTP | `http://localhost:8765/health` |
+| Paperclip | HTTP | `http://<container_name>:3100` |
+| Mem0 | HTTP | `http://mem0:8765/health` |
+| Ollama | HTTP | `http://ollama:11434` |
+| Outline | HTTP | `http://outline:3000` |
 
-### 5.2 Backup (cuando aplique)
+Para monitorear por nombre de container, Uptime Kuma debe estar en la
+red Docker del servicio. Su compose ya declara las redes más comunes.
+
+### 5.2 Backup
 
 ```bash
 bash ~/ai-lab/ops/backup/setup-backup.sh
 # Seguir el wizard: B2 creds → restic password → Uptime Kuma push URL
 # Verificar:
 bash ~/ai-lab/ops/backup/lab-backup.sh
-```
-
-### 5.3 Portainer
-
-```bash
-# Ya desplegado por el bootstrap
-# Abrir https://<TAILSCALE_IP>:9443
-# Crear usuario admin (debe hacerse dentro de los primeros 5 minutos)
 ```
 
 ### 5.4 Guards
@@ -355,7 +420,7 @@ bash ~/ai-lab/ops/guards/bootstrap-guard.sh
 
 ---
 
-## Fase 6 — Colaboración (opcional)
+## Fase 6 — Colaboración y file sharing (opcional)
 
 ### 6.1 Outline (wiki)
 
@@ -369,7 +434,13 @@ docker compose up -d
 sudo tailscale serve --bg --https=443 http://localhost:3010
 ```
 
-### 6.2 Syncthing
+### 6.2 File sharing entre instancias
+
+Para sincronizar archivos entre labs (ej: knowledge base, configs compartidos),
+hay dos opciones según el caso de uso:
+
+**Opción A: Syncthing** — sincronización continua bidireccional.
+Ideal para carpetas que cambian frecuentemente (knowledge, wikis de trabajo).
 
 ```bash
 # Obtener Device ID:
@@ -379,11 +450,35 @@ syncthing --device-id
 # Desde Mac: ssh -L 8384:localhost:8384 <usuario>@<IP>
 # Abrir http://localhost:8384
 
-# Configurar:
-# - Usuario y contraseña en Settings → GUI
+# Seguridad:
 # - Desactivar: Global Discovery, Enable Relays, NAT Traversal
-# - Agregar carpeta: knowledge → ~/ai-lab/knowledge
+# - Solo peers vía Tailscale (IPs 100.x.x.x)
 # - File Versioning: Staggered, 90 días
+
+# Carpetas sugeridas para compartir:
+#   ~/ai-lab/knowledge/shared/    ← knowledge base curada
+#   ~/ai-lab/knowledge/companies/ ← por empresa (selectivo)
+```
+
+**Opción B: Tailscale file copy** — transferencia puntual.
+Ideal para mover archivos específicos entre labs sin sincronización continua.
+
+```bash
+# Enviar archivo a otro lab:
+tailscale file cp ~/ai-lab/knowledge/shared/doc.md <hostname>:
+
+# Recibir archivos pendientes:
+tailscale file get ~/ai-lab/inbox/
+```
+
+**Convención de carpetas compartidas:**
+```
+~/ai-lab/knowledge/
+  shared/            ← material curado, disponible para todos los agentes
+  companies/<id>/    ← material por empresa/proyecto
+    wiki/            ← workspace de trabajo de agentes (rw)
+    entradas/        ← inbox de material nuevo
+    outputs/         ← resultados de agentes
 ```
 
 ### 6.3 NLM Gateway (para agentes Paperclip)

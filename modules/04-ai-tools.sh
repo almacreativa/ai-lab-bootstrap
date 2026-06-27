@@ -3,6 +3,17 @@
 
 log "Paso 4/6 — Herramientas AI..."
 
+# Asegurar que nvm/node/npm estén en PATH (módulo 02 los instala pero
+# el PATH solo se persiste en .bashrc, no en esta sesión de bootstrap)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
+
+if ! command -v npm &>/dev/null; then
+  warn "npm no encontrado en PATH — Claude Code y Opencode no se instalarán."
+  warn "Verificar que el módulo 02-node.sh completó correctamente."
+fi
+
 # Chromium — necesario para logins headless via CDP (nlm, OAuth flows)
 # snap no es confiable dentro de WSL2 (squashfs/AppArmor) — usar apt ahí
 if [ -n "$WSL_DISTRO_NAME" ]; then
@@ -19,25 +30,47 @@ else
   log "Chromium ya instalado, saltando."
 fi
 
-# Claude Code via npm (instalación automática — login es manual al final)
+# Claude Code via npm
 if ! command -v claude &>/dev/null; then
-  npm install -g @anthropic-ai/claude-code
-  log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
-  warn "Completar login después del bootstrap: claude"
+  if command -v npm &>/dev/null; then
+    npm install -g @anthropic-ai/claude-code 2>&1 || warn "npm install -g claude-code falló"
+    # npm global bin puede no estar en PATH — buscar y agregar
+    NPM_BIN=$(npm config get prefix 2>/dev/null)/bin
+    [ -d "$NPM_BIN" ] && export PATH="$NPM_BIN:$PATH"
+    if command -v claude &>/dev/null; then
+      log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
+      warn "Completar login después del bootstrap: claude"
+    else
+      warn "Claude Code: npm install completó pero 'claude' no está en PATH."
+      warn "Verificar con: npm list -g @anthropic-ai/claude-code"
+    fi
+  else
+    warn "Claude Code no instalado — npm no disponible."
+  fi
 else
   log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
 fi
 
 # Opencode
-if [ ! -f "$HOME/.opencode/bin/opencode" ]; then
-  mkdir -p "$HOME/.opencode"
-  cd "$HOME/.opencode"
-  npm install opencode-ai 2>/dev/null \
-    || warn "npm install opencode-ai falló — instalar manualmente desde opencode.ai"
-  mkdir -p "$HOME/.opencode/bin"
-  ln -sf "$HOME/.opencode/node_modules/.bin/opencode" "$HOME/.opencode/bin/opencode" 2>/dev/null || true
-  cd -
-  log "Opencode instalado."
+if ! command -v opencode &>/dev/null && [ ! -f "$HOME/.opencode/bin/opencode" ]; then
+  if command -v npm &>/dev/null; then
+    mkdir -p "$HOME/.opencode"
+    cd "$HOME/.opencode"
+    if npm install opencode-ai 2>&1; then
+      mkdir -p "$HOME/.opencode/bin"
+      ln -sf "$HOME/.opencode/node_modules/.bin/opencode" "$HOME/.opencode/bin/opencode" 2>/dev/null || true
+      if [ -x "$HOME/.opencode/bin/opencode" ]; then
+        log "Opencode instalado en ~/.opencode/bin/opencode"
+      else
+        warn "Opencode: npm install completó pero el binario no existe en node_modules/.bin/"
+      fi
+    else
+      warn "npm install opencode-ai falló — instalar manualmente desde opencode.ai"
+    fi
+    cd - > /dev/null
+  else
+    warn "Opencode no instalado — npm no disponible."
+  fi
 else
   log "Opencode ya instalado, saltando."
 fi

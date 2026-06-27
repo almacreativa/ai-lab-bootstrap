@@ -46,7 +46,7 @@ echo ""
 # -----------------------------------------------
 # Paso 1: Secrets
 # -----------------------------------------------
-log "Paso 1/8: Secrets"
+log "Paso 1/9: Secrets"
 
 SCRIPTS_ENV="$LAB_DIR/scripts/.env"
 HERMES_ENV="$HOME/.hermes/.env"
@@ -155,7 +155,7 @@ fi
 # -----------------------------------------------
 # Paso 2: Backup
 # -----------------------------------------------
-log "Paso 2/8: Backup"
+log "Paso 2/9: Backup"
 
 if [ "$SKIP_BACKUP" = true ]; then
   log "Backup saltado (--skip-backup)"
@@ -179,7 +179,7 @@ fi
 # -----------------------------------------------
 # Paso 3: Copiar ops/ al host
 # -----------------------------------------------
-log "Paso 3/8: Framework operativo (ops/)"
+log "Paso 3/9: Framework operativo (ops/)"
 
 OPS_DEST="$LAB_DIR/ops"
 mkdir -p "$OPS_DEST"/{guards,backup,manifests,runbooks}
@@ -203,7 +203,7 @@ log "ops/ copiado a $OPS_DEST ($(find "$OPS_DEST" -type f | wc -l) archivos)"
 # -----------------------------------------------
 # Paso 4: Generar core-manifest.yaml
 # -----------------------------------------------
-log "Paso 4/8: Core manifest"
+log "Paso 4/9: Core manifest"
 
 if [ -x "$OPS_DEST/manifests/generate-core-manifest.sh" ]; then
   "$OPS_DEST/manifests/generate-core-manifest.sh"
@@ -215,7 +215,7 @@ fi
 # -----------------------------------------------
 # Paso 5: Instalar DAGs operativos
 # -----------------------------------------------
-log "Paso 5/8: DAGs operativos"
+log "Paso 5/9: DAGs operativos"
 
 DAGS_DIR="$HOME/.config/dagu/dags"
 mkdir -p "$DAGS_DIR"
@@ -234,7 +234,7 @@ done
 # -----------------------------------------------
 # Paso 6: Generar CLAUDE.md
 # -----------------------------------------------
-log "Paso 6/8: CLAUDE.md"
+log "Paso 6/9: CLAUDE.md"
 
 TEMPLATE="$BOOTSTRAP_DIR/templates/CLAUDE.md.template"
 CLAUDE_MD="$HOME/CLAUDE.md"
@@ -290,7 +290,7 @@ fi
 # -----------------------------------------------
 # Paso 7: Repo de instancia (<hostname>-lab)
 # -----------------------------------------------
-log "Paso 7/8: Repo de instancia"
+log "Paso 7/9: Repo de instancia"
 
 INSTANCE_HOSTNAME=$(hostname -s)
 INSTANCE_REPO_DIR="$LAB_DIR/repos/${INSTANCE_HOSTNAME}-lab"
@@ -353,9 +353,41 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 8: Servicios
+# Paso 8: Stacks de infraestructura
 # -----------------------------------------------
-log "Paso 8/8: Servicios"
+log "Paso 8/9: Stacks de infraestructura"
+
+STACKS_TEMPLATES="$BOOTSTRAP_DIR/templates/stacks"
+TS_IP=$(tailscale ip -4 2>/dev/null || echo "0.0.0.0")
+
+if [ -d "$STACKS_TEMPLATES" ]; then
+  for tmpl in "$STACKS_TEMPLATES"/*.docker-compose.yml; do
+    [ -f "$tmpl" ] || continue
+    STACK_NAME=$(basename "$tmpl" .docker-compose.yml)
+    STACK_DIR="$LAB_DIR/stacks/$STACK_NAME"
+
+    if [ -f "$STACK_DIR/docker-compose.yml" ]; then
+      log "Stack $STACK_NAME ya existe — no se sobreescribe"
+      continue
+    fi
+
+    mkdir -p "$STACK_DIR"
+    sed -e "s|{{TAILSCALE_IP}}|${TS_IP}|g" \
+        -e "s|{{HOSTNAME}}|$(hostname -s)|g" \
+        -e "s|{{HOME}}|${HOME}|g" \
+        "$tmpl" > "$STACK_DIR/docker-compose.yml"
+    log "Stack generado: $STACK_NAME"
+  done
+
+  docker network create ai-lab-net 2>/dev/null && log "Red ai-lab-net creada" || true
+else
+  warn "Templates de stacks no encontrados en $STACKS_TEMPLATES"
+fi
+
+# -----------------------------------------------
+# Paso 9: Servicios
+# -----------------------------------------------
+log "Paso 9/9: Servicios"
 
 if [ "$SKIP_SERVICES" = true ]; then
   log "Inicio de servicios saltado (--skip-services)"
@@ -387,6 +419,7 @@ echo "  Backup:      $LAB_DIR/ops/backup/lab-backup.sh"
 echo "  Runbooks:    $LAB_DIR/ops/runbooks/"
 echo "  CLAUDE.md:   $CLAUDE_MD"
 echo "  Repo:        $LAB_DIR/repos/$(hostname -s)-lab/"
+echo "  Stacks:      $(ls -d "$LAB_DIR/stacks"/*/docker-compose.yml 2>/dev/null | wc -l) compose files en stacks/"
 echo ""
 
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "100.x.x.x")
