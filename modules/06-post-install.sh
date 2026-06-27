@@ -28,7 +28,6 @@ echo "  ── 3. GITHUB CLI ─────────────────
 echo "     gh auth login"
 echo ""
 echo "  ── 4. CLAUDE CODE ──────────────────────────────────────────"
-echo "     npm install -g @anthropic-ai/claude-code"
 echo "     claude    ← para completar el login"
 echo ""
 echo "  ── 5. NOTEBOOKLM (nlm) — login headless via CDP ───────────"
@@ -57,91 +56,64 @@ echo ""
 echo "  ── 7. OPENCODE ─────────────────────────────────────────────"
 echo "     opencode  ← seleccionar provider y autenticar"
 echo ""
-echo "  ── 8. INICIAR SERVICIOS ────────────────────────────────────"
-echo "     # Después de completar los secrets:"
+echo "  ── 8. AGENTES CORE ───────────────────────────────────────────"
+echo "     Orden de instalación: Hermes → Paperclip → Odysseus"
+echo ""
+echo "     # Hermes (agente conversacional Telegram):"
 echo "     sudo systemctl start hermes"
 echo ""
-echo "     # Dagu (systemd user — primer inicio abre UI para crear credenciales):"
+echo "     # Dagu (systemd user):"
 echo "     systemctl --user start dagu"
-echo "     # Abrir http://<TAILSCALE_IP>:8480 → crear usuario admin"
-echo "     # Guardar credenciales en ~/.hermes/.env (DAGU_AUTH_USER, DAGU_AUTH_PASS)"
+echo "     # UI: http://<TAILSCALE_IP>:8480 → crear usuario admin"
 echo ""
 echo "     # MoolMesh (systemd user):"
 echo "     systemctl --user start moolmesh"
 echo ""
-echo "     # Paperclip:"
-echo "     cd $LAB_DIR/repos/paperclip"
-echo "     docker compose -f docker/docker-compose.yml \\"
-echo "       --env-file .env.paperclip \\"
-echo "       --project-name paperclip \\"
-echo "       up -d --build"
+echo "     # Paperclip (desde stacks/, NO desde repos/):"
+echo "     cd $LAB_DIR/stacks/paperclip"
+echo "     docker compose up -d --build"
+echo "     # UI: http://<TAILSCALE_IP>:3100"
 echo ""
-echo "  ── 9. PORTAINER / UPTIME KUMA ─────────────────────────────"
-echo "     https://$LOCAL_IP:9443    ← Portainer: crear usuario admin"
-echo "     http://$LOCAL_IP:3001     ← Uptime Kuma: crear usuario admin"
+echo "     # Odysseus:"
+echo "     cd $LAB_DIR/stacks/odysseus"
+echo "     docker compose up -d --build"
 echo ""
-echo "  ── 10. SYNCTHING — configurar sincronización con Tailscale ────"
-echo "     # Obtener Device ID de este servidor:"
-echo "     syncthing --device-id"
+echo "  ── 9. INFRA (generados por setup-instance.sh) ─────────────"
+echo "     # Levantar stacks de infraestructura:"
+echo "     for s in portainer searxng uptime-kuma; do"
+echo "       cd $LAB_DIR/stacks/\$s && docker compose up -d"
+echo "     done"
 echo ""
-echo "     # La GUI escucha solo en localhost:8384 (default — no cambiar)."
-echo "     # Acceder siempre via tunnel SSH desde tu máquina local:"
-echo "     ssh -L 8384:localhost:8384 $LAB_USER@<IP-del-servidor>"
-echo "     # Luego abrir: http://localhost:8384"
+echo "     # Portainer: https://<TAILSCALE_IP>:9443 → crear admin (5 min)"
+echo "     # Uptime Kuma: http://<TAILSCALE_IP>:3001 → crear admin"
 echo ""
-echo "     # En GUI → Actions → Settings → GUI:"
-echo "     Configurar usuario y contraseña"
-echo "     (GUI Listen Address debe quedar en 127.0.0.1:8384 — no modificar)"
+echo "  ── 10. FILE SHARING ────────────────────────────────────────"
 echo ""
-echo "     # En GUI → Settings → Connections:"
-echo "     Listen Addresses: default   ← NO fijar a una IP específica"
-echo "     Desactivar: Global Discovery, Enable Relays, NAT Traversal"
+echo "     Opción A — Syncthing (sincronización continua):"
+echo "       syncthing --device-id"
+echo "       # GUI via SSH tunnel: ssh -L 8384:localhost:8384 user@servidor"
+echo "       # http://localhost:8384"
+echo "       # Desactivar: Global Discovery, Enable Relays, NAT Traversal"
+echo "       # Carpeta: knowledge → $LAB_DIR/knowledge"
+echo "       # File Versioning: Staggered — 90 días"
 echo ""
-echo "     # Agregar carpeta sincronizada:"
-echo "     Folder ID: knowledge"
-echo "     Folder Path: $LAB_DIR/knowledge"
-echo "     File Versioning: Staggered — mantener 90 días (protección ransomware)"
+echo "     Opción B — Tailscale file copy (transferencia puntual):"
+echo "       tailscale file cp archivo.md <hostname-destino>:"
+echo "       tailscale file get ~/ai-lab/inbox/"
 echo ""
-echo "     # En Mac: instalar Syncthing desde https://syncthing.net/downloads/"
-echo "     Intercambiar Device IDs entre servidor y Mac"
-echo "     Agregar la misma carpeta en el Mac (ej. ~/Documents/knowledge)"
+echo "  ── 11. SSH — keepalive ─────────────────────────────────────"
+echo "     # Servidor: /etc/ssh/sshd_config ya tiene ClientAliveInterval 30"
+echo "     # Cliente (tu Mac) — agregar a ~/.ssh/config:"
+echo "     #   Host <nombre>"
+echo "     #       HostName <ip-tailscale>"
+echo "     #       ServerAliveInterval 30"
 echo ""
-echo "  ── 11. SSH — keepalive para evitar sesiones colgadas ──────
-     # En el servidor (ya configurado por el bootstrap):
-     # /etc/ssh/sshd_config tiene ClientAliveInterval 30 y ClientAliveCountMax 3
-
-     # En tu Mac — agregar a ~/.ssh/config:
-     Host <nombre-servidor>
-         HostName <ip-tailscale>
-         User $LAB_USER
-         ServerAliveInterval 30
-         ServerAliveCountMax 3
-
-     # Después puedes conectarte con: ssh <nombre-servidor>
-
-  ── 12. TMUX — sesión persistente del lab ───────────────────
-     # La sesión se crea automáticamente al boot via cron (@reboot).
-     # Para abrirla o reconectarla manualmente:
-     lab
-
-     # El script ~/ai-lab/scripts/lab-session.sh crea 4 ventanas:
-     #   1. trabajo  — shell limpio
-     #   2. hermes   — shell limpio (lanzar logs: journalctl -u hermes -f)
-     #   3. paperclip — shell limpio (lanzar logs: docker compose logs -f server)
-     #   4. monitor  — htop corriendo
-     #
-     # Atajos clave (prefijo: Ctrl+a):
-     #   Ctrl+a + 1/2/3/4  → cambiar ventana
-     #   Ctrl+a + d         → desconectarse sin cerrar la sesión
-     #   Ctrl+a + |         → dividir vertical
-     #   Ctrl+a + -         → dividir horizontal
-
-  ── 13. SEARXNG — activar en Hermes ────────────────────────"
+echo "  ── 12. TMUX — sesión persistente del lab ───────────────────"
+echo "     lab     ← abre/conecta la sesión tmux del lab"
+echo ""
+echo "  ── 13. SEARXNG ─────────────────────────────────────────────"
 echo "     Agregar a ~/.env_agents:"
-echo "     SEARXNG_URL=http://localhost:8080"
-echo ""
-echo "     Verificar que Hermes lo detecta:"
-echo "     hermes   →   /tools  →  buscar 'web_search backend'"
+echo "       SEARXNG_URL=http://localhost:8080"
 echo ""
 echo "  Guía completa post-bootstrap: docs/POST-BOOTSTRAP.md"
 echo "  (Un agente AI puede leer ese archivo y guiarte paso a paso)"
