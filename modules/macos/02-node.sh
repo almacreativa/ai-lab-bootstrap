@@ -1,5 +1,5 @@
 #!/bin/bash
-# Módulo 02 (macOS) — NVM + Node.js 24 + Gemini CLI
+# Módulo 02 (macOS) — NVM + Node.js 24 + Antigravity CLI
 
 log "Paso 2/6 — Node.js..."
 
@@ -21,11 +21,11 @@ else
   log "pnpm ya instalado ($(pnpm --version))."
 fi
 
-if ! command -v gemini &>/dev/null; then
-  npm install -g @google/gemini-cli
-  log "Gemini CLI instalado."
+if ! command -v antigravity &>/dev/null; then
+  curl -fsSL https://antigravity.google/cli/install.sh | bash
+  log "Antigravity CLI instalado."
 else
-  log "Gemini CLI ya instalado."
+  log "Antigravity CLI ya instalado."
 fi
 
 log "Módulo 02 completo."

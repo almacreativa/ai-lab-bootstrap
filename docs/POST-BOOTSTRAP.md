@@ -173,10 +173,10 @@ ssh -L 9222:localhost:9222 <usuario>@<IP-servidor>
 nlm notebook list
 ```
 
-### 2.5 Gemini CLI (opcional)
+### 2.5 Antigravity CLI (opcional)
 
 ```bash
-gemini    # seguir flujo OAuth
+antigravity    # seguir flujo OAuth
 ```
 
 ### 2.6 Opencode (opcional)

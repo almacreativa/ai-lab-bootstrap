@@ -14,7 +14,7 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 | Tailscale | VPN mesh — acceso seguro desde cualquier lugar |
 | GitHub CLI | Autenticación y gestión de repos |
 | Node.js 24 (via nvm) | Runtime para herramientas frontend |
-| Gemini CLI | Cliente CLI para Google Gemini |
+| Antigravity CLI | Cliente CLI para Google Antigravity (ex Gemini CLI) |
 | Python venv + Hermes Agent | Gateway Telegram + dashboard de agentes |
 | uv | Gestor Python rápido (Astral) |
 | notebooklm-mcp-cli | Servidor MCP para Google NotebookLM |
@@ -166,7 +166,7 @@ bootstrap-windows.ps1   ← script principal Windows host (sourcea modules/windo
 modules/
 ├── 01-system.sh        ← apt, Docker CE, Tailscale, GitHub CLI, SSH hardening,
 │                          restic, age, etckeeper, sqlite3
-├── 02-node.sh          ← NVM + Node 24 + Gemini CLI
+├── 02-node.sh          ← NVM + Node 24 + Antigravity CLI
 ├── 03-python.sh        ← uv, Hermes venv, notebooklm-mcp-cli
 ├── 04-ai-tools.sh      ← Claude Code, Opencode, Engram, MoolMesh, aliases
 ├── 05-docker-stack.sh  ← red ai-lab, Portainer, Uptime Kuma, Glance, Dagu,
@@ -338,10 +338,10 @@ nlm notebook list
 > [Google Account](https://myaccount.google.com/security) cuando no se use activamente.
 > Las cookies expiran cada 2-4 semanas — repetir este proceso para renovarlas.
 
-### 6. Gemini CLI
+### 6. Antigravity CLI
 
 ```bash
-gemini   # sigue el flujo OAuth en el navegador
+antigravity   # sigue el flujo OAuth en el navegador
 ```
 
 ### 7. OpenCode
