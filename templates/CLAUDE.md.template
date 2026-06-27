@@ -1,0 +1,57 @@
+# {{HOSTNAME}} — Laboratorio de IA
+
+Servidor {{OS_VERSION}}, IP Tailscale `{{TAILSCALE_IP}}`, usuario `{{LAB_USER}}`.
+Core version: {{CORE_VERSION}}
+Bootstrap: ai-lab-bootstrap (https://github.com/almacreativa/ai-lab-bootstrap)
+
+---
+
+## Reglas universales (sin excepciones)
+
+1. **Commits** solo bajo la firma git existente. Nunca Co-Authored-By de IA.
+2. **Secrets** nunca en código ni en repos. Solo en `~/ai-lab/scripts/.env`
+   o `~/.hermes/.env` (permisos 600).
+3. **`~/dev/`** completamente prohibido para agentes.
+
+---
+
+## Orientación operativa
+
+| Recurso | Ubicación |
+|---|---|
+| Runbooks (troubleshooting) | `~/ai-lab/ops/runbooks/` |
+| Core manifest (estado esperado) | `~/ai-lab/ops/core-manifest.yaml` |
+| Guard logs (auditorías) | `~/ai-lab/logs/guard/` |
+| Backup logs | `~/ai-lab/logs/` |
+| Documentación del bootstrap | `~/ai-lab/repos/ai-lab-bootstrap/docs/` |
+
+## Servicios activos
+
+{{SERVICES_TABLE}}
+
+## Guards
+
+Los guards corren automáticamente cada domingo a las 5 AM (DAG: lab-guards).
+Logs en `~/ai-lab/logs/guard/`. Reportan vía Telegram si hay GAPs.
+
+Para correr manualmente:
+```bash
+~/ai-lab/ops/guards/core-guard.sh
+~/ai-lab/ops/guards/bootstrap-guard.sh
+```
+
+## Backup
+
+Backup diario a las 3 AM (DAG: lab-backup). Restic + Backblaze B2.
+Monitor: Uptime Kuma push heartbeat.
+
+Para correr manualmente:
+```bash
+~/ai-lab/ops/backup/lab-backup.sh
+```
+
+## Convenciones de git
+
+- Firma: `{{GIT_NAME}} <{{GIT_EMAIL}}>`
+- Commits en español, formato: `tipo: descripción`
+- Sin `--no-verify` salvo falsos positivos del hook anti-secrets
