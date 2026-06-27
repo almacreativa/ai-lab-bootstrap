@@ -1,0 +1,15 @@
+[Unit]
+Description=Tmux Persistent Server Session
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/tmux new-session -d -s default
+ExecStop=%h/.tmux/plugins/tmux-resurrect/scripts/save.sh
+ExecStop=/usr/bin/tmux kill-server
+KillMode=control-group
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
