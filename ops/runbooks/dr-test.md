@@ -95,7 +95,29 @@ docker exec -i paperclip-db-1 psql -U paperclip < ~/restore-test/tmp/lab-backup-
 docker exec -i outline-postgres psql -U outline < ~/restore-test/tmp/lab-backup-dumps/outline-postgres.sql
 ```
 
-## Paso 8: Levantar stacks
+## Paso 8: Rehome (solo si se restaura en OTRA máquina)
+
+Si la IP de Tailscale o el hostname cambiaron, correr `rehome.sh` para adaptar
+todas las configs automáticamente:
+
+```bash
+# Dry-run primero (muestra qué cambiaría sin tocar nada):
+bash ~/ai-lab/ops/backup/rehome.sh --dry-run
+
+# Aplicar:
+bash ~/ai-lab/ops/backup/rehome.sh
+```
+
+El script auto-detecta la IP/hostname originales del manifest restaurado y
+reemplaza en: Glance, Dagu, Paperclip .env, docker-compose de stacks,
+y regenera CLAUDE.md + core-manifest.yaml.
+
+Si no hay manifest (restore parcial), especificar manualmente:
+```bash
+bash ~/ai-lab/ops/backup/rehome.sh --old-ip 100.79.30.67 --old-hostname i7local
+```
+
+## Paso 9: Levantar stacks
 
 ```bash
 for stack in ~/ai-lab/stacks/*/; do
@@ -105,14 +127,14 @@ for stack in ~/ai-lab/stacks/*/; do
 done
 ```
 
-## Paso 9: Restaurar servicios systemd
+## Paso 10: Restaurar servicios systemd
 
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now dagu hermes moolmesh centro-de-comando
 ```
 
-## Paso 10: Verificar
+## Paso 11: Verificar
 
 ```bash
 # Generar manifest y correr guards
