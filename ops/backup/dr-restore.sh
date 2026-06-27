@@ -91,9 +91,27 @@ fi
 
 echo ""
 echo "  2. Verificar configs:"
-[ -d "$RESTORE_TARGET$HOME/.config/systemd/user" ] && echo "     ✓ systemd user services" || echo "     ✗ systemd user services"
-[ -d "$RESTORE_TARGET$HOME/.config/dagu/dags" ] && echo "     ✓ dagu DAGs" || echo "     ✗ dagu DAGs"
-[ -f "$RESTORE_TARGET$HOME/.gitconfig" ] && echo "     ✓ gitconfig" || echo "     ✗ gitconfig"
+if [ -d "$RESTORE_TARGET$HOME/.config/systemd/user" ]; then
+  echo "     ✓ systemd user services (path directo)"
+elif [ -d "$DUMP_DIR/systemd-user-services" ] 2>/dev/null; then
+  echo "     ✓ systemd user services (en dump dir)"
+else
+  echo "     ✗ systemd user services"
+fi
+if [ -d "$RESTORE_TARGET$HOME/.config/dagu" ]; then
+  echo "     ✓ dagu config + DAGs (path directo)"
+elif [ -d "$DUMP_DIR/dagu-dags" ] 2>/dev/null; then
+  echo "     ✓ dagu DAGs (en dump dir)"
+else
+  echo "     ✗ dagu DAGs"
+fi
+if [ -f "$RESTORE_TARGET$HOME/.gitconfig" ]; then
+  echo "     ✓ gitconfig (path directo)"
+elif [ -f "$DUMP_DIR/gitconfig" ] 2>/dev/null; then
+  echo "     ✓ gitconfig (en dump dir)"
+else
+  echo "     ✗ gitconfig"
+fi
 
 echo ""
 echo "  3. Verificar APT sources:"

@@ -111,6 +111,14 @@ for ctr in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -i '\(postgres\|
     docker exec "$ctr" pg_dumpall -U "$DB_USER" > "$DUMP_DIR/${DUMP_NAME}.sql" || {
       echo "$LOG_TAG WARN: pg_dumpall falló para $ctr"
     }
+    # Validar que el dump no tiene \r (causado por docker exec -t)
+    if [ -f "$DUMP_DIR/${DUMP_NAME}.sql" ] && grep -cP '\r' "$DUMP_DIR/${DUMP_NAME}.sql" > /dev/null 2>&1; then
+      CR_COUNT=$(grep -cP '\r' "$DUMP_DIR/${DUMP_NAME}.sql" 2>/dev/null || echo "0")
+      if [ "$CR_COUNT" -gt 0 ]; then
+        echo "$LOG_TAG WARN: dump de $ctr contiene \\r — limpiando..."
+        sed -i 's/\r$//' "$DUMP_DIR/${DUMP_NAME}.sql"
+      fi
+    fi
     CONTAINERS_PG="$CONTAINERS_PG $ctr"
   fi
 done
@@ -153,6 +161,9 @@ BACKUP_PATHS=(
   "$HOME/.moolmesh/"
   "$HOME/.local/bin/"
   "$HOME/.ssh/"
+  "$HOME/.config/dagu/"
+  "$HOME/.config/systemd/user/"
+  "$HOME/.gitconfig"
   "$DUMP_DIR"
 )
 

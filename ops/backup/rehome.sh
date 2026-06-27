@@ -54,17 +54,33 @@ if [ -z "$NEW_IP" ]; then
 fi
 NEW_HOSTNAME=$(hostname -s)
 
-# --- Detectar identidad VIEJA (del manifest restaurado) ---
+# --- Detectar identidad VIEJA (del manifest restaurado o del restore) ---
 if [ -z "$OLD_IP" ] || [ -z "$OLD_HOSTNAME" ]; then
-  if [ ! -f "$MANIFEST" ]; then
-    echo "$LOG_TAG ERROR: No se encontró $MANIFEST y no se especificó --old-ip/--old-hostname"
+  # Buscar manifest en orden: restore reciente → manifest live
+  CANDIDATE_MANIFESTS=(
+    "$HOME/restore-test/home/"*"/ai-lab/ops/core-manifest.yaml"
+    "$MANIFEST"
+  )
+  FOUND_MANIFEST=""
+  for candidate in "${CANDIDATE_MANIFESTS[@]}"; do
+    if [ -f "$candidate" ] 2>/dev/null; then
+      FOUND_MANIFEST="$candidate"
+      break
+    fi
+  done
+
+  if [ -z "$FOUND_MANIFEST" ]; then
+    echo "$LOG_TAG ERROR: No se encontró manifest (ni en restore-test ni en $MANIFEST)."
+    echo "$LOG_TAG Usar --old-ip y --old-hostname manualmente."
     exit 1
   fi
+
+  log "Leyendo identidad original de: $FOUND_MANIFEST"
 
   if [ -z "$OLD_HOSTNAME" ]; then
     OLD_HOSTNAME=$(python3 -c "
 import yaml
-with open('$MANIFEST') as f:
+with open('$FOUND_MANIFEST') as f:
     m = yaml.safe_load(f)
 print(m.get('hostname', ''))
 " 2>/dev/null || echo "")
@@ -73,7 +89,7 @@ print(m.get('hostname', ''))
   if [ -z "$OLD_IP" ]; then
     OLD_IP=$(python3 -c "
 import yaml
-with open('$MANIFEST') as f:
+with open('$FOUND_MANIFEST') as f:
     m = yaml.safe_load(f)
 print(m.get('tailscale_ip', ''))
 " 2>/dev/null || echo "")
@@ -133,6 +149,20 @@ replace_in_file() {
 log "Verificando Glance..."
 replace_in_file "$LAB_DIR/stacks/glance/config/glance.yml" \
   "$OLD_IP" "$NEW_IP" "Glance: IP de monitoreo"
+
+# Glance docker-compose: network_mode: host → port mapping (evita conflictos de puerto)
+GLANCE_COMPOSE="$LAB_DIR/stacks/glance/docker-compose.yml"
+if [ -f "$GLANCE_COMPOSE" ] && grep -q "network_mode.*host" "$GLANCE_COMPOSE" 2>/dev/null; then
+  GLANCE_PORT=$(grep -E "^\s*port:" "$LAB_DIR/stacks/glance/config/glance.yml" 2>/dev/null | awk '{print $2}' || echo "8080")
+  [ -z "$GLANCE_PORT" ] && GLANCE_PORT="8080"
+  CHANGES=$((CHANGES + 1))
+  if [ "$DRY_RUN" = true ]; then
+    log "[dry-run] Glance: network_mode:host → ports 9000:${GLANCE_PORT}"
+  else
+    sed -i '/network_mode.*host/c\    ports:\n      - "9000:'"${GLANCE_PORT}"'"' "$GLANCE_COMPOSE"
+    log "Glance: network_mode:host → ports 9000:${GLANCE_PORT}"
+  fi
+fi
 
 # --- 2. Dagu config ---
 log "Verificando Dagu..."

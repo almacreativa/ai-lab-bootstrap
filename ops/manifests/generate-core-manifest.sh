@@ -12,11 +12,14 @@ mkdir -p "$(dirname "$MANIFEST")"
 HOSTNAME=$(hostname)
 GENERATED=$(date -Iseconds)
 
+TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "not configured")
+
 cat > "$MANIFEST" << HEADER
 # core-manifest.yaml — generado automáticamente por generate-core-manifest.sh
 # NO editar a mano — regenerar con: ~/ai-lab/ops/manifests/generate-core-manifest.sh
 generated: "${GENERATED}"
 hostname: "${HOSTNAME}"
+tailscale_ip: "${TAILSCALE_IP}"
 core_version: "1.0.0"
 
 HEADER
