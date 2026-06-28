@@ -36,15 +36,16 @@ $labUserLinux = $labUserLinux.Trim()
 
 Write-LabLog "Clonando/actualizando ai-lab-bootstrap dentro de $distro (usuario: $labUserLinux)..."
 wsl -d $distro -- bash -c "
-  if [ ! -d ~/ai-lab-bootstrap/.git ]; then
-    git clone https://github.com/almacreativa/ai-lab-bootstrap.git ~/ai-lab-bootstrap
+  mkdir -p ~/ai-lab/repos
+  if [ ! -d ~/ai-lab/repos/ai-lab-bootstrap/.git ]; then
+    git clone https://github.com/almacreativa/ai-lab-bootstrap.git ~/ai-lab/repos/ai-lab-bootstrap
   else
-    git -C ~/ai-lab-bootstrap pull --ff-only
+    git -C ~/ai-lab/repos/ai-lab-bootstrap pull --ff-only
   fi
 "
 
 Write-LabLog "Lanzando bootstrap.sh dentro de WSL2 (esto puede tardar varios minutos)..."
 Write-LabWarn "Vas a ver prompts interactivos dentro de la terminal de WSL2 (confirmación inicial)."
-wsl -d $distro -- bash -lc "cd ~/ai-lab-bootstrap && bash bootstrap.sh"
+wsl -d $distro -- bash -lc "cd ~/ai-lab/repos/ai-lab-bootstrap && bash bootstrap.sh"
 
 Write-LabLog "Módulo 02 (Windows host) completo."

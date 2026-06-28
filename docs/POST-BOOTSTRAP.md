@@ -109,7 +109,7 @@ Los templates están en el repo: `templates/*.example`
 
 ```bash
 mkdir -p ~/.hermes
-cp ~/ai-lab-bootstrap/templates/hermes.env.example ~/.hermes/.env
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/hermes.env.example ~/.hermes/.env
 chmod 600 ~/.hermes/.env
 # EDITAR: completar TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS, API keys
 ```
@@ -122,7 +122,7 @@ chmod 600 ~/.hermes/.env
 ### 1.2 Agents env
 
 ```bash
-cp ~/ai-lab-bootstrap/templates/agents.env.example ~/.env_agents
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/agents.env.example ~/.env_agents
 chmod 600 ~/.env_agents
 # EDITAR: completar ANTHROPIC_API_KEY y/o OPENAI_API_KEY
 ```
@@ -130,7 +130,7 @@ chmod 600 ~/.env_agents
 ### 1.3 Scripts operativos (backup, notificaciones)
 
 ```bash
-cp ~/ai-lab-bootstrap/templates/agents.env.example ~/ai-lab/scripts/.env 2>/dev/null
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/agents.env.example ~/ai-lab/scripts/.env 2>/dev/null
 # O crear manualmente:
 cat > ~/ai-lab/scripts/.env << 'EOF'
 TELEGRAM_BOT_TOKEN=
@@ -147,7 +147,7 @@ chmod 600 ~/ai-lab/scripts/.env
 ### 1.4 Paperclip (si se va a desplegar)
 
 ```bash
-cp ~/ai-lab-bootstrap/templates/paperclip.env.example ~/ai-lab/repos/paperclip/.env.paperclip
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/paperclip.env.example ~/ai-lab/repos/paperclip/.env.paperclip
 chmod 600 ~/ai-lab/repos/paperclip/.env.paperclip
 # EDITAR: generar BETTER_AUTH_SECRET con: openssl rand -hex 32
 # EDITAR: PAPERCLIP_PUBLIC_URL=http://<TAILSCALE_IP>:3100
@@ -305,7 +305,7 @@ mkdir -p ~/ai-lab/stacks/paperclip
 #   ports, volumes, env según la instancia
 
 # 3. Crear .env con secrets
-cp ~/ai-lab-bootstrap/templates/paperclip.env.example ~/ai-lab/stacks/paperclip/.env
+cp ~/ai-lab/repos/ai-lab-bootstrap/templates/paperclip.env.example ~/ai-lab/stacks/paperclip/.env
 chmod 600 ~/ai-lab/stacks/paperclip/.env
 # EDITAR: POSTGRES_PASSWORD, BETTER_AUTH_SECRET, PAPERCLIP_PUBLIC_URL
 
@@ -509,7 +509,7 @@ head -50 ~/CLAUDE.md
 # Abrir http://<TAILSCALE_IP>:8480 → deben verse todos los workflows
 
 # 5. Regenerar CLAUDE.md si se agregaron servicios
-cd ~/ai-lab-bootstrap && ./setup-instance.sh --skip-backup --skip-services
+cd ~/ai-lab/repos/ai-lab-bootstrap && ./setup-instance.sh --skip-backup --skip-services
 # (solo regenera CLAUDE.md y manifest si ops/ ya existe)
 ```
 

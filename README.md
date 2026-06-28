@@ -48,6 +48,8 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 ## Uso
 
 ```bash
+mkdir -p ~/ai-lab/repos
+cd ~/ai-lab/repos
 git clone https://github.com/almacreativa/ai-lab-bootstrap.git
 cd ai-lab-bootstrap
 bash bootstrap.sh
@@ -83,6 +85,8 @@ bash bootstrap.sh
 Hay una variante equivalente para correr el lab en macOS (Sonoma/Sequoia), pensada para desarrollo/testing — no como servidor productivo 24/7 salvo que el Mac quede siempre encendido.
 
 ```bash
+mkdir -p ~/ai-lab/repos
+cd ~/ai-lab/repos
 git clone https://github.com/almacreativa/ai-lab-bootstrap.git
 cd ai-lab-bootstrap
 bash bootstrap-macos.sh
@@ -121,6 +125,8 @@ Hay una variante para Windows 11, pensada también para desarrollo/testing. A di
 
 ```powershell
 # PowerShell como Administrador
+mkdir -Force "$env:USERPROFILE\ai-lab\repos" | Out-Null
+cd "$env:USERPROFILE\ai-lab\repos"
 git clone https://github.com/almacreativa/ai-lab-bootstrap.git
 cd ai-lab-bootstrap
 .\bootstrap-windows.ps1
@@ -248,7 +254,7 @@ stacks/                     ← docker-compose de servicios (Outline, Mem0, Glan
 │   └── manifests/
 ├── logs/guard/             ← reportes JSON de auditorías semanales
 ├── scripts/                ← scripts operativos del lab
-├── repos/                  ← repositorios clonados (paperclip, hermes-agent)
+├── repos/                  ← repositorios clonados (ai-lab-bootstrap, paperclip, hermes-agent)
 ├── stacks/                 ← docker-compose de servicios (glance, etc.)
 ├── knowledge/              ← base de conocimiento (sincronizada con Syncthing)
 └── workspace/              ← workspaces de agentes
@@ -295,8 +301,7 @@ gh auth login
 ### 4. Claude Code
 
 ```bash
-npm install -g @anthropic-ai/claude-code
-claude   # completar login
+claude   # completar login (instalado por el bootstrap)
 ```
 
 ### 5. NotebookLM (`nlm`) — login headless via CDP
