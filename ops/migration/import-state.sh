@@ -250,6 +250,27 @@ else
   run rsync -av --exclude='resurrect/' "$DISK_HOME/.tmux/" "$HOME/.tmux/"
 fi
 
+# Syncthing — identidad (cert/key = mismo Device ID) + config
+log "Syncthing (~/.local/state/syncthing/)..."
+mkdir -p "$HOME/.local/state/syncthing"
+if [ "$MODE" = "rsync" ]; then
+  run rsync -avz \
+    --exclude='index-v*/' --exclude='csrftokens.txt' \
+    "${SOURCE}:~/.local/state/syncthing/" "$HOME/.local/state/syncthing/"
+else
+  run rsync -av \
+    --exclude='index-v*/' --exclude='csrftokens.txt' \
+    "$DISK_HOME/.local/state/syncthing/" "$HOME/.local/state/syncthing/"
+fi
+
+# shared/ — carpetas sincronizadas con Syncthing
+log "Shared (~/shared/)..."
+if [ "$MODE" = "rsync" ]; then
+  run rsync -avz "${SOURCE}:~/shared/" "$HOME/shared/"
+elif [ -d "$DISK_HOME/shared" ]; then
+  run rsync -av "$DISK_HOME/shared/" "$HOME/shared/"
+fi
+
 # ─────────────────────────────────────────────
 # FASE 2: Estado del lab
 # ─────────────────────────────────────────────

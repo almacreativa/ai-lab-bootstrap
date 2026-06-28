@@ -119,6 +119,8 @@ ITEMS=(
   "$HOME/.gitconfig:Git config"
   "$HOME/.tmux.conf:Tmux config"
   "$HOME/.tmux/:Tmux (plugins, resurrect)"
+  "$HOME/.local/state/syncthing/:Syncthing (identidad + config)"
+  "$HOME/shared/:Shared (Syncthing folders)"
   "$LAB_DIR/scripts/.env:Lab secrets"
   "$LAB_DIR/knowledge/:Knowledge base"
   "$LAB_DIR/data/core/:Datos persistentes (bind mounts)"
