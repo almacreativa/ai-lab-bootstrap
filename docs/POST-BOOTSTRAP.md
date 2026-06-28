@@ -202,26 +202,110 @@ claude --version
 
 ### 2.4 NotebookLM (nlm) — login headless via CDP
 
+`nlm login` necesita un navegador con sesión de Google, pero en un servidor
+headless no hay GUI. La solución: lanzar Chromium headless con remote debugging,
+hacer el login desde tu Mac vía túnel SSH, y luego extraer las cookies.
+
+> **Nota:** `nlm login --force` (el método integrado) no funciona con el
+> Chromium de snap en Ubuntu Server porque falla la inicialización de la
+> plataforma gráfica (Aura), incluso con Xvfb. Por eso se lanza Chromium
+> manualmente con los flags correctos.
+
+**Paso 1 — Lanzar Chromium headless en el servidor:**
+
 ```bash
-# Terminal 1 en el servidor:
-Xvfb :99 -screen 0 1280x720x24 &
-export DISPLAY=:99
-nlm login --force
+# Necesita user-agent real; sin él Google bloquea el login
+# con "no se pudo iniciar sesión, pruebe con otro navegador"
+DISPLAY=:99 chromium \
+  --headless=new \
+  --no-sandbox \
+  --disable-gpu \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=127.0.0.1 \
+  --disable-blink-features=AutomationControlled \
+  --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" \
+  "https://accounts.google.com" &
 
-# Terminal 2 en el servidor:
-ss -tlnp | grep 9222    # verificar que Chromium expone CDP
+# Verificar que el puerto está escuchando:
+ss -tlnp | grep 9222
+```
 
-# Desde Mac (terminal local):
+**Paso 2 — Túnel SSH desde tu Mac:**
+
+```bash
 ssh -L 9222:localhost:9222 <usuario>@<IP-servidor>
+```
 
-# En Chrome del Mac:
-# chrome://inspect → Configure → localhost:9222
-# Clic en 'inspect' en el tab de Google Sign-in
-# Completar login de Google
+**Paso 3 — Login desde Chrome de tu Mac:**
+
+1. Abrir `chrome://inspect`
+2. Click en **Configure…** → agregar `localhost:9222`
+3. Aparece un tab "Inicia sesión: Cuentas de Google" → click en **inspect**
+4. En la ventana de DevTools se ve la página de Google renderizada
+5. Completar el login (email, contraseña, 2FA)
+6. Después del login, abrir NotebookLM en el Chromium remoto. Desde el
+   servidor: `curl -s -X PUT "http://127.0.0.1:9222/json/new?https://notebooklm.google.com"`
+7. Verificar en `chrome://inspect` que aparece un tab "NotebookLM" y que cargó
+
+**Paso 4 — Extraer cookies y autenticar nlm:**
+
+```bash
+# Extraer cookies del Chromium via CDP (requiere websockets)
+python3 -m venv /tmp/ws-venv && /tmp/ws-venv/bin/pip install websockets -q
+
+/tmp/ws-venv/bin/python3 << 'PYEOF'
+import asyncio, json, websockets, http.client
+
+async def export_cookies():
+    conn = http.client.HTTPConnection("127.0.0.1", 9222)
+    conn.request("GET", "/json")
+    tabs = json.loads(conn.getresponse().read())
+    ws_url = next(t["webSocketDebuggerUrl"] for t in tabs
+                  if "notebooklm.google.com" in t.get("url", "")
+                  and t.get("webSocketDebuggerUrl"))
+    async with websockets.connect(ws_url) as ws:
+        await ws.send(json.dumps({"id": 1, "method": "Network.getCookies",
+            "params": {"urls": ["https://notebooklm.google.com",
+                                "https://google.com",
+                                "https://accounts.google.com"]}}))
+        resp = json.loads(await ws.recv())
+        cookies = resp["result"]["cookies"]
+        lines = ["# Netscape HTTP Cookie File"]
+        for c in cookies:
+            if "google" not in c["domain"]:
+                continue
+            d = c["domain"]
+            lines.append(
+                f"{'#HttpOnly_' if c.get('httpOnly') else ''}{d}\t"
+                f"{'TRUE' if d.startswith('.') else 'FALSE'}\t"
+                f"{c.get('path','/')}\t"
+                f"{'TRUE' if c.get('secure') else 'FALSE'}\t"
+                f"{int(c.get('expires',0))}\t{c['name']}\t{c['value']}")
+        out = "/home/$USER/.nlm/cookies_fresh.txt".replace("$USER", __import__("os").environ["USER"])
+        open(out, "w").write("\n".join(lines) + "\n")
+        print(f"{len(lines)-1} cookies → {out}")
+
+asyncio.run(export_cookies())
+PYEOF
+
+# Importar a nlm:
+nlm login --manual --file ~/.nlm/cookies_fresh.txt --profile default --force
 
 # Verificar:
-nlm notebook list
+nlm login --check
+nlm list notebooks | head -5
 ```
+
+**Paso 5 — Limpiar:**
+
+```bash
+pkill -f "chromium.*remote-debugging"
+rm -rf /tmp/ws-venv
+# Cerrar túnel SSH y chrome://inspect en el Mac
+```
+
+> **Frecuencia:** las cookies expiran ~cada 14 días. Repetir este proceso
+> cuando `nlm login --check` falle o el gateway responda 503.
 
 ### 2.5 Antigravity CLI (opcional)
 
