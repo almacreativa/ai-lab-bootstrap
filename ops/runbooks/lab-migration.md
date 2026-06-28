@@ -1,7 +1,26 @@
 # Migración de lab entre servidores
 
-Procedimiento para migrar un lab completo de un servidor (origen) a otro (destino),
-sin reinstalar el sistema operativo en ninguno de los dos.
+Procedimiento para migrar un lab completo de un servidor (origen) a otro (destino).
+Soporta OS limpio o reutilización de instalación existente.
+
+## Scripts disponibles
+
+| Script | Dónde | Qué hace |
+|--------|-------|----------|
+| `ops/migration/pre-migrate.sh` | bootstrap (público) | En ORIGEN: verifica servicios parados, pg_dump de seguridad |
+| `setup/apply-configs.sh` | repo privado | En DESTINO: despliega DAGs, systemd, stacks, scripts, tmux |
+| `ops/migration/import-state.sh` | bootstrap (público) | En DESTINO: trae estado via rsync SSH o disco USB |
+| `ops/backup/rehome.sh` | bootstrap (público) | En DESTINO: adapta IPs, hostname, home paths |
+| `ops/lab-cleanup.sh` | bootstrap (público) | En ORIGEN: limpia el servidor post-migración |
+
+## Flujo de 3 capas
+
+```
+Capa 1: bootstrap.sh + setup-instance.sh     → lab genérico funcional
+Capa 2: apply-configs.sh (repo privado)       → lab configurado como tu instancia
+Capa 3: import-state.sh (rsync/USB)           → lab operativo con estado completo
+        + rehome.sh                           → adaptado a nuevo entorno
+```
 
 ## Prerrequisitos
 
