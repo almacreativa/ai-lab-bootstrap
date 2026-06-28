@@ -304,7 +304,7 @@ else
   }
 
   declare -A REQUIRED_NETWORKS=(
-    [uptime-kuma]="outline_default mem0_default paperclip_default"
+    [uptime-kuma]="mem0_default paperclip_default"
     [mem0]="mem0_default paperclip_default"
     [ollama]="mem0_default"
   )
