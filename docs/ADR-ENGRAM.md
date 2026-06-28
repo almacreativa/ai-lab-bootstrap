@@ -1,7 +1,8 @@
 # ADR: Engram como memoria compartida de proyecto para agentes de desarrollo
 
 **Fecha:** 2026-06-13
-**Estado:** Propuesto — pendiente de validacion con prueba piloto
+**Actualizado:** 2026-06-28
+**Estado:** Implementado — correccion de permisos y Memory Protocol aplicados
 **Cuaderno de investigacion:** NotebookLM `<NLM_NOTEBOOK_ID>`
 
 ---
@@ -244,3 +245,77 @@ In the pilot repo, create:
 | Riesgo de downtime | Nulo |
 
 **Conclusion:** Es la adicion de menor friccion al stack. Si no funciona, se desinstala borrando el binario y `~/.engram/`.
+
+---
+
+## 9. Postmortem: por que Engram no guardaba (2026-06-28)
+
+### Problema
+Despues de 2 semanas de uso, Engram tenia muy pocas memorias guardadas a pesar de
+multiples sesiones de agentes trabajando activamente.
+
+### Causa raiz (3 factores)
+
+#### 1. Permisos de escritura faltantes en `settings.local.json`
+Solo estaban permitidos los tools de **lectura**:
+```
+mcp__engram__mem_search      ← lectura
+mcp__engram__mem_context     ← lectura
+mcp__engram__mem_current_project  ← lectura
+```
+Faltaban TODOS los de escritura (`mem_save`, `mem_session_summary`, `mem_update`,
+`mem_judge`, etc.). Cada intento de guardar generaba un prompt de permisos que el
+operador ignoraba o rechazaba sin notarlo.
+
+#### 2. Memory Protocol incompleto en CLAUDE.md
+El CLAUDE.md del directorio home no tenia instrucciones de Engram. El CLAUDE.md
+del repo de documentacion tenia un protocolo basico sin:
+- Formato estructurado de `mem_save` (What/Why/Where/Learned)
+- Instruccion OBLIGATORIA de `mem_session_summary` al cerrar
+- Protocolo de recuperacion post-compactacion
+- Reglas de resolucion de conflictos
+
+#### 3. Sin `ENGRAM_PROJECT` en config MCP
+La deteccion de proyecto dependia de `cwd`, que desde el directorio home no
+apunta a ningun repo. Resultado: proyecto ambiguo o fallback incorrecto.
+
+### Correccion aplicada
+
+| Cambio | Archivo |
+|--------|---------|
+| +12 permisos de escritura Engram | `~/.claude/settings.local.json` |
+| Memory Protocol completo | CLAUDE.md del home y del repo de documentacion |
+| `ENGRAM_PROJECT` configurado | `~/.claude/.mcp.json` |
+
+### Permisos que deben estar en el allowlist
+```
+mcp__engram__mem_save
+mcp__engram__mem_save_prompt
+mcp__engram__mem_session_summary
+mcp__engram__mem_session_start
+mcp__engram__mem_session_end
+mcp__engram__mem_update
+mcp__engram__mem_judge
+mcp__engram__mem_capture_passive
+mcp__engram__mem_suggest_topic_key
+mcp__engram__mem_get_observation
+mcp__engram__mem_review
+mcp__engram__mem_compare
+```
+
+### Config MCP recomendada (`~/.claude/.mcp.json`)
+```json
+{
+  "engram": {
+    "command": "engram",
+    "args": ["mcp", "--tools=agent"],
+    "env": {
+      "ENGRAM_PROJECT": "<nombre-del-lab>"
+    }
+  }
+}
+```
+
+### Leccion
+Al instalar un MCP server, **validar que los tools de escritura esten en el allowlist**.
+Los tools de lectura sin escritura dan la ilusion de que el sistema funciona.
