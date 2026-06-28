@@ -53,6 +53,19 @@ systemctl --user list-unit-files --state=enabled --type=service --no-pager --no-
   fi
 done
 
+# Servicios systemd system del lab (hermes, dagu — no todos los del sistema)
+echo "  systemd_system:" >> "$MANIFEST"
+for unit in hermes.service dagu.service; do
+  if systemctl list-unit-files "$unit" --no-pager --no-legend 2>/dev/null | grep -q "$unit"; then
+    echo "    - name: \"${unit}\"" >> "$MANIFEST"
+    if systemctl is-active "$unit" &>/dev/null; then
+      echo "      status: \"active\"" >> "$MANIFEST"
+    else
+      echo "      status: \"inactive\"" >> "$MANIFEST"
+    fi
+  fi
+done
+
 # Containers Docker corriendo
 echo "  docker:" >> "$MANIFEST"
 docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null | while IFS=$'\t' read -r name image status; do

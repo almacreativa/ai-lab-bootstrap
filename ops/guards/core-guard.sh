@@ -72,6 +72,25 @@ for s in m.get('services', {}).get('systemd_user', []):
     print(s['name'])
 " 2>/dev/null)
 
+# 2b. Verificar servicios systemd system del lab
+while IFS= read -r svc_name; do
+  [ -z "$svc_name" ] && continue
+  svc_name=$(echo "$svc_name" | tr -d '"' | xargs)
+  if systemctl is-active "$svc_name" &>/dev/null; then
+    report_ok "systemd-system" "$svc_name"
+  elif systemctl is-enabled "$svc_name" &>/dev/null; then
+    report_drift "systemd-system" "$svc_name" "active" "enabled-but-inactive"
+  else
+    report_gap "systemd-system" "$svc_name" "no habilitado ni activo"
+  fi
+done < <(python3 -c "
+import yaml
+with open('$MANIFEST') as f:
+    m = yaml.safe_load(f)
+for s in m.get('services', {}).get('systemd_system', []):
+    print(s['name'])
+" 2>/dev/null)
+
 # 3. Verificar containers Docker
 echo "[core-guard] Verificando containers Docker..."
 RUNNING_CONTAINERS=$(docker ps --format '{{.Names}}' 2>/dev/null || echo "")
