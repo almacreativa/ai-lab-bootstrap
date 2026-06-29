@@ -7,7 +7,8 @@
 set -euo pipefail
 
 ENV_FILE="${HOME}/.hermes/.env"
-BASE_URL="http://${PAPERCLIP_HOST:-100.79.30.67}:3100"
+source "${LAB_DIR:-$HOME/ai-lab}/scripts/.env" 2>/dev/null
+BASE_URL="http://${LAB_IP:-127.0.0.1}:3100"
 TIMEOUT=10
 
 # Leer API key desde .env
