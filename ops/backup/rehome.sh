@@ -14,12 +14,13 @@ set -euo pipefail
 #
 # Qué modifica:
 #   - stacks/glance/config/glance.yml
-#   - stacks/*/docker-compose.yml
+#   - stacks/*/docker-compose.yml + .env
 #   - repos/paperclip/.env.paperclip
 #   - .config/dagu/config.yaml
 #   - ~/.hermes/ (memories, skills, crons con IPs)
 #   - scripts/.env (Uptime Kuma push URLs)
 #   - centro-aggregator.py (URLs de servicios)
+#   - Repo privado de instancia (*-lab): stacks, configs, DAGs, docs
 #   - Regenera CLAUDE.md y core-manifest.yaml
 
 LAB_DIR="${LAB_DIR:-$HOME/ai-lab}"
@@ -190,12 +191,12 @@ log "Verificando Paperclip..."
 PCP_ENV="$LAB_DIR/repos/paperclip/.env.paperclip"
 replace_in_file "$PCP_ENV" "$OLD_IP" "$NEW_IP" "Paperclip: PUBLIC_URL"
 
-# --- 4. Stacks con docker-compose ---
+# --- 4. Stacks con docker-compose + .env ---
 log "Verificando stacks Docker..."
-while IFS= read -r compose_file; do
-  [ -f "$compose_file" ] || continue
-  replace_in_file "$compose_file" "$OLD_IP" "$NEW_IP" "Stack: $(dirname "$compose_file" | xargs basename)"
-done < <(find "$LAB_DIR/stacks" -name "docker-compose.yml" -o -name "docker-compose.yaml" 2>/dev/null)
+while IFS= read -r stack_file; do
+  [ -f "$stack_file" ] || continue
+  replace_in_file "$stack_file" "$OLD_IP" "$NEW_IP" "Stack: $(dirname "$stack_file" | xargs basename)/$(basename "$stack_file")"
+done < <(find "$LAB_DIR/stacks" \( -name "docker-compose.yml" -o -name "docker-compose.yaml" -o -name ".env" \) 2>/dev/null)
 
 # --- 5. Hermes — memories, skills, crons con IPs hardcodeadas ---
 log "Verificando Hermes (~/.hermes/)..."
@@ -243,7 +244,29 @@ if [ -n "$OLD_HOSTNAME" ]; then
   done < <(find "$LAB_DIR/stacks" -name "*.yml" -o -name "*.yaml" -o -name ".env*" 2>/dev/null)
 fi
 
-# --- 10. Regenerar archivos dinámicos ---
+# --- 10. Repo privado de instancia (stacks, configs, DAGs, docs) ---
+INSTANCE_REPO=$(find "$LAB_DIR/repos" -maxdepth 1 -name "*-lab" -type d 2>/dev/null | grep -v "ai-lab-bootstrap" | head -1)
+if [ -n "$INSTANCE_REPO" ] && [ -d "$INSTANCE_REPO" ]; then
+  log "Verificando repo privado: $(basename "$INSTANCE_REPO")..."
+  while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    replace_in_file "$file" "$OLD_IP" "$NEW_IP" "Repo: $(basename "$file")"
+  done < <(find "$INSTANCE_REPO" -type f \
+    \( -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.sh" -o -name "*.py" -o -name "*.example" -o -name "*.md" \) \
+    -not -path "*/.git/*" -not -path "*/archive/*" \
+    -not -name "RETROSPECTIVA-*" -not -name "GUIA_MIGRACION*" 2>/dev/null)
+
+  if [ -n "$OLD_HOME" ] && [ "$OLD_HOME" != "$NEW_HOME" ]; then
+    while IFS= read -r file; do
+      [ -f "$file" ] || continue
+      replace_in_file "$file" "$OLD_HOME" "$NEW_HOME" "Repo home: $(basename "$file")"
+    done < <(find "$INSTANCE_REPO" -type f \
+      \( -name "*.yml" -o -name "*.yaml" -o -name "*.sh" -o -name "docker-compose*" \) \
+      -not -path "*/.git/*" -not -path "*/archive/*" 2>/dev/null)
+  fi
+fi
+
+# --- 11. Regenerar archivos dinámicos ---
 log "Regenerando archivos dinámicos..."
 
 if [ "$DRY_RUN" = false ]; then

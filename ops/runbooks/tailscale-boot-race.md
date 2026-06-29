@@ -51,6 +51,38 @@ Wants=tailscaled.service
 
 Funciona en la mayoría de los casos pero no garantiza que la IP esté asignada.
 
+## Solución 4: lab-post-reboot.service (implementada)
+
+Servicio systemd user que espera a Tailscale y luego corre `post-reboot-check.sh` para
+detectar y recuperar contenedores Docker que arrancaron sin port bindings.
+
+```ini
+[Unit]
+Description=Post-reboot recovery — espera Tailscale y recupera servicios
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 45); do ip addr show tailscale0 2>/dev/null | grep -q "inet " && exit 0; sleep 2; done; exit 1'
+ExecStart=/home/user/ai-lab/scripts/post-reboot-check.sh
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
+```
+
+`post-reboot-check.sh` detecta el caso específico: contenedor "running" pero con
+`NetworkSettings.Ports == {}` (Docker subió el contenedor antes de que la IP existiera).
+Lo recrea con `docker compose down/up` para que bindee correctamente.
+
+**Contenedores afectados** (bindean a IP Tailscale en compose):
+- Portainer (`IP:9443:9443`)
+- Uptime Kuma (`IP:3001:3001`)
+
+Habilitar:
+```bash
+systemctl --user enable lab-post-reboot.service
+```
+
 ## Diagnóstico
 
 ```bash
@@ -62,4 +94,11 @@ ip addr show tailscale0
 
 # Ver logs de un servicio que falló
 journalctl --user -u dagu.service --since "1 hour ago"
+
+# Ver si un contenedor tiene puertos bindeados
+docker inspect portainer --format '{{json .NetworkSettings.Ports}}'
+# {} = sin puertos (race condition), non-empty = OK
+
+# Ver log del servicio post-reboot
+journalctl --user -u lab-post-reboot.service
 ```
