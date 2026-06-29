@@ -44,7 +44,9 @@ fi
 echo "" >> "$MANIFEST"
 echo "services:" >> "$MANIFEST"
 echo "  systemd_user:" >> "$MANIFEST"
-systemctl --user list-unit-files --state=enabled --type=service --no-pager --no-legend 2>/dev/null | while read -r unit state _; do
+if systemctl --user list-unit-files --state=enabled --type=service --no-pager --no-legend 2>/dev/null; then
+  :
+fi | while read -r unit state _; do
   echo "    - name: \"${unit}\"" >> "$MANIFEST"
   if systemctl --user is-active "$unit" &>/dev/null; then
     echo "      status: \"active\"" >> "$MANIFEST"
