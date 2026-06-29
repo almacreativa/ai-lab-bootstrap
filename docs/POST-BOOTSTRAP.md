@@ -59,6 +59,25 @@ data/core/<proyecto>/       ← datos persistentes (si usa bind mounts)
 El compose de producción usa `build: ${HOME}/ai-lab/repos/<proyecto>`
 para construir la imagen desde el código del repo.
 
+### Bind mounts — regla de `:ro`
+
+**Nunca montar un archivo individual con `:ro` si el proceso necesita
+escribir en directorios hermanos.** Docker crea los directorios padre
+como `root:root`, y el proceso dentro del container (UID 1000) no puede
+crear subdirectorios al mismo nivel.
+
+```yaml
+# MAL — causa EACCES en dirs hermanos:
+- ${HOME}/.config/app/config.json:/app/.config/app/config.json:ro
+
+# BIEN — montar el directorio padre:
+- ${HOME}/.config/app:/app/.config/app
+```
+
+Si necesitás read-only, montá el directorio padre con `:ro` y
+sobreescribí con un mount rw específico para el subdirectorio que
+necesita escritura.
+
 ## Orden de fases
 
 ```
@@ -68,7 +87,7 @@ Fase 2: Autenticaciones         ← logins interactivos (requiere humano)
 Fase 3: Servicios core          ← Hermes, Dagu, MoolMesh
 Fase 4: Stack de agentes        ← Paperclip, Odysseus, Ollama, Mem0
 Fase 5: Observabilidad          ← Uptime Kuma, Glance, guards
-Fase 6: Colaboración            ← Outline, file sharing
+Fase 6: Colaboración            ← file sharing, NLM Gateway
 Fase 7: Verificación final      ← guards limpios, todo verde
 ```
 
@@ -200,6 +219,20 @@ claude
 claude --version
 ```
 
+**Archivos de configuración (importante para migraciones):**
+
+Claude Code usa 3 archivos con roles distintos:
+
+| Archivo | Rol | Contenido |
+|---------|-----|-----------|
+| `~/.claude.json` | Config de la app | OAuth credentials, `mcpServers` (la config real que la app usa) |
+| `~/.claude/.mcp.json` | Definición de MCPs | Servidores MCP disponibles (estructura, comandos) |
+| `~/.claude/settings.local.json` | Preferencias locales | `enabledMcpjsonServers` (cuáles MCPs activar), permisos |
+
+Al migrar, copiar los 3 archivos. `~/.claude/` (directorio) cubre los
+dos últimos, pero `~/.claude.json` (archivo suelto en HOME) se olvida
+fácilmente — sin él, los MCPs no cargan aunque estén definidos.
+
 ### 2.4 NotebookLM (nlm) — login headless via CDP
 
 `nlm login` necesita un navegador con sesión de Google, pero en un servidor
@@ -327,9 +360,24 @@ opencode  # seleccionar provider y autenticar
 
 ### 3.1 Dagu
 
+Dagu puede correr como system service (si se usó el installer interactivo)
+o como user service (si `apply-configs.sh` lo creó). Verificar cuál existe:
+
 ```bash
-systemctl --user start dagu
-systemctl --user is-active dagu  # debe decir "active"
+# Verificar qué tipo de service existe:
+if systemctl list-unit-files dagu.service --no-pager 2>/dev/null | grep -q dagu; then
+  echo "Dagu corre como SYSTEM service"
+  sudo systemctl start dagu
+  sudo systemctl is-active dagu
+else
+  echo "Dagu corre como USER service"
+  systemctl --user start dagu
+  systemctl --user is-active dagu
+fi
+
+# Verificar que escucha en 0.0.0.0 (no 127.0.0.1):
+ss -tlnp | grep 8480
+# Si dice 127.0.0.1 → cambiar DAGU_HOST='0.0.0.0' en el env del service
 
 # Primer acceso web — crear credenciales admin:
 # Abrir http://<TAILSCALE_IP>:8480
@@ -475,7 +523,6 @@ done
 | Paperclip | HTTP | `http://<container_name>:3100` |
 | Mem0 | HTTP | `http://mem0:8765/health` |
 | Ollama | HTTP | `http://ollama:11434` |
-| Outline | HTTP | `http://outline:3000` |
 
 Para monitorear por nombre de container, Uptime Kuma debe estar en la
 red Docker del servicio. Su compose ya declara las redes más comunes.
@@ -489,7 +536,7 @@ bash ~/ai-lab/ops/backup/setup-backup.sh
 bash ~/ai-lab/ops/backup/lab-backup.sh
 ```
 
-### 5.4 Guards
+### 5.3 Guards
 
 ```bash
 # Regenerar manifest con estado actual:
@@ -506,19 +553,7 @@ bash ~/ai-lab/ops/guards/bootstrap-guard.sh
 
 ## Fase 6 — Colaboración y file sharing (opcional)
 
-### 6.1 Outline (wiki)
-
-```bash
-# Requiere stack en ~/ai-lab/stacks/outline/
-# con .env configurado (SECRET_KEY, UTILS_SECRET, OIDC Google)
-cd ~/ai-lab/stacks/outline
-docker compose up -d
-
-# Exponer via Tailscale:
-sudo tailscale serve --bg --https=443 http://localhost:3010
-```
-
-### 6.2 File sharing entre instancias
+### 6.1 File sharing entre instancias
 
 Para sincronizar archivos entre labs (ej: knowledge base, configs compartidos),
 hay dos opciones según el caso de uso:
@@ -565,7 +600,7 @@ tailscale file get ~/ai-lab/inbox/
     outputs/         ← resultados de agentes
 ```
 
-### 6.3 NLM Gateway (para agentes Paperclip)
+### 6.2 NLM Gateway (para agentes Paperclip)
 
 ```bash
 # Requiere stack en ~/ai-lab/stacks/nlm-gateway/
@@ -607,6 +642,39 @@ cd ~/ai-lab/repos/ai-lab-bootstrap && ./setup-instance.sh --skip-backup --skip-s
 
 ---
 
+## Referencia — Migración entre servidores
+
+Al migrar un lab a otro servidor, usar el modelo de 3 capas:
+
+| Capa | Script | Qué trae |
+|------|--------|----------|
+| L1: Bootstrap | `bootstrap.sh` | Sistema base, Docker, herramientas |
+| L2: Configs | `apply-configs.sh` | Compose producción, DAGs, systemd |
+| L3: Estado | `import-state.sh` | Secrets, DB dumps, identidades, MCPs |
+
+**Después de L3, correr `rehome.sh`** para reemplazar IPs y hostnames
+del servidor viejo en todos los archivos de configuración:
+
+```bash
+bash ~/ai-lab/ops/backup/rehome.sh \
+  --old-ip <IP_VIEJA> \
+  --old-hostname <HOSTNAME_VIEJO> \
+  --dry-run        # primero ver qué cambiaría
+```
+
+`rehome.sh` cubre: stacks, Glance, Dagu, Paperclip, `~/.hermes/`,
+`scripts/.env`, `centro-aggregator.py`, CLAUDE.md y el manifest.
+
+**Checklist post-migración rápido:**
+- [ ] `rehome.sh` ejecutado (sin `--dry-run`)
+- [ ] MCPs de Claude Code cargados (verificar con `/mcp` en Claude Code)
+- [ ] Syncthing: Device ID correcto, peers actualizados
+- [ ] Dagu: sin conflicto system vs user service, escucha en 0.0.0.0
+- [ ] `core-guard.sh` + `bootstrap-guard.sh` = 0 GAPs, 0 DRIFTs
+- [ ] Backup configurado y primer snapshot exitoso
+
+---
+
 ## Notas para agentes AI
 
 - Esta guía es la referencia canónica post-bootstrap. Si el operador pide
@@ -614,5 +682,5 @@ cd ~/ai-lab/repos/ai-lab-bootstrap && ./setup-instance.sh --skip-backup --skip-s
 - Las fases 1 y 2 requieren intervención humana (secrets y logins).
   Guiar al operador paso a paso, no intentar ejecutar por él.
 - Después de cada fase, correr la verificación antes de avanzar.
-- Si un servicio no aplica al lab (ej: Paperclip, Outline), saltar su sección.
+- Si un servicio no aplica al lab (ej: Paperclip, Odysseus), saltar su sección.
 - Al terminar, regenerar manifest y correr guards para confirmar estado limpio.

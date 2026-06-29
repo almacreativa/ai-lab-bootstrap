@@ -17,6 +17,9 @@ set -euo pipefail
 #   - stacks/*/docker-compose.yml
 #   - repos/paperclip/.env.paperclip
 #   - .config/dagu/config.yaml
+#   - ~/.hermes/ (memories, skills, crons con IPs)
+#   - scripts/.env (Uptime Kuma push URLs)
+#   - centro-aggregator.py (URLs de servicios)
 #   - Regenera CLAUDE.md y core-manifest.yaml
 
 LAB_DIR="${LAB_DIR:-$HOME/ai-lab}"
@@ -194,7 +197,25 @@ while IFS= read -r compose_file; do
   replace_in_file "$compose_file" "$OLD_IP" "$NEW_IP" "Stack: $(dirname "$compose_file" | xargs basename)"
 done < <(find "$LAB_DIR/stacks" -name "docker-compose.yml" -o -name "docker-compose.yaml" 2>/dev/null)
 
-# --- 5. Home path (rutas absolutas en compose/configs) ---
+# --- 5. Hermes — memories, skills, crons con IPs hardcodeadas ---
+log "Verificando Hermes (~/.hermes/)..."
+while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  replace_in_file "$file" "$OLD_IP" "$NEW_IP" "Hermes: $(basename "$file")"
+done < <(find "$HOME/.hermes" -type f \( -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.md" -o -name "*.txt" -o -name "*.sh" -o -name "*.py" \) 2>/dev/null)
+
+# --- 6. scripts/.env — Uptime Kuma push URLs con IPs ---
+log "Verificando scripts/.env..."
+replace_in_file "$LAB_DIR/scripts/.env" "$OLD_IP" "$NEW_IP" "scripts/.env: push URLs"
+
+# --- 7. centro-aggregator.py — URLs de servicios hardcodeadas ---
+log "Verificando centro-aggregator.py..."
+while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  replace_in_file "$file" "$OLD_IP" "$NEW_IP" "centro-aggregator: $(basename "$(dirname "$file")")"
+done < <(find "$HOME" -maxdepth 4 -name "centro-aggregator.py" -not -path "*/node_modules/*" -not -path "*/.cache/*" 2>/dev/null)
+
+# --- 8. Home path (rutas absolutas en compose/configs) ---
 if [ -n "$OLD_HOME" ] && [ "$OLD_HOME" != "$NEW_HOME" ]; then
   log "Verificando rutas absolutas (home path)..."
   while IFS= read -r file; do
@@ -204,7 +225,7 @@ if [ -n "$OLD_HOME" ] && [ "$OLD_HOME" != "$NEW_HOME" ]; then
   replace_in_file "$PCP_ENV" "$OLD_HOME" "$NEW_HOME" "Paperclip: home path"
 fi
 
-# --- 6. Tailscale DNS names (si existen) ---
+# --- 9. Tailscale DNS names (si existen) ---
 if [ -n "$OLD_HOSTNAME" ]; then
   OLD_TS_DOMAIN="${OLD_HOSTNAME}.tail"
   NEW_TS_DOMAIN="${NEW_HOSTNAME}.tail"
@@ -222,7 +243,7 @@ if [ -n "$OLD_HOSTNAME" ]; then
   done < <(find "$LAB_DIR/stacks" -name "*.yml" -o -name "*.yaml" -o -name ".env*" 2>/dev/null)
 fi
 
-# --- 6. Regenerar archivos dinámicos ---
+# --- 10. Regenerar archivos dinámicos ---
 log "Regenerando archivos dinámicos..."
 
 if [ "$DRY_RUN" = false ]; then

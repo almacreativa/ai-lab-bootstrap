@@ -70,18 +70,29 @@ fi
 
 # Engram — memoria persistente cross-session para agentes AI (binario Go estático)
 if ! command -v engram &>/dev/null; then
-  ENGRAM_VERSION="latest"
-  ENGRAM_URL="https://github.com/Gentleman-Programming/engram/releases/${ENGRAM_VERSION}/download/engram-linux-amd64"
-  ENGRAM_TMP="/tmp/engram-download"
-  mkdir -p "$HOME/.local/bin"
-  if curl -fsSL -o "$ENGRAM_TMP" "$ENGRAM_URL" 2>/dev/null; then
-    mv "$ENGRAM_TMP" "$HOME/.local/bin/engram"
-    chmod +x "$HOME/.local/bin/engram"
-    log "Engram instalado ($(engram version 2>/dev/null || echo 'OK'))."
+  ENGRAM_TMP_DIR="/tmp/engram-install"
+  mkdir -p "$HOME/.local/bin" "$ENGRAM_TMP_DIR"
+  ENGRAM_TAG=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/Gentleman-Programming/engram/releases/latest" 2>/dev/null | grep -oP 'tag/\K.*')
+  if [ -z "$ENGRAM_TAG" ]; then
+    warn "Engram: no se pudo detectar la versión más reciente"
   else
-    rm -f "$ENGRAM_TMP"
-    warn "Engram: descarga falló — instalar manualmente desde github.com/Gentleman-Programming/engram"
+    ENGRAM_VER="${ENGRAM_TAG#v}"
+    ARCH=$(uname -m); [ "$ARCH" = "x86_64" ] && ARCH="amd64"; [ "$ARCH" = "aarch64" ] && ARCH="arm64"
+    ENGRAM_URL="https://github.com/Gentleman-Programming/engram/releases/download/${ENGRAM_TAG}/engram_${ENGRAM_VER}_linux_${ARCH}.tar.gz"
+    if curl -fsSL -o "$ENGRAM_TMP_DIR/engram.tar.gz" "$ENGRAM_URL" 2>/dev/null; then
+      tar -xzf "$ENGRAM_TMP_DIR/engram.tar.gz" -C "$ENGRAM_TMP_DIR"
+      if [ -f "$ENGRAM_TMP_DIR/engram" ]; then
+        mv "$ENGRAM_TMP_DIR/engram" "$HOME/.local/bin/engram"
+        chmod +x "$HOME/.local/bin/engram"
+        log "Engram ${ENGRAM_TAG} instalado."
+      else
+        warn "Engram: tar.gz no contenía binario 'engram'"
+      fi
+    else
+      warn "Engram: descarga falló — instalar manualmente desde github.com/Gentleman-Programming/engram"
+    fi
   fi
+  rm -rf "$ENGRAM_TMP_DIR"
 else
   log "Engram ya instalado ($(engram version 2>/dev/null || echo 'presente')), saltando."
 fi

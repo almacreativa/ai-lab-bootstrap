@@ -37,7 +37,7 @@ sub-árbol rw anidado dentro del knowledge ro: mount del padre `:ro` + mount del
 
 ---
 
-## Outline
+## Outline (retirado — referencia histórica)
 
 ### Login con Google vuelve siempre a la pantalla de inicio (loop)
 **Diagnóstico:** `docker logs outline | grep -i error` →

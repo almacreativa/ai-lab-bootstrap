@@ -155,6 +155,15 @@ else
   run rsync -av "$DISK_HOME/.claude/" "$HOME/.claude/"
 fi
 
+# Claude Code — OAuth credentials y MCP config (~/.claude.json, archivo suelto en HOME)
+log "Claude Code OAuth (~/.claude.json)..."
+if [ "$MODE" = "rsync" ]; then
+  run rsync -avz "${SOURCE}:~/.claude.json" "$HOME/.claude.json" 2>/dev/null || true
+else
+  [ -f "$DISK_HOME/.claude.json" ] && \
+    run rsync -av "$DISK_HOME/.claude.json" "$HOME/.claude.json"
+fi
+
 # Antigravity/Gemini — OAuth, config (excluir antigravity-cli/ y tmp/)
 log "Antigravity (~/.gemini/)..."
 mkdir -p "$HOME/.gemini"
