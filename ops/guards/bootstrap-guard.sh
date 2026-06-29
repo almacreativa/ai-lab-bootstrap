@@ -63,6 +63,9 @@ if [ -d "$HOME/.local/bin" ]; then
 fi
 
 # 2. Servicios systemd user — ¿cubiertos?
+# Cuando Dagu (system service) ejecuta este guard, DBUS no está disponible
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 echo "[bootstrap-guard] Verificando servicios systemd user..."
 systemctl --user list-unit-files --state=enabled --type=service --no-pager --no-legend 2>/dev/null | while read -r unit _rest; do
   in_bootstrap=false
