@@ -11,7 +11,7 @@ Servicios que bindean a la IP de Tailscale (100.x.x.x) fallan al boot si Tailsca
 
 **Síntoma:**
 ```
-Error: listen tcp 100.79.30.67:8480: bind: cannot assign requested address
+Error: listen tcp 100.x.x.x:8480: bind: cannot assign requested address
 ```
 
 ## Solución 1: Bindear a 0.0.0.0 + UFW

@@ -361,7 +361,9 @@ opencode  # seleccionar provider y autenticar
 ### 3.1 Dagu
 
 Dagu puede correr como system service (si se usó el installer interactivo)
-o como user service (si `apply-configs.sh` lo creó). Verificar cuál existe:
+o como user service (si `apply-configs.sh` lo creó). `apply-configs.sh` tiene
+un guard que detecta si existe un system service y, si es así, solo copia DAGs
+y config sin crear un user service duplicado.
 
 ```bash
 # Verificar qué tipo de service existe:
@@ -374,6 +376,9 @@ else
   systemctl --user start dagu
   systemctl --user is-active dagu
 fi
+
+# IMPORTANTE: NO tener ambos — el user service chocará con el system service
+# en el mismo puerto y entrará en crash-loop.
 
 # Verificar que escucha en 0.0.0.0 (no 127.0.0.1):
 ss -tlnp | grep 8480
