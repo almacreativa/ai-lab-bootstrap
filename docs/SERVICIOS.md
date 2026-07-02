@@ -18,6 +18,7 @@
 | Portainer | Docker | `<SERVER_IP>:9443` | ~80MB | tailnet |
 | **NLM Gateway** | host (uvicorn, cron @reboot) | 0.0.0.0:8770 — UFW: solo 172.16/12 (contenedores) y local | ~80MB | contenedores Paperclip |
 | **Engram** | host (binario Go, stdio MCP bajo demanda) | sin puerto (stdio) | ~5-15MB por sesión, 0 en reposo | Claude Code, OpenCode, Antigravity |
+| **Playwright MCP** | host (Node.js, stdio MCP bajo demanda) | sin puerto (stdio) | ~200MB por sesión (Chromium headless) | Claude Code, OpenCode, Hermes |
 | Syncthing | systemd user | GUI `127.0.0.1:8384`; P2P 22000 — UFW: Tailscale + LAN | ~60MB | — |
 
 **RAM total en uso:** verificar con `free -h`. Engram no suma RAM residente (stdio efímero).
@@ -68,6 +69,7 @@ bootstrap salvo que se indique lo contrario.
 | `paperclip-poll-done.sh` / `paperclip-notify-done.sh` | Polling de heartbeats completados + formateo legible |
 | `paperclip-usage.sh` | Reporte semanal de tokens (lee `heartbeat_runs.usage_json` directo de la DB) |
 | `paperclip-mcp-<slug>.sh` | Levantan el servidor MCP de Paperclip por empresa |
+| `playwright-mcp.sh` | Playwright MCP headless: navegación web, screenshots, accessibility tree para agentes IA |
 | `sync-agent-instructions.sh` | Reconcilia instrucciones de agentes con la DB |
 | `deploy-agent-prompts.sh` | Despliega `promptTemplate` (S1 contrato + S2 reglas empresa + S3 rol) vía DB |
 

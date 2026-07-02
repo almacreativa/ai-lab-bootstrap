@@ -1,5 +1,5 @@
 #!/bin/bash
-# Módulo 04 — Herramientas AI: Claude Code, Opencode, Chromium, Xvfb
+# Módulo 04 — Herramientas AI: Claude Code, OpenCode, Chromium, Playwright MCP, Engram, MoolMesh
 
 log "Paso 4/6 — Herramientas AI..."
 
@@ -138,6 +138,44 @@ MOOLEOF
   fi
 else
   log "moolmesh.service ya existe — no se sobreescribe."
+fi
+
+# Playwright MCP — visual testing headless para agentes AI
+# Permite a Claude Code, OpenCode, Hermes navegar webs, tomar screenshots
+# y leer el accessibility tree sin display físico
+if ! command -v playwright-mcp &>/dev/null; then
+  npm install -g @playwright/mcp
+  log "Playwright MCP instalado ($(playwright-mcp --version 2>/dev/null || echo 'OK'))."
+else
+  log "Playwright MCP ya instalado ($(playwright-mcp --version 2>/dev/null)), saltando."
+fi
+
+# Instalar Chromium de Playwright + dependencias de sistema para renderizado headless
+if [ ! -d "$HOME/.cache/ms-playwright/chromium-"* ] 2>/dev/null; then
+  npx playwright install --with-deps chromium
+  log "Playwright Chromium + deps de sistema instalados."
+else
+  log "Playwright Chromium ya instalado, saltando."
+fi
+
+# Wrapper script para MCP servers
+PLAYWRIGHT_MCP_SCRIPT="$HOME/ai-lab/scripts/playwright-mcp.sh"
+if [ ! -f "$PLAYWRIGHT_MCP_SCRIPT" ]; then
+  cat > "$PLAYWRIGHT_MCP_SCRIPT" << 'PWEOF'
+#!/bin/bash
+# playwright-mcp.sh — Playwright MCP server para agentes IA (headless)
+# Navegación web, screenshots, accessibility tree en servidor sin display
+exec playwright-mcp \
+  --headless \
+  --browser chromium \
+  --viewport-size 1280x720 \
+  --caps vision \
+  "$@"
+PWEOF
+  chmod +x "$PLAYWRIGHT_MCP_SCRIPT"
+  log "playwright-mcp.sh creado en ai-lab/scripts/."
+else
+  log "playwright-mcp.sh ya existe, saltando."
 fi
 
 log "Módulo 04 completo."
