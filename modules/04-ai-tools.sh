@@ -7,7 +7,7 @@ log "Paso 4/6 — Herramientas AI..."
 # (módulo 02 los instala pero el PATH solo se persiste en .bashrc)
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
 
 # Chromium — necesario para logins headless via CDP (nlm, OAuth flows)
 # snap no es confiable dentro de WSL2 (squashfs/AppArmor) — usar apt ahí
