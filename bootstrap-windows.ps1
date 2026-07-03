@@ -1,5 +1,5 @@
 # ============================================================
-# ai-lab-bootstrap — bootstrap-windows.ps1
+# ai-lab-bootstrap --bootstrap-windows.ps1
 # Levanta un AI agent lab en Windows 10/11, via WSL2 + Ubuntu.
 #
 # Uso (PowerShell como Administrador):
@@ -8,8 +8,8 @@
 #   .\bootstrap-windows.ps1
 #
 # Compatibilidad:
-#   Windows 11 (22H2+) — soporte completo (mirrored networking, autoMemoryReclaim)
-#   Windows 10 (22H2+) — funcional (NAT, sin features experimentales de WSL2)
+#   Windows 11 (22H2+) --soporte completo (mirrored networking, autoMemoryReclaim)
+#   Windows 10 (22H2+) --funcional (NAT, sin features experimentales de WSL2)
 #
 # Variables configurables (exportar antes de correr el script):
 #
@@ -22,12 +22,12 @@
 #   WSL_PROCESSORS        CPUs para WSL2 (default: 50% de los lógicos)
 #
 # Arquitectura:
-#   Host Windows  → WinGet packages, .wslconfig, Defender exclusions, OpenSSH
-#   WSL2 (Ubuntu) → bootstrap.sh de Linux con detección $WSL_DISTRO_NAME
+#   Host Windows  -> WinGet packages, .wslconfig, Defender exclusions, OpenSSH
+#   WSL2 (Ubuntu) -> bootstrap.sh de Linux con detección $WSL_DISTRO_NAME
 #                    Docker CE nativo (no Docker Desktop), systemd, todos
 #                    los agentes (Hermes, Claude Code, Paperclip)
 #
-# Docker Desktop NO se instala — es incompatible con networkingMode=mirrored.
+# Docker Desktop NO se instala --es incompatible con networkingMode=mirrored.
 # Se usa docker-ce nativo dentro de WSL2.
 #
 # Guía completa: docs/WINDOWS-INSTALL.md
@@ -44,22 +44,22 @@ function Write-LabErr  { param($msg) Write-Host "[error] $msg" -ForegroundColor 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host ""
-Write-Host "  ██████╗  ██████╗  ██████╗ ████████╗███████╗████████╗██████╗  █████╗ ██████╗ " -ForegroundColor Cyan
-Write-Host "  ██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗" -ForegroundColor Cyan
-Write-Host "  ██████╔╝██║   ██║██║   ██║   ██║   ███████╗   ██║   ██████╔╝███████║██████╔╝" -ForegroundColor Cyan
-Write-Host "  ██╔══██╗██║   ██║██║   ██║   ██║   ╚════██║   ██║   ██╔══██╗██╔══██║██╔═══╝ " -ForegroundColor Cyan
-Write-Host "  ██████╔╝╚██████╔╝╚██████╔╝   ██║   ███████║   ██║   ██║  ██║██║  ██║██║     " -ForegroundColor Cyan
-Write-Host "  ╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     " -ForegroundColor Cyan
-Write-Host "  AI Agent Lab Bootstrap — Windows 10/11 (via WSL2 + Docker CE)" -ForegroundColor Cyan
+Write-Host "  ____   ___   ___ _____ ____ _____ ____   _    ____  " -ForegroundColor Cyan
+Write-Host " | __ ) / _ \ / _ \_   _/ ___|_   _|  _ \ / \  |  _ \ " -ForegroundColor Cyan
+Write-Host " |  _ \| | | | | | || | \___ \ | | | |_) / _ \ | |_) |" -ForegroundColor Cyan
+Write-Host " | |_) | |_| | |_| || |  ___) || | |  _ / ___ \|  __/ " -ForegroundColor Cyan
+Write-Host " |____/ \___/ \___/ |_| |____/ |_| |_|/_/   \_\_|    " -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  AI Agent Lab Bootstrap -- Windows 10/11 (via WSL2 + Docker CE)" -ForegroundColor Cyan
 Write-Host ""
 
-# ─── Detección de sistema ────────────────────────────────────
+# --- Detección de sistema ------------------------------------
 $osBuild = [System.Environment]::OSVersion.Version.Build
 $isWin11 = $osBuild -ge 22000
 $osName = if ($isWin11) { "Windows 11" } else { "Windows 10" }
 $osDisplayVersion = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
 
-# ─── Configuración ────────────────────────────────────────────
+# --- Configuración --------------------------------------------
 if (-not $env:LAB_INSTALL_SSH_SERVER) { $env:LAB_INSTALL_SSH_SERVER = "false" }
 if (-not $env:INSTALL_PAPERCLIP) { $env:INSTALL_PAPERCLIP = "true" }
 if (-not $env:INSTALL_HERMES)    { $env:INSTALL_HERMES = "true" }
@@ -84,7 +84,7 @@ Write-Host "  Instalar nlm         : $env:INSTALL_NLM"
 Write-Host "  Instalar SSH Server  : $env:LAB_INSTALL_SSH_SERVER"
 if (-not $isWin11) {
   Write-Host ""
-  Write-Host "  NOTA: Windows 10 — sin mirrored networking ni features" -ForegroundColor Yellow
+  Write-Host "  NOTA: Windows 10 --sin mirrored networking ni features" -ForegroundColor Yellow
   Write-Host "  experimentales de WSL2. Ver docs/WINDOWS-INSTALL.md" -ForegroundColor Yellow
 }
 Write-Host ""
@@ -92,7 +92,7 @@ $confirm = Read-Host "  Continuar con esta configuracion? [S/n]"
 if (-not $confirm) { $confirm = "S" }
 if ($confirm -notmatch "^[Ss]$") { Write-Host "Abortado."; exit 0 }
 
-# ─── Módulos ──────────────────────────────────────────────────
+# --- Módulos --------------------------------------------------
 . "$ScriptDir\modules\windows-host\01-host-prereqs.ps1"
 . "$ScriptDir\modules\windows-host\02-wsl-provision.ps1"
 . "$ScriptDir\modules\windows-host\03-post-install.ps1"

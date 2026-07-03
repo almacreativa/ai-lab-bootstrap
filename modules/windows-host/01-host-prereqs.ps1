@@ -1,26 +1,26 @@
-# Módulo 01 (Windows host) — Long paths, WSL2, WinGet packages, .wslconfig,
-# Windows Defender exclusions, OpenSSH Server, plan de energía
+# Modulo 01 (Windows host) --Long paths, WSL2, WinGet packages, .wslconfig,
+# Windows Defender exclusions, OpenSSH Server, plan de energia
 # Requiere PowerShell elevado (Run as Administrator)
 
-Write-LabLog "Paso 1/3 — Prerrequisitos del host..."
+Write-LabLog "Paso 1/3 --Prerrequisitos del host..."
 
-# ─── Long paths ───────────────────────────────────────────────
+# --- Long paths -----------------------------------------------
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
   -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
 git config --system core.longpaths true 2>$null
 Write-LabLog "Long paths habilitados (registro + git --system)."
 
-# ─── WSL2 features ───────────────────────────────────────────
+# --- WSL2 features -------------------------------------------
 $wslFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
 if ($wslFeature.State -ne "Enabled") {
   Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart | Out-Null
   Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart | Out-Null
-  Write-LabWarn "WSL2 habilitado — puede requerir reinicio antes de continuar al módulo 02."
+  Write-LabWarn "WSL2 habilitado --puede requerir reinicio antes de continuar al modulo 02."
 } else {
   Write-LabLog "WSL2 ya estaba habilitado."
 }
 
-# ─── .wslconfig (ANTES de provisionar la distro) ─────────────
+# --- .wslconfig (ANTES de provisionar la distro) -------------
 $wslConfigPath = Join-Path $env:USERPROFILE ".wslconfig"
 if (-not (Test-Path $wslConfigPath)) {
   $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
@@ -29,7 +29,7 @@ if (-not (Test-Path $wslConfigPath)) {
     [math]::Max(2, [math]::Floor((Get-CimInstance Win32_Processor).NumberOfLogicalProcessors / 2))
   }
 
-  # Detectar versión de Windows para features disponibles
+  # Detectar version de Windows para features disponibles
   if ($null -eq $isWin11) { $isWin11 = [System.Environment]::OSVersion.Version.Build -ge 22000 }
 
   if ($isWin11) {
@@ -56,16 +56,16 @@ processors=$wslProcessors
 swap=4GB
 localhostForwarding=true
 "@
-    Write-LabLog ".wslconfig generado: memory=${wslMemory}GB, processors=$wslProcessors (Windows 10 — sin mirrored)."
-    Write-LabWarn "Windows 10: WSL2 usará NAT (IP propia). Ver docs/WINDOWS-INSTALL.md para implicaciones."
+    Write-LabLog ".wslconfig generado: memory=${wslMemory}GB, processors=$wslProcessors (Windows 10 --sin mirrored)."
+    Write-LabWarn "Windows 10: WSL2 usara NAT (IP propia). Ver docs/WINDOWS-INSTALL.md para implicaciones."
   }
 
   Set-Content -Path $wslConfigPath -Value $wslConfigContent -Encoding UTF8
 } else {
-  Write-LabLog ".wslconfig ya existe — no se sobreescribe. Verificar manualmente si es necesario."
+  Write-LabLog ".wslconfig ya existe --no se sobreescribe. Verificar manualmente si es necesario."
 }
 
-# ─── WinGet packages ─────────────────────────────────────────
+# --- WinGet packages -----------------------------------------
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
   Write-LabWarn "winget no encontrado. Instalar 'App Installer' desde Microsoft Store y volver a correr."
   exit 1
@@ -98,7 +98,7 @@ if (-not $chromiumInstalled) {
   Write-LabLog "Chromium ya instalado, saltando."
 }
 
-# ─── Windows Defender — exclusiones para WSL2 ────────────────
+# --- Windows Defender --exclusiones para WSL2 ----------------
 Write-LabLog "Configurando exclusiones de Windows Defender para WSL2..."
 try {
   Add-MpPreference -ExclusionProcess "vmmem.exe", "vmmemWSL.exe", "wsl.exe", "wslhost.exe", "msrdc.exe" -ErrorAction SilentlyContinue
@@ -106,24 +106,24 @@ try {
   Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Packages" -ErrorAction SilentlyContinue
   Write-LabLog "Exclusiones de Defender aplicadas (procesos WSL + paths virtuales + VHDX)."
 } catch {
-  Write-LabWarn "No se pudieron aplicar exclusiones de Defender — verificar manualmente."
+  Write-LabWarn "No se pudieron aplicar exclusiones de Defender --verificar manualmente."
 }
 
-# ─── Plan de energía — High Performance ──────────────────────
+# --- Plan de energia --High Performance ----------------------
 $currentPlan = powercfg /getactivescheme 2>$null
 if ($currentPlan -notmatch "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c") {
   powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
   if ($?) {
-    Write-LabLog "Plan de energía cambiado a 'High Performance'."
+    Write-LabLog "Plan de energia cambiado a 'High Performance'."
   } else {
-    Write-LabWarn "No se pudo activar 'High Performance' — el plan puede no existir en este equipo."
-    Write-LabWarn "Verificar manualmente: Configuración > Sistema > Energía."
+    Write-LabWarn "No se pudo activar 'High Performance' --el plan puede no existir en este equipo."
+    Write-LabWarn "Verificar manualmente: Configuracion > Sistema > Energia."
   }
 } else {
-  Write-LabLog "Plan de energía ya es 'High Performance'."
+  Write-LabLog "Plan de energia ya es 'High Performance'."
 }
 
-# ─── OpenSSH Server (opcional) ───────────────────────────────
+# --- OpenSSH Server (opcional) -------------------------------
 if ($env:LAB_INSTALL_SSH_SERVER -eq "true") {
   $sshCapability = Get-WindowsCapability -Online -Name "OpenSSH.Server~~~~0.0.1.0"
   if ($sshCapability.State -ne "Installed") {
@@ -156,7 +156,7 @@ if ($env:LAB_INSTALL_SSH_SERVER -eq "true") {
   Write-LabLog "SSH hardening aplicado + ACLs de administrators_authorized_keys configuradas."
   Write-LabWarn "Agregar tu public key en: $authKeysFile"
 } else {
-  Write-LabLog "LAB_INSTALL_SSH_SERVER no está en 'true' — saltando OpenSSH Server."
+  Write-LabLog "LAB_INSTALL_SSH_SERVER no esta en 'true' --saltando OpenSSH Server."
 }
 
-Write-LabLog "Módulo 01 (Windows host) completo."
+Write-LabLog "Modulo 01 (Windows host) completo."

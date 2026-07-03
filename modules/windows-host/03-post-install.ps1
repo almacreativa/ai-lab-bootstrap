@@ -1,14 +1,14 @@
-# Módulo 03 (Windows host) — Instrucciones de pasos manuales post-bootstrap
+# Módulo 03 (Windows host) --Instrucciones de pasos manuales post-bootstrap
 
 Write-Host ""
 Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host "  Bootstrap completo (Windows + WSL2)." -ForegroundColor Green
 Write-Host ""
 Write-Host "  PASOS MANUALES REQUERIDOS" -ForegroundColor Yellow
-Write-Host "  (no se pueden automatizar — requieren interacción/GUI)"
+Write-Host "  (no se pueden automatizar --requieren interaccion/GUI)"
 Write-Host ""
 Write-Host "  -- 1. REINICIO PENDIENTE -----------------------------------------"
-Write-Host "     Si el módulo 01 habilitó WSL2 o long paths por primera vez,"
+Write-Host "     Si el modulo 01 habilito WSL2 o long paths por primera vez,"
 Write-Host "     reiniciar Windows antes de seguir."
 Write-Host ""
 Write-Host "  -- 2. VERIFICAR DOCKER CE (dentro de WSL2) -----------------------"
@@ -24,7 +24,7 @@ Write-Host "       ~/ai-lab/repos/paperclip/.env.paperclip"
 Write-Host "     Templates en: ~/ai-lab/repos/ai-lab-bootstrap/templates/"
 Write-Host ""
 Write-Host "  -- 4. TAILSCALE (en el host Windows) -----------------------------"
-Write-Host "     Abrir la app Tailscale desde el menú de inicio y hacer login."
+Write-Host "     Abrir la app Tailscale desde el menu de inicio y hacer login."
 if ($null -eq $isWin11) { $isWin11 = [System.Environment]::OSVersion.Version.Build -ge 22000 }
 if ($isWin11) {
   Write-Host "     (WSL2 con networkingMode=mirrored comparte la IP del host)"
@@ -42,7 +42,7 @@ Write-Host "  -- 6. CLAUDE CODE (dentro de WSL2) -------------------------------
 Write-Host "     wsl -d Ubuntu"
 Write-Host "     claude    <- para completar el login"
 Write-Host ""
-Write-Host "  -- 7. NOTEBOOKLM (nlm) — login con navegador real ---------------"
+Write-Host "  -- 7. NOTEBOOKLM (nlm) --login con navegador real ---------------"
 Write-Host "     wsl -d Ubuntu -- nlm login --force"
 Write-Host ""
 Write-Host "  -- 8. INICIAR SERVICIOS (dentro de WSL2) -------------------------"
@@ -81,12 +81,12 @@ Write-Host ""
 Write-Host "  - Verificar .wslconfig aplicado:"
 Write-Host "    wsl --status"
 Write-Host ""
-Write-Host "  - Si la máquina se suspende (sleep), WSL2 y sus servicios systemd"
+Write-Host "  - Si la maquina se suspende (sleep), WSL2 y sus servicios systemd"
 Write-Host "    se detienen. No es equivalente a un servidor siempre encendido."
 Write-Host ""
 Write-Host "  - Docker CE corre dentro de WSL2 (NO Docker Desktop). Los stacks"
 Write-Host "    Docker Compose (Paperclip, Glance, etc.) levantan dentro de la"
-Write-Host "    distro Ubuntu, idéntico al servidor Linux."
+Write-Host "    distro Ubuntu, identico al servidor Linux."
 Write-Host ""
 Write-Host "  Guia detallada (prerrequisitos, W10 vs W11, troubleshooting):"
 Write-Host "    docs/WINDOWS-INSTALL.md"
