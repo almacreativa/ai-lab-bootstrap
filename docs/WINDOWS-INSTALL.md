@@ -307,6 +307,28 @@ wsl --status
 wsl --update
 ```
 
+### El módulo 02 falla con `$'\r': command not found`
+
+Git en Windows convierte line endings a CRLF (`\r\n`). Cuando los scripts PS1 pasan comandos bash multi-línea a WSL2, el `\r` rompe bash. Este bug ya está corregido en el script (todos los comandos bash se pasan en una sola línea), pero si aparece:
+
+```powershell
+# Verificar que tenés la versión más reciente del repo
+cd "$env:USERPROFILE\ai-lab\repos\ai-lab-bootstrap"
+git pull
+.\bootstrap-windows.ps1
+```
+
+Si el error persiste, correr el bootstrap manualmente dentro de WSL2:
+
+```bash
+# Dentro de WSL2 (wsl -d Ubuntu)
+mkdir -p ~/ai-lab/repos
+cd ~/ai-lab/repos
+git clone https://github.com/almacreativa/ai-lab-bootstrap.git
+cd ai-lab-bootstrap
+bash bootstrap.sh
+```
+
 ### Docker CE no arranca dentro de WSL2
 
 ```bash
