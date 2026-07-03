@@ -23,6 +23,17 @@ Guía paso a paso para instalar el AI Agent Lab en Windows 10/11 usando WSL2.
 - Conexión a **internet** (descarga paquetes via WinGet y apt)
 - **Git** instalado en el host (si no lo tenés, el script lo instala via WinGet, pero necesitás Git para clonar el repo inicialmente)
 
+### Política de ejecución de PowerShell
+
+Windows bloquea la ejecución de scripts por defecto. Habilitar antes de correr el bootstrap:
+
+```powershell
+# PowerShell como Administrador
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+`RemoteSigned` permite scripts locales y requiere firma para los descargados de internet.
+
 ### Verificar virtualización
 
 ```powershell

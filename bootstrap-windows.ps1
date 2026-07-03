@@ -70,15 +70,18 @@ $totalCPU = (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
 $wslMem = if ($env:WSL_MEMORY) { $env:WSL_MEMORY } else { [math]::Max(4, [math]::Floor($totalRAM / 2)) }
 $wslCpu = if ($env:WSL_PROCESSORS) { $env:WSL_PROCESSORS } else { [math]::Max(2, [math]::Floor($totalCPU / 2)) }
 
+$networkLabel = if ($isWin11) { "Mirrored (comparte IP del host)" } else { "NAT (IP propia)" }
+$userLabel = if ($env:LAB_USER_LINUX) { $env:LAB_USER_LINUX } else { "(detectado auto)" }
+
 Write-Host "  Sistema operativo    : $osName $osDisplayVersion (build $osBuild)"
 Write-Host "  Hardware detectado   : ${totalRAM}GB RAM, $totalCPU CPUs"
 Write-Host "  WSL2 asignado        : ${wslMem}GB RAM, $wslCpu CPUs"
-Write-Host "  Networking WSL2      : $(if ($isWin11) { 'Mirrored (comparte IP del host)' } else { 'NAT (IP propia)' })"
-Write-Host "  Usuario Linux (WSL2) : $(if ($env:LAB_USER_LINUX) { $env:LAB_USER_LINUX } else { '(detectado auto)' })"
-Write-Host "  Instalar Paperclip   : $($env:INSTALL_PAPERCLIP)"
-Write-Host "  Instalar Hermes      : $($env:INSTALL_HERMES)"
-Write-Host "  Instalar nlm         : $($env:INSTALL_NLM)"
-Write-Host "  Instalar SSH Server  : $($env:LAB_INSTALL_SSH_SERVER)"
+Write-Host "  Networking WSL2      : $networkLabel"
+Write-Host "  Usuario Linux (WSL2) : $userLabel"
+Write-Host "  Instalar Paperclip   : $env:INSTALL_PAPERCLIP"
+Write-Host "  Instalar Hermes      : $env:INSTALL_HERMES"
+Write-Host "  Instalar nlm         : $env:INSTALL_NLM"
+Write-Host "  Instalar SSH Server  : $env:LAB_INSTALL_SSH_SERVER"
 if (-not $isWin11) {
   Write-Host ""
   Write-Host "  NOTA: Windows 10 — sin mirrored networking ni features" -ForegroundColor Yellow

@@ -129,6 +129,7 @@ Variante para **Windows 10 (22H2+)** y **Windows 11**. El stack completo corre d
 
 ```powershell
 # PowerShell como Administrador
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 mkdir -Force "$env:USERPROFILE\ai-lab\repos" | Out-Null
 cd "$env:USERPROFILE\ai-lab\repos"
 git clone https://github.com/almacreativa/ai-lab-bootstrap.git
