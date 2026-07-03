@@ -4,6 +4,9 @@ Write-Host ""
 Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host "  Bootstrap completo (Windows + WSL2)." -ForegroundColor Green
 Write-Host ""
+Write-Host "  IMPORTANTE: Dentro de WSL2, ejecutar 'source ~/.bashrc' o abrir" -ForegroundColor Yellow
+Write-Host "  una nueva terminal para que claude, node y opencode esten en PATH." -ForegroundColor Yellow
+Write-Host ""
 Write-Host "  PASOS MANUALES REQUERIDOS" -ForegroundColor Yellow
 Write-Host "  (no se pueden automatizar --requieren interaccion/GUI)"
 Write-Host ""
@@ -12,6 +15,8 @@ Write-Host "     Si el modulo 01 habilito WSL2 o long paths por primera vez,"
 Write-Host "     reiniciar Windows antes de seguir."
 Write-Host ""
 Write-Host "  -- 2. VERIFICAR DOCKER CE (dentro de WSL2) -----------------------"
+Write-Host "     NOTA: Cerrar y reabrir WSL2 primero para que el grupo docker"
+Write-Host "     tome efecto (desde PowerShell: wsl --shutdown, luego wsl -d Ubuntu)"
 Write-Host "     wsl -d Ubuntu -- docker run --rm hello-world"
 Write-Host "     wsl -d Ubuntu -- docker compose version"
 Write-Host ""
@@ -37,6 +42,11 @@ if ($isWin11) {
 Write-Host ""
 Write-Host "  -- 5. GITHUB CLI (dentro de WSL2) --------------------------------"
 Write-Host "     wsl -d Ubuntu -- gh auth login"
+Write-Host "     NOTA: WSL2 no puede abrir el browser automaticamente."
+Write-Host "     Seleccionar 'Login with a web browser', copiar el codigo,"
+Write-Host "     y abrir la URL en el browser de Windows manualmente."
+Write-Host "     O seleccionar 'Paste an authentication token' con un PAT"
+Write-Host "     de github.com/settings/tokens"
 Write-Host ""
 Write-Host "  -- 6. CLAUDE CODE (dentro de WSL2) -------------------------------"
 Write-Host "     wsl -d Ubuntu"

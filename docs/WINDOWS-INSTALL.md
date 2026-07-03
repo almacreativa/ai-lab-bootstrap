@@ -374,6 +374,63 @@ Sin mirrored networking, WSL2 tiene IP propia. Opciones:
    ```
 3. Considerar actualizar a Windows 11 para mirrored networking
 
+### Docker `permission denied` después de instalar
+
+```
+docker: permission denied while trying to connect to the Docker daemon socket
+```
+
+El bootstrap agrega el usuario al grupo `docker` (`usermod -aG docker`), pero el grupo no toma efecto hasta cerrar y reabrir la sesión de WSL2:
+
+```powershell
+# Desde PowerShell
+wsl --shutdown
+# Esperar 10 segundos
+wsl -d Ubuntu
+```
+
+```bash
+# Dentro de WSL2 — verificar
+groups  # debe incluir "docker"
+docker run --rm hello-world
+```
+
+### `claude` / `node` / `opencode` no encontrado después del bootstrap
+
+El instalador de Claude Code, nvm y otros agregan entradas al `PATH` en `~/.bashrc`, pero la sesión actual no las tiene cargadas:
+
+```bash
+# Dentro de WSL2
+source ~/.bashrc
+
+# Verificar
+claude --version
+node --version
+opencode --version
+```
+
+Si después de `source ~/.bashrc` sigue sin encontrarse, verificar que `~/.local/bin` está en el PATH:
+
+```bash
+echo $PATH | tr ':' '\n' | grep local
+# Debe mostrar /home/<usuario>/.local/bin
+```
+
+### `gh auth login` no abre el browser en WSL2
+
+WSL2 headless no puede abrir un navegador gráfico. Al ejecutar `gh auth login`, hay dos opciones:
+
+**Opción A — Browser manual (recomendada):**
+1. Seleccionar "Login with a web browser"
+2. Copiar el código de un solo uso que muestra la terminal
+3. Abrir `https://github.com/login/device` en el browser de Windows
+4. Pegar el código y autorizar
+
+**Opción B — Token:**
+1. Crear un Personal Access Token en `https://github.com/settings/tokens`
+2. Seleccionar "Paste an authentication token" en `gh auth login`
+3. Pegar el token
+
 ---
 
 ## Mantenimiento

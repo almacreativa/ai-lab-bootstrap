@@ -69,12 +69,16 @@ if ! grep -q "alias claude-d=" "$BASHRC"; then
 fi
 
 # Engram — memoria persistente cross-session para agentes AI (binario Go estático)
+# Nota: el repo publica releases "pi-v*" (sin binarios) y "v*" (con binarios).
+# /releases/latest puede apuntar a un pi-v* sin assets. Usamos la API para
+# encontrar el primer release con tag "v*" que tenga assets descargables.
 if ! command -v engram &>/dev/null; then
   ENGRAM_TMP_DIR="/tmp/engram-install"
   mkdir -p "$HOME/.local/bin" "$ENGRAM_TMP_DIR"
-  ENGRAM_TAG=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/Gentleman-Programming/engram/releases/latest" 2>/dev/null | grep -oP 'tag/\K.*')
+  ENGRAM_TAG=$(curl -fsSL "https://api.github.com/repos/Gentleman-Programming/engram/releases" 2>/dev/null \
+    | grep -oP '"tag_name":\s*"\Kv[0-9][^"]*' | head -1)
   if [ -z "$ENGRAM_TAG" ]; then
-    warn "Engram: no se pudo detectar la versión más reciente"
+    warn "Engram: no se pudo detectar la version mas reciente"
   else
     ENGRAM_VER="${ENGRAM_TAG#v}"
     ARCH=$(uname -m); [ "$ARCH" = "x86_64" ] && ARCH="amd64"; [ "$ARCH" = "aarch64" ] && ARCH="arm64"
@@ -86,10 +90,10 @@ if ! command -v engram &>/dev/null; then
         chmod +x "$HOME/.local/bin/engram"
         log "Engram ${ENGRAM_TAG} instalado."
       else
-        warn "Engram: tar.gz no contenía binario 'engram'"
+        warn "Engram: tar.gz no contenia binario 'engram'"
       fi
     else
-      warn "Engram: descarga falló — instalar manualmente desde github.com/Gentleman-Programming/engram"
+      warn "Engram: descarga fallo — instalar manualmente desde github.com/Gentleman-Programming/engram"
     fi
   fi
   rm -rf "$ENGRAM_TMP_DIR"
@@ -159,6 +163,7 @@ else
 fi
 
 # Wrapper script para MCP servers
+mkdir -p "$HOME/ai-lab/scripts"
 PLAYWRIGHT_MCP_SCRIPT="$HOME/ai-lab/scripts/playwright-mcp.sh"
 if [ ! -f "$PLAYWRIGHT_MCP_SCRIPT" ]; then
   cat > "$PLAYWRIGHT_MCP_SCRIPT" << 'PWEOF'
