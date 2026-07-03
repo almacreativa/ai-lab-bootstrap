@@ -1,0 +1,53 @@
+# .wslconfig — Configuración global de WSL2
+# Copiar a %USERPROFILE%\.wslconfig y reiniciar con: wsl --shutdown
+#
+# El script bootstrap-windows.ps1 genera este archivo automáticamente
+# con valores adaptados al hardware y versión de Windows detectados.
+#
+# Compatibilidad:
+#   Windows 11 (22H2+): se genera completo (mirrored + experimental)
+#   Windows 10 (22H2+): solo [wsl2] básico (memory, processors, swap, localhostForwarding)
+#                        Las secciones marcadas "solo W11" se omiten en Windows 10.
+#
+# Este template documenta TODAS las opciones. Ver docs/WINDOWS-INSTALL.md
+# para la tabla completa de diferencias entre W10 y W11.
+
+[wsl2]
+# RAM máxima para la VM de WSL2.
+# Regla: 50% de la RAM total del sistema. Deja el resto para Windows.
+# El proceso vmmem no libera RAM sin autoMemoryReclaim (ver [experimental]).
+memory={{WSL_MEMORY}}GB
+
+# Núcleos de CPU disponibles para WSL2.
+# Ajustar según el procesador. No asignar todos — Windows necesita margen.
+processors={{WSL_PROCESSORS}}
+
+# Swap dentro de WSL2. Buffer para evitar OOM kills inmediatos.
+swap=4GB
+
+# (solo W11) Modo de red Mirrored: WSL2 comparte la IP y las interfaces del host.
+# Necesario para: Tailscale compartido, IPv6, acceso bidireccional
+# por localhost, conectividad desde otros dispositivos en la LAN.
+# INCOMPATIBLE con Docker Desktop (usar docker-ce nativo en WSL2).
+# En Windows 10 se omite — WSL2 usa NAT (IP propia 172.x.x.x).
+networkingMode=mirrored
+
+# (solo W11) Resuelve DNS via tunnel del host — evita fallos con VPNs corporativas.
+dnsTunneling=true
+
+# (solo W11) Hereda la configuración de proxy HTTP del host Windows.
+autoProxy=true
+
+# Permite acceder a servicios de WSL2 desde Windows via localhost.
+localhostForwarding=true
+
+# (solo W11) Sección experimental — omitida completamente en Windows 10.
+[experimental]
+# Devuelve RAM inactiva a Windows de forma progresiva.
+# Sin esto, vmmem retiene toda la memoria que alguna vez usó.
+autoMemoryReclaim=gradual
+
+# El disco virtual (.vhdx) reduce su tamaño al borrar archivos dentro de WSL.
+# Sin esto, el .vhdx solo crece — nunca se achica.
+# Complementar con: wsl -d Ubuntu -- sudo fstrim -av (periódicamente)
+sparseVhd=true

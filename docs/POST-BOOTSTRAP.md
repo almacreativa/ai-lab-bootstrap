@@ -680,6 +680,28 @@ bash ~/ai-lab/ops/backup/rehome.sh \
 
 ---
 
+## Notas para Windows (WSL2)
+
+En la variante Windows, el lab corre dentro de WSL2 (Ubuntu). Las fases
+de esta guía aplican con estas diferencias:
+
+| Aspecto | Linux (bare metal) | Windows (WSL2) |
+|---|---|---|
+| Docker | Docker CE instalado por bootstrap | Docker CE nativo dentro de WSL2 (NO Docker Desktop) |
+| Tailscale | `sudo tailscale up --ssh` | Instalar en el **host Windows** (GUI). WSL2 con `networkingMode=mirrored` comparte la IP |
+| Syncthing | systemd user service | Instalar en el **host Windows** (GUI). Path: `\\wsl$\Ubuntu\home\<user>\ai-lab\knowledge` |
+| SSH | OpenSSH en Linux | OpenSSH Server en el **host Windows** con `administrators_authorized_keys` |
+| Ejecutar comandos | Directo en terminal | Desde PowerShell: `wsl -d Ubuntu -- <comando>`, o entrar a la distro: `wsl -d Ubuntu` |
+| Arranque | systemd nativo al boot | WSL2 no arranca solo — registrar tarea programada (ver `03-post-install.ps1`) |
+| Suspend | N/A (servidor siempre encendido) | Si Windows duerme, WSL2 y sus servicios se detienen |
+| Disco | ext4 nativo | `.vhdx` virtual — ejecutar `sudo fstrim -av` periódicamente |
+
+**Importante:** `03-post-install.ps1` imprime todos los pasos manuales
+específicos de Windows al finalizar el bootstrap. Esta guía complementa
+esa salida con el contexto de cada fase.
+
+---
+
 ## Notas para agentes AI
 
 - Esta guía es la referencia canónica post-bootstrap. Si el operador pide

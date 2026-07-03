@@ -119,3 +119,29 @@ lab — toda la automatización propia vive en `crontab -l` + `hermes.service`.
 **Explícitamente fuera de este inventario:** `repos/{hermes-agent,paperclip,ai-lab-bootstrap,i7local-lab}/scripts/`
 son scripts del código fuente de cada repo (build/test/release upstream), no
 automatización operativa del lab.
+
+---
+
+## Variante Windows (WSL2)
+
+En Windows 10/11, el lab corre dentro de **WSL2 (Ubuntu)** con Docker CE nativo.
+El host Windows solo ejecuta servicios de infraestructura de red/GUI.
+Guía completa de instalación: `docs/WINDOWS-INSTALL.md`.
+
+### Distribución host vs WSL2
+
+| Dónde | Servicios |
+|---|---|
+| **Host Windows** | Tailscale, Syncthing, OpenSSH Server (opcional), Chromium |
+| **WSL2 (Ubuntu)** | Todo lo demás: Hermes, Paperclip, Docker CE, todos los stacks Docker, agentes IA, cron |
+
+### Diferencias clave vs servidor Linux
+
+- **Docker CE nativo** dentro de WSL2 (NO Docker Desktop — incompatible con `networkingMode=mirrored`)
+- **Networking:** Windows 11 usa Mirrored (WSL2 comparte IP del host → Tailscale cubre a WSL2). Windows 10 usa NAT (IP propia)
+- **systemd habilitado** vía `/etc/wsl.conf` → `hermes.service` y `docker.service` funcionan igual
+- **Arranque:** WSL2 no arranca solo al boot → tarea programada `WSL2-Ubuntu-Autostart` al logon
+- **Suspend:** si Windows duerme, WSL2 se detiene (no es 24/7 como el servidor)
+- **.wslconfig** en `%USERPROFILE%\.wslconfig`: limita RAM/CPU, habilita mirrored, sparseVhd
+- **Windows Defender:** exclusiones configuradas para evitar degradación I/O (vmmem, wsl*, paths virtuales)
+- **Los 11 scripts cross-platform** (`~/ai-lab/scripts/`) funcionan sin cambios — WSL2 reporta `uname` como `Linux`

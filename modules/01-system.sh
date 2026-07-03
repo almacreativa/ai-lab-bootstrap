@@ -19,11 +19,10 @@ sudo apt install -y \
   lsb-release \
   xvfb
 
-# Docker CE (oficial) — en WSL2 se omite: Docker Desktop del host Windows
-# ya expone el daemon via integración WSL2 (ver bootstrap-windows.ps1)
-if [ -n "$WSL_DISTRO_NAME" ]; then
-  log "WSL2 detectado — saltando Docker CE (usar integración WSL2 de Docker Desktop)."
-elif ! command -v docker &>/dev/null; then
+# Docker CE (oficial) — se instala tanto en bare metal como en WSL2.
+# En WSL2, docker-ce nativo reemplaza a Docker Desktop (incompatible con
+# networkingMode=mirrored). systemd dentro de WSL2 gestiona el daemon.
+if ! command -v docker &>/dev/null; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
     | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg

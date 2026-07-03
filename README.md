@@ -119,9 +119,13 @@ bash bootstrap-macos.sh
 
 ---
 
-## Windows 11
+## Windows 10/11
 
-Hay una variante para Windows 11, pensada también para desarrollo/testing. A diferencia de macOS y Linux, **no es un port directo a PowerShell** — el stack completo de agentes corre dentro de **WSL2 con Ubuntu**, y el host Windows solo aporta Docker Desktop + apps GUI (Tailscale, Syncthing). Esta decisión está respaldada por research: Claude Code en Windows nativo (sin WSL2) tiene fallos documentados — BSOD con HVCI activado y cascadas OOM por fan-out de subprocesos en tareas con subagentes.
+Variante para **Windows 10 (22H2+)** y **Windows 11**. El stack completo corre dentro de **WSL2 con Ubuntu** usando **Docker CE nativo** (no Docker Desktop). El host Windows solo ejecuta apps de red/GUI (Tailscale, Syncthing).
+
+> **Requisitos:** Virtualización habilitada en BIOS, 8 GB+ RAM, cuenta Administrador.
+> En Windows 11 se habilita mirrored networking (WSL2 comparte IP del host).
+> En Windows 10 WSL2 funciona con NAT (IP propia). Ver diferencias en la guía detallada.
 
 ```powershell
 # PowerShell como Administrador
@@ -132,34 +136,34 @@ cd ai-lab-bootstrap
 .\bootstrap-windows.ps1
 ```
 
-El script del host (`bootstrap-windows.ps1`) hace tres cosas:
-1. Instala prerrequisitos via **WinGet** (Docker Desktop con backend WSL2, Git, GitHub CLI, Tailscale, Syncthing, Chromium) y habilita long paths
-2. Provisiona **WSL2 + Ubuntu**, habilita `systemd` en `/etc/wsl.conf` (necesario para reusar `hermes.service` tal cual), clona el repo dentro de la distro y ejecuta **el mismo `bootstrap.sh` de Linux** dentro de WSL2
-3. Imprime las instrucciones manuales finales
+**Importante:** Si es la primera vez que se habilita WSL2, el script pide reiniciar. Después del reinicio, abrir la app **Ubuntu** para crear el usuario Linux, y volver a correr `.\bootstrap-windows.ps1`.
 
-### Por qué WSL2 y no PowerShell nativo
+El script configura el host (`.wslconfig`, WinGet packages, Defender exclusions, power plan), provisiona WSL2 con Ubuntu, y ejecuta el mismo `bootstrap.sh` de Linux dentro de la distro.
 
-| Aspecto | Decisión | Motivo |
-|---|---|---|
-| Entorno de ejecución | WSL2 + Ubuntu | Evita BSOD (#61614, HVCI) y cascadas OOM de Claude Code en Windows nativo |
-| Docker | Docker Desktop en el host, backend `wsl-2`, integración WSL2 activada | No se duplica el daemon dentro de la distro |
-| Servicio de Hermes | `systemd` dentro de WSL2 (reusa `hermes.service` sin cambios) | WSL2 en Windows 11 soporta systemd nativo — evita NSSM (sin mantenimiento desde 2014) y WinSW (abandonado) |
-| Gestor de paquetes (host) | WinGet | Estándar oficial Microsoft, soporta instalación desatendida |
-| Tailscale / Syncthing / SSH | Se instalan en el **host** Windows, no dentro de WSL2 | Mejor soporte de red y persistencia; `modules/01-system.sh` detecta `$WSL_DISTRO_NAME` y los salta automáticamente |
-| Chromium (para nlm) | WinGet en el host, o apt dentro de WSL2 si hay WSLg | Login con navegador real, igual que en macOS |
+### Arquitectura
 
-### Variable opcional
+| Aspecto | Decisión |
+|---|---|
+| Docker | **Docker CE nativo** dentro de WSL2 (no Docker Desktop — incompatible con mirrored networking) |
+| Networking (W11) | `networkingMode=mirrored` — WSL2 comparte IP del host → Tailscale cubre a WSL2 |
+| Networking (W10) | NAT — WSL2 tiene IP propia. `localhost` funciona; LAN requiere port forwarding |
+| Servicios de red | Tailscale, Syncthing, OpenSSH en el **host** Windows. `01-system.sh` detecta `$WSL_DISTRO_NAME` y los salta |
+| systemd | Habilitado vía `/etc/wsl.conf` — reusa `hermes.service` y `docker.service` sin cambios |
+| Recursos | `.wslconfig`: memory 50% RAM, swap 4GB. W11 agrega autoMemoryReclaim y sparseVhd |
+
+### Variables configurables
 
 ```powershell
-$env:LAB_INSTALL_SSH_SERVER = "true"   # solo si esta máquina debe aceptar SSH remoto
+$env:INSTALL_PAPERCLIP = "true"          # default: true
+$env:INSTALL_HERMES = "true"             # default: true
+$env:INSTALL_NLM = "true"               # default: true
+$env:LAB_INSTALL_SSH_SERVER = "true"     # default: false
+$env:WSL_MEMORY = "12"                   # GB para WSL2 (default: 50% de RAM total)
+$env:WSL_PROCESSORS = "6"               # CPUs para WSL2 (default: 50% de lógicos)
 .\bootstrap-windows.ps1
 ```
 
-### Limitaciones conocidas
-
-- Si la máquina se suspende (sleep), WSL2 y sus servicios `systemd` se detienen — no es un servidor 24/7 salvo que quede siempre encendida.
-- WSL2 no arranca solo al boot de Windows — el módulo de post-install incluye el `Register-ScheduledTask` necesario para autoarrancar la distro al iniciar sesión.
-- Sin acceso a una máquina Windows real durante el desarrollo de este script — la sintaxis de los `.ps1` se revisó manualmente (balance de llaves/paréntesis) pero **no se ejecutó de punta a punta**. Probar módulo por módulo antes de confiar en él para un setup real.
+**Guía detallada:** [`docs/WINDOWS-INSTALL.md`](docs/WINDOWS-INSTALL.md) — prerrequisitos, flujo paso a paso, diferencias W10 vs W11, troubleshooting, mantenimiento.
 
 ---
 

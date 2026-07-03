@@ -1,5 +1,6 @@
 # Módulo 02 (Windows host) — Provisionar WSL2/Ubuntu y delegar el setup al
-# bootstrap.sh de Linux (casi sin cambios) corriendo dentro de la distro
+# bootstrap.sh de Linux corriendo dentro de la distro.
+# Docker CE se instala dentro de WSL2 (no Docker Desktop).
 
 Write-LabLog "Paso 2/3 — WSL2..."
 
@@ -18,7 +19,7 @@ if (-not $existing) {
   Write-LabLog "Distro $distro ya existe."
 }
 
-# systemd dentro de WSL2 — necesario para reusar hermes.service tal cual
+# systemd dentro de WSL2 — necesario para hermes.service y docker.service
 $wslConfCheck = wsl -d $distro -- bash -c "grep -q 'systemd=true' /etc/wsl.conf 2>/dev/null && echo yes || echo no"
 if ($wslConfCheck.Trim() -eq "no") {
   wsl -d $distro -- bash -c "echo -e '[boot]\nsystemd=true' | sudo tee /etc/wsl.conf > /dev/null"
@@ -29,23 +30,36 @@ if ($wslConfCheck.Trim() -eq "no") {
   Write-LabLog "systemd ya habilitado en $distro."
 }
 
-# Clonar (o actualizar) el repo dentro de la distro y correr el bootstrap Linux
+# Detectar usuario Linux
 $labUserLinux = $env:LAB_USER_LINUX
 if (-not $labUserLinux) { $labUserLinux = wsl -d $distro -- whoami }
 $labUserLinux = $labUserLinux.Trim()
 
+# Clonar (o actualizar) el repo dentro de la distro
 Write-LabLog "Clonando/actualizando ai-lab-bootstrap dentro de $distro (usuario: $labUserLinux)..."
 wsl -d $distro -- bash -c "
   mkdir -p ~/ai-lab/repos
   if [ ! -d ~/ai-lab/repos/ai-lab-bootstrap/.git ]; then
     git clone https://github.com/almacreativa/ai-lab-bootstrap.git ~/ai-lab/repos/ai-lab-bootstrap
   else
-    git -C ~/ai-lab/repos/ai-lab-bootstrap pull --ff-only
+    git -C ~/ai-lab/repos/ai-lab-bootstrap pull --ff-only 2>/dev/null || true
   fi
 "
 
+# Preparar variables de configuración para el bootstrap Linux
+$installPaperclip = if ($env:INSTALL_PAPERCLIP) { $env:INSTALL_PAPERCLIP } else { "true" }
+$installHermes    = if ($env:INSTALL_HERMES)    { $env:INSTALL_HERMES }    else { "true" }
+$installNlm       = if ($env:INSTALL_NLM)       { $env:INSTALL_NLM }       else { "true" }
+
 Write-LabLog "Lanzando bootstrap.sh dentro de WSL2 (esto puede tardar varios minutos)..."
+Write-LabLog "  INSTALL_PAPERCLIP=$installPaperclip  INSTALL_HERMES=$installHermes  INSTALL_NLM=$installNlm"
 Write-LabWarn "Vas a ver prompts interactivos dentro de la terminal de WSL2 (confirmación inicial)."
-wsl -d $distro -- bash -lc "cd ~/ai-lab/repos/ai-lab-bootstrap && bash bootstrap.sh"
+
+wsl -d $distro -- bash -lc "
+  export INSTALL_PAPERCLIP=$installPaperclip
+  export INSTALL_HERMES=$installHermes
+  export INSTALL_NLM=$installNlm
+  cd ~/ai-lab/repos/ai-lab-bootstrap && bash bootstrap.sh
+"
 
 Write-LabLog "Módulo 02 (Windows host) completo."
