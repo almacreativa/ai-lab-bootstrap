@@ -71,6 +71,11 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
   exit 1
 }
 
+# En primera ejecucion, winget puede quedarse esperando aceptar los
+# source agreements de forma interactiva. --accept-source-agreements
+# evita el cuelgue aceptando automaticamente.
+Write-LabLog "Verificando paquetes WinGet (primera vez puede tardar mientras actualiza el indice)..."
+
 $packages = @(
   "Git.Git",
   "Microsoft.WindowsTerminal",
@@ -80,7 +85,7 @@ $packages = @(
 )
 
 foreach ($pkg in $packages) {
-  $installed = winget list --id $pkg --exact 2>$null | Select-String $pkg
+  $installed = winget list --id $pkg --exact --accept-source-agreements 2>$null | Select-String $pkg
   if (-not $installed) {
     Write-LabLog "Instalando $pkg via winget..."
     winget install --id $pkg --exact --silent --accept-package-agreements --accept-source-agreements
@@ -90,7 +95,7 @@ foreach ($pkg in $packages) {
 }
 
 # Chromium (para nlm login y Playwright MCP)
-$chromiumInstalled = winget list --id Hibbiki.Chromium --exact 2>$null | Select-String "Hibbiki.Chromium"
+$chromiumInstalled = winget list --id Hibbiki.Chromium --exact --accept-source-agreements 2>$null | Select-String "Hibbiki.Chromium"
 if (-not $chromiumInstalled) {
   Write-LabLog "Instalando Chromium via winget..."
   winget install --id Hibbiki.Chromium --exact --silent --accept-package-agreements --accept-source-agreements

@@ -283,6 +283,20 @@ WSL2 necesita virtualización por hardware. Verificar:
 2. Buscar Intel VT-x, AMD-V, o SVM Mode → habilitar
 3. Guardar y reiniciar
 
+### WinGet se cuelga o no responde
+
+En la primera ejecución, WinGet necesita aceptar los "source agreements" y actualizar el índice de paquetes. Si no tiene los agreements aceptados, se queda esperando input silenciosamente.
+
+```powershell
+# Aceptar agreements y verificar que WinGet funciona
+winget list --accept-source-agreements
+
+# Si WinGet no está instalado, instalar "App Installer" desde Microsoft Store
+# o descargar el .msixbundle desde: https://github.com/microsoft/winget-cli/releases
+```
+
+El script ya incluye `--accept-source-agreements` en todos los comandos `winget`, pero si se cuelga de todas formas, correr `winget list` manualmente una vez para inicializarlo y volver a ejecutar el bootstrap.
+
 ### WSL2 no arranca después del reinicio
 
 ```powershell
