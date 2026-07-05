@@ -64,18 +64,29 @@ foreach ($agent in $agents) {
   }
 }
 
-# nlm (puede estar en uv tool bin, no en PATH estandar)
+# nlm (uv tool pone scripts como .exe o .cmd segun version)
 $nlmFound = Get-Command nlm -ErrorAction SilentlyContinue
 if (-not $nlmFound -and (Get-Command uv -ErrorAction SilentlyContinue)) {
   $uvBin = (uv tool dir --bin 2>$null)
-  if ($uvBin) {
-    $uvBin = $uvBin.Trim()
-    $nlmExe = Join-Path $uvBin "nlm.exe"
-    if (Test-Path $nlmExe) { $nlmFound = $true }
+  if ($uvBin) { $uvBin = $uvBin.Trim() }
+  $searchDirs = @(
+    $uvBin,
+    (Join-Path $env:USERPROFILE ".local\bin"),
+    (Join-Path $env:APPDATA "uv\tools\.bin"),
+    (Join-Path $env:LOCALAPPDATA "uv\tools\.bin")
+  ) | Where-Object { $_ -and (Test-Path $_) }
+  foreach ($d in $searchDirs) {
+    if (Get-ChildItem -Path $d -Filter "nlm.*" -ErrorAction SilentlyContinue) {
+      $nlmFound = $true; break
+    }
+  }
+  if (-not $nlmFound) {
+    $uvToolCheck = uv tool list 2>$null | Select-String "notebooklm"
+    if ($uvToolCheck) { $nlmFound = $true }
   }
 }
 if ($nlmFound) {
-  $report += @{ Name = "nlm (NLM MCP)"; Status = "OK"; Detail = "" }
+  $report += @{ Name = "nlm (NLM MCP)"; Status = "OK"; Detail = "via uv tool" }
 } else {
   if ($env:INSTALL_NLM -eq "true") {
     $report += @{ Name = "nlm (NLM MCP)"; Status = "FALTA"; Detail = "no en PATH" }
@@ -118,10 +129,23 @@ foreach ($svc in $optServices) {
 
 # Servy services
 $servyServices = @()
-if (Get-Command servy -ErrorAction SilentlyContinue) {
-  $servyList = servy list 2>$null
-  if ($servyList) {
-    $servyServices = @($servyList)
+$servyAvailable = Get-Command servy -ErrorAction SilentlyContinue
+if ($servyAvailable) {
+  try {
+    $rawOutput = & servy list 2>&1
+    if ($rawOutput) {
+      $servyServices = @($rawOutput) | Where-Object { $_ -and $_.ToString().Trim() }
+    }
+  } catch {}
+  # Fallback: verificar servicios conocidos individualmente
+  if ($servyServices.Count -eq 0) {
+    $knownServices = @("Dagu","HermesGateway","HermesDashboard","MoolMesh","UptimeKuma","Glance","Paperclip","Odysseus")
+    foreach ($svc in $knownServices) {
+      $svcCheck = & servy status $svc 2>&1
+      if ($LASTEXITCODE -eq 0 -or ($svcCheck -and $svcCheck -notmatch "not found|not installed")) {
+        $servyServices += $svc
+      }
+    }
   }
 }
 
@@ -138,12 +162,12 @@ foreach ($item in $report) {
 
 Write-Host ""
 if ($servyServices.Count -gt 0) {
-  Write-Host "  Servicios Servy registrados:" -ForegroundColor White
+  Write-Host "  Servicios Servy registrados ($($servyServices.Count)):" -ForegroundColor White
   foreach ($line in $servyServices) {
-    Write-Host "    $line"
+    Write-Host "    - $line"
   }
 } else {
-  if (Get-Command servy -ErrorAction SilentlyContinue) {
+  if ($servyAvailable) {
     Write-Host "  Servicios Servy: ninguno registrado aun." -ForegroundColor Yellow
   } else {
     Write-Host "  Servy no disponible -- servicios no registrados." -ForegroundColor Red
