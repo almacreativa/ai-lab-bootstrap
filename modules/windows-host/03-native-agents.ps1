@@ -104,7 +104,11 @@ if ($env:INSTALL_HERMES -eq "true") {
     Write-LabLog "Clonando Hermes Agent..."
     $reposDir = Join-Path $env:USERPROFILE "ai-lab\repos"
     New-Item -Path $reposDir -ItemType Directory -Force | Out-Null
-    git clone https://github.com/almacreativa/hermes-agent.git $hermesRepo
+    git clone https://github.com/NousResearch/hermes-agent.git $hermesRepo
+    if (-not (Test-Path (Join-Path $hermesRepo ".git"))) {
+      Write-LabWarn "Hermes: clone fallo. Verificar acceso al repo y volver a correr."
+      $env:INSTALL_HERMES = "false"
+    }
   } else {
     Write-LabLog "Hermes Agent repo ya existe, actualizando..."
     Push-Location $hermesRepo
@@ -112,7 +116,7 @@ if ($env:INSTALL_HERMES -eq "true") {
     Pop-Location
   }
 
-  if (Get-Command uv -ErrorAction SilentlyContinue) {
+  if ($env:INSTALL_HERMES -eq "true" -and (Test-Path $hermesRepo) -and (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-LabLog "Instalando dependencias de Hermes..."
     Push-Location $hermesRepo
     uv venv 2>$null
