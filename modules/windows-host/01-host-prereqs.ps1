@@ -204,7 +204,10 @@ $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Enviro
 # --- uv (Python toolchain unificado) ----------------------------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
   Write-LabLog "Instalando uv (Astral Python toolchain)..."
-  Invoke-Expression (Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -UseBasicParsing).Content
+  $uvInstaller = Join-Path $env:TEMP "uv-install.ps1"
+  Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile $uvInstaller -UseBasicParsing
+  & $uvInstaller
+  Remove-Item $uvInstaller -Force -ErrorAction SilentlyContinue
   $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
   if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-LabLog "uv instalado ($(uv --version 2>$null))."

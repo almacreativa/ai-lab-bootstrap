@@ -34,7 +34,10 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 # --- 2. uv (fallback si modulo 01 fallo) -------------------------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
   Write-LabLog "Instalando uv (fallback)..."
-  Invoke-Expression (Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -UseBasicParsing).Content
+  $uvInstaller = Join-Path $env:TEMP "uv-install.ps1"
+  Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile $uvInstaller -UseBasicParsing
+  & $uvInstaller
+  Remove-Item $uvInstaller -Force -ErrorAction SilentlyContinue
   Refresh-SessionPath
   if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-LabLog "uv instalado ($(uv --version 2>$null))."
@@ -62,7 +65,10 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 # --- 4. Claude Code -----------------------------------------------
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
   Write-LabLog "Instalando Claude Code..."
-  Invoke-Expression (Invoke-WebRequest -Uri "https://claude.ai/install.ps1" -UseBasicParsing).Content
+  $claudeInstaller = Join-Path $env:TEMP "claude-install.ps1"
+  Invoke-WebRequest -Uri "https://claude.ai/install.ps1" -OutFile $claudeInstaller -UseBasicParsing
+  & $claudeInstaller
+  Remove-Item $claudeInstaller -Force -ErrorAction SilentlyContinue
   Refresh-SessionPath
   if (Get-Command claude -ErrorAction SilentlyContinue) {
     Write-LabLog "Claude Code instalado ($(claude --version 2>$null))."
