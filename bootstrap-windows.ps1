@@ -14,23 +14,26 @@
 # Variables configurables (exportar antes de correr el script):
 #
 #   LAB_USER_LINUX        usuario dentro de la distro WSL2 (default: detectado)
-#   INSTALL_PAPERCLIP     instalar Paperclip (default: true)
-#   INSTALL_HERMES        instalar Hermes Agent (default: true)
+#   INSTALL_PAPERCLIP     instalar Paperclip en WSL2 (default: true)
+#   INSTALL_HERMES        instalar Hermes Agent nativo (default: true)
 #   INSTALL_NLM           instalar notebooklm-mcp-cli (default: true)
+#   INSTALL_NATIVE_AGENTS instalar capa de agentes nativos Windows (default: true)
 #   LAB_INSTALL_SSH_SERVER "true" para instalar OpenSSH Server en el host
 #   WSL_MEMORY            RAM para WSL2 en GB (default: 50% del total)
-#   WSL_PROCESSORS        CPUs para WSL2 (default: 50% de los lógicos)
+#   WSL_PROCESSORS        CPUs para WSL2 (default: 50% de los logicos)
 #
-# Arquitectura:
-#   Host Windows  -> WinGet packages, .wslconfig, Defender exclusions, OpenSSH
-#   WSL2 (Ubuntu) -> bootstrap.sh de Linux con detección $WSL_DISTRO_NAME
-#                    Docker CE nativo (no Docker Desktop), systemd, todos
-#                    los agentes (Hermes, Claude Code, Paperclip)
+# Arquitectura de dos capas:
+#   Capa Nativa (Windows bare metal):
+#     Hermes, Claude Code, OpenCode, MoolMesh, Playwright MCP, Engram,
+#     NotebookLM MCP -- servicios gestionados con Servy
+#   Capa WSL2 (Ubuntu):
+#     Docker CE, Paperclip, Dagu, SearXNG, Portainer, Uptime Kuma, Glance
+#     -- systemd dentro de WSL2, port forwarding via netsh portproxy
 #
 # Docker Desktop NO se instala --es incompatible con networkingMode=mirrored.
 # Se usa docker-ce nativo dentro de WSL2.
 #
-# Guía completa: docs/WINDOWS-INSTALL.md
+# Guia completa: docs/WINDOWS-INSTALL.md
 # ============================================================
 
 #Requires -RunAsAdministrator
@@ -53,17 +56,18 @@ Write-Host ""
 Write-Host "  AI Agent Lab Bootstrap -- Windows 10/11 (via WSL2 + Docker CE)" -ForegroundColor Cyan
 Write-Host ""
 
-# --- Detección de sistema ------------------------------------
+# --- Deteccion de sistema ------------------------------------
 $osBuild = [System.Environment]::OSVersion.Version.Build
 $isWin11 = $osBuild -ge 22000
 $osName = if ($isWin11) { "Windows 11" } else { "Windows 10" }
 $osDisplayVersion = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
 
-# --- Configuración --------------------------------------------
+# --- Configuracion --------------------------------------------
 if (-not $env:LAB_INSTALL_SSH_SERVER) { $env:LAB_INSTALL_SSH_SERVER = "false" }
 if (-not $env:INSTALL_PAPERCLIP) { $env:INSTALL_PAPERCLIP = "true" }
 if (-not $env:INSTALL_HERMES)    { $env:INSTALL_HERMES = "true" }
 if (-not $env:INSTALL_NLM)       { $env:INSTALL_NLM = "true" }
+if (-not $env:INSTALL_NATIVE_AGENTS) { $env:INSTALL_NATIVE_AGENTS = "true" }
 
 $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 $totalCPU = (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
@@ -81,6 +85,7 @@ Write-Host "  Usuario Linux (WSL2) : $userLabel"
 Write-Host "  Instalar Paperclip   : $env:INSTALL_PAPERCLIP"
 Write-Host "  Instalar Hermes      : $env:INSTALL_HERMES"
 Write-Host "  Instalar nlm         : $env:INSTALL_NLM"
+Write-Host "  Agentes nativos Win  : $env:INSTALL_NATIVE_AGENTS"
 Write-Host "  Instalar SSH Server  : $env:LAB_INSTALL_SSH_SERVER"
 if (-not $isWin11) {
   Write-Host ""
@@ -92,7 +97,10 @@ $confirm = Read-Host "  Continuar con esta configuracion? [S/n]"
 if (-not $confirm) { $confirm = "S" }
 if ($confirm -notmatch "^[Ss]$") { Write-Host "Abortado."; exit 0 }
 
-# --- Módulos --------------------------------------------------
+# --- Modulos --------------------------------------------------
 . "$ScriptDir\modules\windows-host\01-host-prereqs.ps1"
 . "$ScriptDir\modules\windows-host\02-wsl-provision.ps1"
-. "$ScriptDir\modules\windows-host\03-post-install.ps1"
+if ($env:INSTALL_NATIVE_AGENTS -eq "true") {
+  . "$ScriptDir\modules\windows-host\03-native-agents.ps1"
+}
+. "$ScriptDir\modules\windows-host\04-post-install.ps1"

@@ -2,7 +2,7 @@
 # Windows Defender exclusions, OpenSSH Server, plan de energia
 # Requiere PowerShell elevado (Run as Administrator)
 
-Write-LabLog "Paso 1/3 --Prerrequisitos del host..."
+Write-LabLog "Paso 1/4 --Prerrequisitos del host..."
 
 # --- Long paths -----------------------------------------------
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
@@ -94,6 +94,15 @@ foreach ($pkg in $packages) {
   }
 }
 
+# Node.js LTS (necesario para Playwright MCP y builds de frontend)
+$nodeInstalled = winget list --id OpenJS.NodeJS.LTS --exact --accept-source-agreements 2>$null | Select-String "OpenJS.NodeJS.LTS"
+if (-not $nodeInstalled) {
+  Write-LabLog "Instalando Node.js LTS via winget..."
+  winget install --id OpenJS.NodeJS.LTS --exact --silent --accept-package-agreements --accept-source-agreements
+} else {
+  Write-LabLog "Node.js LTS ya instalado, saltando."
+}
+
 # Chromium (para nlm login y Playwright MCP)
 $chromiumInstalled = winget list --id Hibbiki.Chromium --exact --accept-source-agreements 2>$null | Select-String "Hibbiki.Chromium"
 if (-not $chromiumInstalled) {
@@ -101,6 +110,37 @@ if (-not $chromiumInstalled) {
   winget install --id Hibbiki.Chromium --exact --silent --accept-package-agreements --accept-source-agreements
 } else {
   Write-LabLog "Chromium ya instalado, saltando."
+}
+
+# --- Scoop (package manager sin Admin para herramientas dev) -----
+if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando Scoop (con -RunAsAdmin para sesion elevada)..."
+  $scoopInstaller = Join-Path $env:TEMP "scoop-install.ps1"
+  Invoke-WebRequest -Uri "https://get.scoop.sh" -OutFile $scoopInstaller -UseBasicParsing
+  & $scoopInstaller -RunAsAdmin
+  Remove-Item $scoopInstaller -Force -ErrorAction SilentlyContinue
+  $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
+  if (Get-Command scoop -ErrorAction SilentlyContinue) {
+    Write-LabLog "Scoop instalado."
+  } else {
+    Write-LabWarn "Scoop: instalacion completo pero 'scoop' no esta en PATH aun."
+  }
+} else {
+  Write-LabLog "Scoop ya instalado, saltando."
+}
+
+# --- uv (Python toolchain unificado) ----------------------------
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando uv (Astral Python toolchain)..."
+  Invoke-Expression (Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -UseBasicParsing).Content
+  $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
+  if (Get-Command uv -ErrorAction SilentlyContinue) {
+    Write-LabLog "uv instalado ($(uv --version 2>$null))."
+  } else {
+    Write-LabWarn "uv: instalador completo pero 'uv' no esta en PATH aun."
+  }
+} else {
+  Write-LabLog "uv ya instalado ($(uv --version 2>$null)), saltando."
 }
 
 # --- Windows Defender --exclusiones para WSL2 ----------------

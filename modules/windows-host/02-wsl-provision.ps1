@@ -6,7 +6,7 @@
 # problemas con CRLF (los .ps1 en Windows tienen \r\n, y bash interpreta
 # el \r como $'\r': command not found).
 
-Write-LabLog "Paso 2/3 -- WSL2..."
+Write-LabLog "Paso 2/4 -- WSL2..."
 
 $distro = "Ubuntu"
 
