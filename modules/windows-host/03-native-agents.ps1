@@ -4,6 +4,11 @@
 # Cada paso es idempotente: verifica antes de instalar.
 # Scoop y uv ya instalados por modulo 01.
 
+# PS 5.1 con $ErrorActionPreference=Stop trata stderr de comandos nativos
+# (uv, npm, scoop, npx) como errores terminantes. Este modulo usa checks
+# explicitos (Get-Command, Test-Path) para validar exito.
+$ErrorActionPreference = "Continue"
+
 Write-LabLog "Paso 3/4 --Agentes nativos en Windows..."
 
 # --- Utilidad: refrescar PATH en la sesion actual ----------------
@@ -119,7 +124,7 @@ if ($env:INSTALL_HERMES -eq "true") {
   if ($env:INSTALL_HERMES -eq "true" -and (Test-Path $hermesRepo) -and (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-LabLog "Instalando dependencias de Hermes..."
     Push-Location $hermesRepo
-    uv venv 2>$null
+    uv venv
     uv pip install -e .
     Pop-Location
 
@@ -333,5 +338,8 @@ Write-Host "Port proxy actualizado: WSL2 IP = $wslIp, puertos: $($ports -join ',
 } else {
   Write-LabLog "update-portproxy.ps1 ya existe, saltando."
 }
+
+# Restaurar ErrorActionPreference para modulos siguientes
+$ErrorActionPreference = "Stop"
 
 Write-LabLog "Modulo 03 (agentes nativos) completo."
