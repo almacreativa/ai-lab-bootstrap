@@ -16,7 +16,6 @@ $bins = @(
   @{ Name = "Git";         Cmd = "git" },
   @{ Name = "Node.js";     Cmd = "node" },
   @{ Name = "uv";          Cmd = "uv" },
-  @{ Name = "Python 3.12"; Cmd = "python" },
   @{ Name = "GitHub CLI";  Cmd = "gh" },
   @{ Name = "psmux";       Cmd = "psmux" },
   @{ Name = "Servy";       Cmd = "servy" },
@@ -35,13 +34,24 @@ foreach ($bin in $bins) {
   }
 }
 
+# Python 3.12 (instalado via uv, no pone 'python' en PATH)
+$py312Check = $null
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+  $py312Check = uv python list 2>$null | Select-String "3\.12"
+}
+if ($py312Check) {
+  $report += @{ Name = "Python 3.12"; Status = "OK"; Detail = "via uv" }
+} else {
+  $report += @{ Name = "Python 3.12"; Status = "FALTA"; Detail = "" }
+  $hasErrors = $true
+}
+
 # Agentes
 $agents = @(
   @{ Name = "Claude Code"; Cmd = "claude" },
   @{ Name = "OpenCode";    Cmd = "opencode" },
   @{ Name = "Engram";      Cmd = "engram" },
-  @{ Name = "MoolMesh";    Cmd = "mool" },
-  @{ Name = "nlm (NLM MCP)"; Cmd = "nlm" }
+  @{ Name = "MoolMesh";    Cmd = "mool" }
 )
 
 foreach ($agent in $agents) {
@@ -50,6 +60,25 @@ foreach ($agent in $agents) {
     $report += @{ Name = $agent.Name; Status = "OK"; Detail = "" }
   } else {
     $report += @{ Name = $agent.Name; Status = "FALTA"; Detail = "" }
+    $hasErrors = $true
+  }
+}
+
+# nlm (puede estar en uv tool bin, no en PATH estandar)
+$nlmFound = Get-Command nlm -ErrorAction SilentlyContinue
+if (-not $nlmFound -and (Get-Command uv -ErrorAction SilentlyContinue)) {
+  $uvBin = (uv tool dir --bin 2>$null)
+  if ($uvBin) {
+    $uvBin = $uvBin.Trim()
+    $nlmExe = Join-Path $uvBin "nlm.exe"
+    if (Test-Path $nlmExe) { $nlmFound = $true }
+  }
+}
+if ($nlmFound) {
+  $report += @{ Name = "nlm (NLM MCP)"; Status = "OK"; Detail = "" }
+} else {
+  if ($env:INSTALL_NLM -eq "true") {
+    $report += @{ Name = "nlm (NLM MCP)"; Status = "FALTA"; Detail = "no en PATH" }
     $hasErrors = $true
   }
 }
