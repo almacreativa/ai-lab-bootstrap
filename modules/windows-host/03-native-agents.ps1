@@ -124,7 +124,7 @@ if ($env:INSTALL_HERMES -eq "true") {
   if ($env:INSTALL_HERMES -eq "true" -and (Test-Path $hermesRepo) -and (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-LabLog "Instalando dependencias de Hermes..."
     Push-Location $hermesRepo
-    uv venv
+    uv venv --clear
     uv pip install -e .
     Pop-Location
 
