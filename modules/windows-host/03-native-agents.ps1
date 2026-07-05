@@ -1,7 +1,8 @@
 # Modulo 03 (Windows host) --Agentes nativos en Windows
-# Instala: Scoop, uv, Python 3.12, Claude Code, OpenCode, Hermes,
+# Instala: Python 3.12, Claude Code, OpenCode, Hermes,
 # MoolMesh, Playwright MCP, NotebookLM MCP, Engram, Servy, port forwarding
 # Cada paso es idempotente: verifica antes de instalar.
+# Scoop y uv ya instalados por modulo 01.
 
 Write-LabLog "Paso 3/4 --Agentes nativos en Windows..."
 
@@ -21,26 +22,18 @@ if ($userPath -notlike "*$localBin*") {
 }
 Refresh-SessionPath
 
-# --- 1. Scoop ----------------------------------------------------
+# --- Verificar dependencias del modulo 01 -------------------------
 if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-  Write-LabLog "Instalando Scoop (con -RunAsAdmin)..."
-  $scoopInstaller = Join-Path $env:TEMP "scoop-install.ps1"
-  Invoke-WebRequest -Uri "https://get.scoop.sh" -OutFile $scoopInstaller -UseBasicParsing
-  & $scoopInstaller -RunAsAdmin
-  Remove-Item $scoopInstaller -Force -ErrorAction SilentlyContinue
-  Refresh-SessionPath
-  if (Get-Command scoop -ErrorAction SilentlyContinue) {
-    Write-LabLog "Scoop instalado."
-  } else {
-    Write-LabWarn "Scoop: instalacion completo pero 'scoop' no esta en PATH."
-  }
-} else {
-  Write-LabLog "Scoop ya instalado, saltando."
+  Write-LabWarn "Scoop no encontrado --debio instalarse en modulo 01. Saltando agentes nativos."
+  return
+}
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+  Write-LabWarn "uv no encontrado --debio instalarse en modulo 01. Algunas herramientas no se instalaran."
 }
 
-# --- 2. uv (Python) ----------------------------------------------
+# --- 2. uv (fallback si modulo 01 fallo) -------------------------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-  Write-LabLog "Instalando uv..."
+  Write-LabLog "Instalando uv (fallback)..."
   Invoke-Expression (Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -UseBasicParsing).Content
   Refresh-SessionPath
   if (Get-Command uv -ErrorAction SilentlyContinue) {
