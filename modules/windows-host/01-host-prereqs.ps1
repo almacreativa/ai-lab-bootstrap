@@ -124,38 +124,43 @@ if ($hasBuildTools) {
   Write-LabLog "Visual C++ Build Tools detectados."
 } else {
   Write-LabWarn "Visual C++ Build Tools NO detectados."
-  Write-LabWarn "Necesarios para Paperclip (node-gyp). Instalar manualmente:"
-  Write-LabWarn "  https://visualstudio.microsoft.com/visual-cpp-build-tools/"
-  Write-LabWarn "  Workload: 'Desktop development with C++'"
+  Write-LabWarn "Opcionales, solo para compilar extensiones nativas (node-gyp)."
+  Write-LabWarn "El VC++ Redistributable (runtime) se instala aparte."
 }
 
-# --- Servy (service manager) ----------------------------------
-if (-not (Get-Command servy -ErrorAction SilentlyContinue)) {
-  Write-LabLog "Instalando Servy..."
+# --- Visual C++ Redistributable (runtime para Paperclip PG) ---
+$vcRedist = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" -ErrorAction SilentlyContinue
+if (-not $vcRedist) {
+  Write-LabLog "Instalando Visual C++ Redistributable (x64)..."
+  $vcInstaller = Join-Path $env:TEMP "vc_redist.x64.exe"
   try {
-    $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/jandre-m/servy/releases/latest" -UseBasicParsing
-    $asset = $releases.assets | Where-Object { $_.name -match "windows.*amd64|x86_64.*windows" -and $_.name -match "\.(zip|exe)$" } | Select-Object -First 1
-    if ($asset) {
-      $tmpFile = Join-Path $env:TEMP $asset.name
-      Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpFile -UseBasicParsing
-      if ($asset.name -match "\.zip$") {
-        $tmpDir = Join-Path $env:TEMP "servy-extract"
-        Expand-Archive -Path $tmpFile -DestinationPath $tmpDir -Force
-        $servyExe = Get-ChildItem -Path $tmpDir -Filter "servy.exe" -Recurse | Select-Object -First 1
-        if ($servyExe) { Move-Item $servyExe.FullName (Join-Path $localBin "servy.exe") -Force }
-        Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
-      } else {
-        Move-Item $tmpFile (Join-Path $localBin "servy.exe") -Force
-      }
-      Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
-      Refresh-LabPath
+    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $vcInstaller -UseBasicParsing
+    Start-Process -FilePath $vcInstaller -ArgumentList "/install /quiet /norestart" -Wait
+    Remove-Item $vcInstaller -Force -ErrorAction SilentlyContinue
+    Write-LabLog "Visual C++ Redistributable instalado."
+  } catch {
+    Write-LabWarn "VC++ Redistributable: descarga fallo. Instalar manualmente:"
+    Write-LabWarn "  https://aka.ms/vs/17/release/vc_redist.x64.exe"
+  }
+} else {
+  Write-LabLog "Visual C++ Redistributable ya instalado."
+}
+
+# --- Servy (service manager, via Scoop) -----------------------
+if (-not (Get-Command servy -ErrorAction SilentlyContinue)) {
+  if (Get-Command scoop -ErrorAction SilentlyContinue) {
+    Write-LabLog "Instalando Servy via Scoop..."
+    scoop install innounp
+    scoop install servy
+    Refresh-LabPath
+    if (Get-Command servy -ErrorAction SilentlyContinue) {
       Write-LabLog "Servy instalado."
     } else {
-      Write-LabWarn "Servy: no se encontro asset compatible en GitHub releases."
-      Write-LabWarn "Instalar manualmente: https://github.com/jandre-m/servy/releases"
+      Write-LabWarn "Servy: scoop install completo pero no en PATH."
+      Write-LabWarn "Instalar manualmente: scoop install servy"
     }
-  } catch {
-    Write-LabWarn "Servy: error descargando. Instalar manualmente."
+  } else {
+    Write-LabWarn "Scoop no disponible, no se puede instalar Servy."
   }
 } else {
   Write-LabLog "Servy ya instalado, saltando."

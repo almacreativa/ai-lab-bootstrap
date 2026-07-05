@@ -199,11 +199,20 @@ if ($env:INSTALL_NLM -eq "true") {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
       Write-LabLog "Instalando NotebookLM MCP..."
       uv tool install notebooklm-mcp
+      $uvToolBin = Join-Path $env:USERPROFILE ".local\bin"
+      $uvToolDir = uv tool dir 2>$null
+      if ($uvToolDir) {
+        $userPath = [Environment]::GetEnvironmentVariable("PATH","User")
+        if ($userPath -notlike "*$uvToolBin*") {
+          [Environment]::SetEnvironmentVariable("PATH","$userPath;$uvToolBin","User")
+        }
+      }
       Refresh-LabPath
       if (Get-Command nlm -ErrorAction SilentlyContinue) {
         Write-LabLog "NotebookLM MCP instalado ($(nlm --version 2>$null))."
       } else {
         Write-LabWarn "NotebookLM MCP: instalacion completa pero no en PATH."
+        Write-LabWarn "Agregar manualmente el directorio de uv tools al PATH."
       }
     }
   } else {

@@ -16,21 +16,43 @@ if ($env:INSTALL_DAGU -eq "true") {
   if (-not (Get-Command dagu -ErrorAction SilentlyContinue)) {
     Write-LabLog "Instalando Dagu..."
     try {
-      $daguInstaller = Join-Path $env:TEMP "dagu-install.ps1"
-      Invoke-WebRequest -Uri "https://dagu.sh/install.ps1" -OutFile $daguInstaller -UseBasicParsing
-      & $daguInstaller -Service yes
-      Remove-Item $daguInstaller -Force -ErrorAction SilentlyContinue
-      $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
-      if (Get-Command dagu -ErrorAction SilentlyContinue) {
-        Write-LabLog "Dagu instalado (servicio registrado por su installer)."
+      $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/dagucloud/dagu/releases/latest" -UseBasicParsing
+      $asset = $releases.assets | Where-Object { $_.name -match "windows.*amd64" -and $_.name -match "\.zip$" } | Select-Object -First 1
+      if ($asset) {
+        $tmpZip = Join-Path $env:TEMP "dagu.zip"
+        $daguDir = Join-Path $appsDir "dagu"
+        New-Item -Path $daguDir -ItemType Directory -Force | Out-Null
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpZip -UseBasicParsing
+        Expand-Archive -Path $tmpZip -DestinationPath $daguDir -Force
+        Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+        $daguExe = Get-ChildItem -Path $daguDir -Filter "dagu.exe" -Recurse | Select-Object -First 1
+        if ($daguExe) {
+          $localBin = Join-Path $env:USERPROFILE ".local\bin"
+          Copy-Item $daguExe.FullName (Join-Path $localBin "dagu.exe") -Force
+          $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
+          Write-LabLog "Dagu $($releases.tag_name) instalado."
+        } else {
+          Write-LabWarn "Dagu: zip no contenia dagu.exe."
+        }
       } else {
-        Write-LabWarn "Dagu: installer completo pero 'dagu' no en PATH."
+        Write-LabWarn "Dagu: no se encontro asset windows-amd64 en releases."
+        Write-LabWarn "Instalar manualmente: https://github.com/dagucloud/dagu/releases"
       }
     } catch {
-      Write-LabWarn "Dagu: instalacion fallo. Instalar manualmente: https://docs.dagu.sh/deploy/windows"
+      Write-LabWarn "Dagu: instalacion fallo. Instalar manualmente: https://github.com/dagucloud/dagu/releases"
     }
   } else {
     Write-LabLog "Dagu ya instalado, saltando."
+  }
+
+  # Registrar en Servy
+  if ((Get-Command dagu -ErrorAction SilentlyContinue) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
+    $svcExists = servy list 2>$null | Select-String "Dagu"
+    if (-not $svcExists) {
+      $daguPath = (Get-Command dagu -ErrorAction SilentlyContinue).Source
+      Write-LabLog "Registrando Dagu en Servy..."
+      servy install --name "Dagu" --exe $daguPath --args "start-all" --start-type auto --restart-on-failure
+    }
   }
 } else {
   Write-LabLog "Dagu no solicitado, saltando."

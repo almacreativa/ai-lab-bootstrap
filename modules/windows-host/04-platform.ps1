@@ -29,7 +29,8 @@ if ($env:INSTALL_PAPERCLIP -eq "true") {
         Write-LabLog "Paperclip instalado (PG embebido, zero-config)."
       } else {
         Write-LabWarn "Paperclip: onboard completo pero ~/.paperclip no creado."
-        Write-LabWarn "Puede requerir Visual C++ Build Tools. Ver modulo 01."
+        Write-LabWarn "Si PG embebido fallo (exit 3221225781), verificar que VC++ Redistributable este instalado."
+        Write-LabWarn "Modulo 01 lo instala automaticamente. Reintentar: npx paperclipai onboard --yes"
       }
     } else {
       Write-LabWarn "npx no disponible, no se puede instalar Paperclip."
