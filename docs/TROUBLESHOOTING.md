@@ -142,3 +142,131 @@ separado por empresa. Los datos reales siguen intactos en el contenedor: re-sync
 ### OpenCode CLI da ENOSPC en /tmp
 **Causa:** bug conocido — acumula `*.so` en /tmp.
 **Fix (cron horario):** `find /tmp -name '*.so' -mmin +60 -not -lname '*.so' -delete`
+
+---
+
+## Windows nativo (Servy + Scoop)
+
+Problemas especificos de la variante Windows nativa (sin WSL2, sin Docker).
+
+### Bootstrap: "Running the installer as administrator is disabled by default" (Scoop)
+**Causa:** Scoop detecta PowerShell elevado y aborta por defecto.
+**Fix:** el bootstrap pasa `-RunAsAdmin` al instalador. Si falla igualmente:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+```
+
+### Bootstrap: Invoke-WebRequest devuelve `System.Byte[]` en vez de string
+**Causa:** PowerShell 5.1 devuelve `System.Byte[]` para `-UseBasicParsing`, no string.
+`Invoke-Expression (Invoke-WebRequest ...).Content` falla porque recibe bytes.
+**Fix:** ya corregido en el bootstrap. Todos los instaladores descargan a temp file
+con `-OutFile` y se ejecutan con `&`. Si aparece en scripts propios, usar el mismo patron:
+```powershell
+$installer = Join-Path $env:TEMP "script.ps1"
+Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+& $installer
+Remove-Item $installer -Force
+```
+
+### Paperclip PG: exit code 3221225781
+**Causa:** `0xC0000135` = DLL faltante (`vcruntime140_1.dll`). El PG embebido de
+Paperclip necesita el Visual C++ Redistributable.
+**Fix:** el modulo 01 lo instala automaticamente. Si fallo:
+```powershell
+Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile vc_redist.exe
+.\vc_redist.exe /install /quiet /norestart
+# Reintentar Paperclip:
+npx paperclipai onboard --yes
+```
+
+### uv venv: "Do you want to replace it? [y/n]" (prompt interactivo)
+**Causa:** ya existe un `.venv` en el directorio y uv pregunta antes de sobreescribir.
+**Fix:** ya corregido en el bootstrap. Usar `uv venv --clear` para evitar el prompt:
+```powershell
+uv venv --clear --python 3.12
+```
+
+### Output rojo en consola durante instalacion (uv, pip, npm)
+**Causa:** PowerShell 5.1 con `$ErrorActionPreference = "Stop"` trata stderr como
+error terminating. uv, pip y npm escriben progreso/warnings a stderr.
+**Fix:** ya corregido en los modulos (`$ErrorActionPreference = "Continue"`). Si aparece
+en scripts propios, poner `$ErrorActionPreference = "Continue"` al inicio del bloque.
+
+### `nlm` / `mool` no encontrado despues de `uv tool install`
+**Causa:** `uv tool install` pone binarios en `~/.local/bin`, que puede no estar en PATH.
+**Fix:**
+```powershell
+# Verificar:
+$env:PATH -split ";" | Select-String ".local.bin"
+# Si no aparece, agregar:
+$p = [Environment]::GetEnvironmentVariable("PATH","User")
+[Environment]::SetEnvironmentVariable("PATH","$p;$env:USERPROFILE\.local\bin","User")
+# Cerrar y reabrir PowerShell
+```
+
+### Servy: "command not found"
+**Causa:** Servy se instala via Scoop extras. Puede faltar el bucket o la dependencia `innounp`.
+**Fix:**
+```powershell
+scoop bucket add extras
+scoop install innounp
+scoop install servy
+```
+
+### Servy: servicio no arranca / se detiene inmediatamente
+**Diagnostico:**
+```powershell
+servy logs <nombre>
+```
+**Causas comunes:**
+- El ejecutable no existe en la ruta registrada (se movio o no se instalo)
+- Puerto ocupado por otro proceso: `netstat -ano | findstr :<puerto>`
+- Dependencia faltante (Node.js, Python, etc.)
+
+### Dagu: descarga fallo / no encontro asset
+**Causa:** el repo es `dagucloud/dagu` (no `dagu-org/dagu`). La API de GitHub puede
+no devolver el asset esperado si cambiaron el naming.
+**Fix manual:**
+1. Ir a https://github.com/dagucloud/dagu/releases
+2. Descargar el `.zip` que contenga `windows` y `amd64`
+3. Extraer `dagu.exe` a `%USERPROFILE%\.local\bin\`
+
+### Tailscale: descarga fallo
+**Causa:** Tailscale no esta en Scoop. Se descarga directo del CDN oficial.
+**Fix:** descargar manualmente desde https://tailscale.com/download/windows
+
+### Firewall: servicios no accesibles desde Tailscale
+**Causa:** las reglas de firewall se crean para la interfaz "Tailscale". Si Tailscale
+no estaba configurado al correr el bootstrap, las reglas se crean sin filtro de interfaz
+(con warning).
+**Fix:** verificar y recrear reglas despues de conectar Tailscale:
+```powershell
+# Ver reglas existentes:
+Get-NetFirewallRule -DisplayName "AI-Lab-*" | Format-Table DisplayName,Enabled
+# Borrar y recrear (volver a correr el bootstrap, es idempotente):
+.\bootstrap-windows.ps1
+```
+
+### Hermes: clone fallo / "Repository not found"
+**Causa:** el repo es `NousResearch/hermes-agent` (publico).
+**Fix:**
+```powershell
+git ls-remote https://github.com/NousResearch/hermes-agent.git
+# Si falla, verificar conectividad y autenticacion:
+gh auth status
+```
+
+### Caracteres raros en la consola (mojibake)
+**Causa:** PowerShell 5.1 lee archivos UTF-8 como Windows-1252. Caracteres
+no-ASCII (em-dash, flechas, box-drawing) se corrompen.
+**Fix:** los scripts del bootstrap usan solo caracteres ASCII. Si ves mojibake,
+verificar que no se editaron los `.ps1` con un editor que inserte Unicode.
+
+### Windows Defender bloquea un binario descargado
+**Causa:** SmartScreen o real-time protection bloquea ejecutables sin firma.
+**Fix:** el modulo 01 agrega exclusiones para `~/ai-lab` y `~/.local/bin`.
+Si un binario especifico es bloqueado:
+```powershell
+Add-MpPreference -ExclusionPath "C:\ruta\al\binario.exe"
+```

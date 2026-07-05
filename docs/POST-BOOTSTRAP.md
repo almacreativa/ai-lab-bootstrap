@@ -680,24 +680,52 @@ bash ~/ai-lab/ops/backup/rehome.sh \
 
 ---
 
-## Notas para Windows (WSL2)
+## Notas para Windows (nativo)
 
-En la variante Windows, el lab corre dentro de WSL2 (Ubuntu). Las fases
-de esta guía aplican con estas diferencias:
+En la variante Windows, el lab corre **100% nativo** (sin WSL2, sin Docker).
+Todos los servicios se gestionan con **Servy** como service manager.
+La guia completa de instalacion esta en `docs/WINDOWS-INSTALL.md`.
 
-| Aspecto | Linux (bare metal) | Windows (WSL2) |
+Las fases de esta guia aplican con estas diferencias:
+
+| Aspecto | Linux (bare metal) | Windows (nativo) |
 |---|---|---|
-| Docker | Docker CE instalado por bootstrap | Docker CE nativo dentro de WSL2 (NO Docker Desktop) |
-| Tailscale | `sudo tailscale up --ssh` | Instalar en el **host Windows** (GUI). WSL2 con `networkingMode=mirrored` comparte la IP |
-| Syncthing | systemd user service | Instalar en el **host Windows** (GUI). Path: `\\wsl$\Ubuntu\home\<user>\ai-lab\knowledge` |
-| SSH | OpenSSH en Linux | OpenSSH Server en el **host Windows** con `administrators_authorized_keys` |
-| Ejecutar comandos | Directo en terminal | Desde PowerShell: `wsl -d Ubuntu -- <comando>`, o entrar a la distro: `wsl -d Ubuntu` |
-| Arranque | systemd nativo al boot | WSL2 no arranca solo — registrar tarea programada (ver `03-post-install.ps1`) |
-| Suspend | N/A (servidor siempre encendido) | Si Windows duerme, WSL2 y sus servicios se detienen |
-| Disco | ext4 nativo | `.vhdx` virtual — ejecutar `sudo fstrim -av` periódicamente |
+| Service manager | systemd | Servy (`servy start/stop/list`) |
+| Package manager | apt + scripts | Scoop (no WinGet -- LTSC compatible) |
+| Docker | Docker CE | No hay. Paperclip usa PG embebido, Odysseus corre nativo |
+| Tailscale | `sudo tailscale up --ssh` | Instalar via bootstrap (descarga directa). Login manual desde GUI |
+| SSH | OpenSSH en Linux | OpenSSH Server opcional (`LAB_INSTALL_SSH_SERVER=true`) |
+| SearXNG | Docker (local) | Remoto via Tailscale (configurar `SEARXNG_URL` en `~/.env_agents`) |
+| Terminal | tmux | psmux (multiplexer nativo Rust) |
+| Arranque | systemd al boot | Servy auto-start |
+| Suspend | N/A (servidor 24/7) | Si Windows duerme, los servicios Servy se detienen |
 
-**Importante:** `03-post-install.ps1` imprime todos los pasos manuales
-específicos de Windows al finalizar el bootstrap. Esta guía complementa
+### Fases que cambian en Windows
+
+- **Fase 0:** verificar con `servy list` en vez de `systemctl`. Verificar binarios con `Get-Command`.
+- **Fase 1:** los templates de secrets se crean automaticamente en el bootstrap (modulo 05). Solo completar valores.
+- **Fase 2:** `tailscale status` desde PowerShell. `claude` y `nlm login` funcionan igual.
+- **Fase 3:** `servy start <nombre>` en vez de `systemctl start`. No hay Docker que verificar.
+- **Fase 4:** Paperclip usa PG embebido (`npx paperclipai onboard`), no Docker compose. Requiere VC++ Redistributable (modulo 01 lo instala).
+- **Fase 5:** no hay Portainer ni SearXNG local. Uptime Kuma y Glance corren nativos via Servy.
+- **Fase 6:** file sharing via Tailscale file copy o Syncthing en Windows (GUI).
+- **Fase 7:** no hay guards ni manifest en Windows (son Linux-only).
+
+**Referencia de servicios Servy:**
+
+```powershell
+servy start Dagu
+servy start HermesGateway
+servy start HermesDashboard
+servy start MoolMesh
+servy start UptimeKuma
+servy start Glance
+servy start Paperclip
+servy start Odysseus
+```
+
+**Importante:** `06-post-install.ps1` imprime todos los pasos manuales
+especificos de Windows al finalizar el bootstrap. Esta guia complementa
 esa salida con el contexto de cada fase.
 
 ---

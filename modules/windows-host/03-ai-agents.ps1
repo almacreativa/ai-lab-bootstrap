@@ -155,6 +155,14 @@ if (-not (Get-Command mool -ErrorAction SilentlyContinue)) {
   if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-LabLog "Instalando MoolMesh..."
     uv tool install moolmesh
+    $uvToolBin = (uv tool dir --bin 2>$null)
+    if ($uvToolBin) {
+      $uvToolBin = $uvToolBin.Trim()
+      $userPath = [Environment]::GetEnvironmentVariable("PATH","User")
+      if ($userPath -notlike "*$uvToolBin*") {
+        [Environment]::SetEnvironmentVariable("PATH","$userPath;$uvToolBin","User")
+      }
+    }
     Refresh-LabPath
     if (Get-Command mool -ErrorAction SilentlyContinue) {
       Write-LabLog "MoolMesh instalado ($(mool --version 2>$null))."
@@ -199,20 +207,21 @@ if ($env:INSTALL_NLM -eq "true") {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
       Write-LabLog "Instalando NotebookLM MCP..."
       uv tool install notebooklm-mcp
-      $uvToolBin = Join-Path $env:USERPROFILE ".local\bin"
-      $uvToolDir = uv tool dir 2>$null
-      if ($uvToolDir) {
-        $userPath = [Environment]::GetEnvironmentVariable("PATH","User")
-        if ($userPath -notlike "*$uvToolBin*") {
-          [Environment]::SetEnvironmentVariable("PATH","$userPath;$uvToolBin","User")
-        }
+      $uvToolBin = (uv tool dir --bin 2>$null)
+      if (-not $uvToolBin) { $uvToolBin = Join-Path $env:USERPROFILE ".local\bin" }
+      $uvToolBin = $uvToolBin.Trim()
+      $userPath = [Environment]::GetEnvironmentVariable("PATH","User")
+      if ($userPath -notlike "*$uvToolBin*") {
+        [Environment]::SetEnvironmentVariable("PATH","$userPath;$uvToolBin","User")
+        Write-LabLog "Agregado $uvToolBin al PATH del usuario."
       }
       Refresh-LabPath
       if (Get-Command nlm -ErrorAction SilentlyContinue) {
         Write-LabLog "NotebookLM MCP instalado ($(nlm --version 2>$null))."
       } else {
         Write-LabWarn "NotebookLM MCP: instalacion completa pero no en PATH."
-        Write-LabWarn "Agregar manualmente el directorio de uv tools al PATH."
+        Write-LabWarn "Directorio de uv tools: $uvToolBin"
+        Write-LabWarn "Verificar que contiene nlm.exe y agregarlo al PATH."
       }
     }
   } else {

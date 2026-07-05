@@ -17,14 +17,20 @@ if ($env:INSTALL_DAGU -eq "true") {
     Write-LabLog "Instalando Dagu..."
     try {
       $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/dagucloud/dagu/releases/latest" -UseBasicParsing
-      $asset = $releases.assets | Where-Object { $_.name -match "windows.*amd64" -and $_.name -match "\.zip$" } | Select-Object -First 1
+      $asset = $releases.assets | Where-Object {
+        $_.name -match "windows" -and $_.name -match "(amd64|x86_64)" -and $_.name -match "\.(zip|tar\.gz)$"
+      } | Select-Object -First 1
       if ($asset) {
-        $tmpZip = Join-Path $env:TEMP "dagu.zip"
         $daguDir = Join-Path $appsDir "dagu"
         New-Item -Path $daguDir -ItemType Directory -Force | Out-Null
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpZip -UseBasicParsing
-        Expand-Archive -Path $tmpZip -DestinationPath $daguDir -Force
-        Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+        $tmpFile = Join-Path $env:TEMP $asset.name
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpFile -UseBasicParsing
+        if ($asset.name -match "\.tar\.gz$") {
+          tar -xzf $tmpFile -C $daguDir
+        } else {
+          Expand-Archive -Path $tmpFile -DestinationPath $daguDir -Force
+        }
+        Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
         $daguExe = Get-ChildItem -Path $daguDir -Filter "dagu.exe" -Recurse | Select-Object -First 1
         if ($daguExe) {
           $localBin = Join-Path $env:USERPROFILE ".local\bin"
@@ -32,14 +38,16 @@ if ($env:INSTALL_DAGU -eq "true") {
           $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
           Write-LabLog "Dagu $($releases.tag_name) instalado."
         } else {
-          Write-LabWarn "Dagu: zip no contenia dagu.exe."
+          Write-LabWarn "Dagu: archivo no contenia dagu.exe."
         }
       } else {
-        Write-LabWarn "Dagu: no se encontro asset windows-amd64 en releases."
+        Write-LabWarn "Dagu: no se encontro asset windows en releases."
+        Write-LabWarn "Assets disponibles:"
+        $releases.assets | ForEach-Object { Write-LabWarn "  $($_.name)" }
         Write-LabWarn "Instalar manualmente: https://github.com/dagucloud/dagu/releases"
       }
     } catch {
-      Write-LabWarn "Dagu: instalacion fallo. Instalar manualmente: https://github.com/dagucloud/dagu/releases"
+      Write-LabWarn "Dagu: instalacion fallo ($_). Instalar manualmente: https://github.com/dagucloud/dagu/releases"
     }
   } else {
     Write-LabLog "Dagu ya instalado, saltando."

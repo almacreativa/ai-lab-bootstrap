@@ -122,26 +122,41 @@ automatización operativa del lab.
 
 ---
 
-## Variante Windows (WSL2)
+## Variante Windows (nativo)
 
-En Windows 10/11, el lab corre dentro de **WSL2 (Ubuntu)** con Docker CE nativo.
-El host Windows solo ejecuta servicios de infraestructura de red/GUI.
-Guía completa de instalación: `docs/WINDOWS-INSTALL.md`.
+En Windows 10/11, el lab corre **100% nativo** (sin WSL2, sin Docker).
+Todos los servicios se gestionan con **Servy** como service manager.
+Guia completa de instalacion: `docs/WINDOWS-INSTALL.md`.
 
-### Distribución host vs WSL2
+### Servicios y puertos
 
-| Dónde | Servicios |
-|---|---|
-| **Host Windows** | Tailscale, Syncthing, OpenSSH Server (opcional), Chromium |
-| **WSL2 (Ubuntu)** | Todo lo demás: Hermes, Paperclip, Docker CE, todos los stacks Docker, agentes IA, cron |
+| Servicio | Runtime | Puerto | Servy |
+|---|---|---|---|
+| Hermes Gateway | bare metal (uv + Python 3.12) | :9119 | HermesGateway |
+| Hermes Dashboard | bare metal (uv + Python 3.12) | :9119 | HermesDashboard |
+| MoolMesh | bare metal (uv tool) | :5200 | MoolMesh |
+| Dagu | binario Go | :8480 | Dagu |
+| Uptime Kuma | Node.js | :3001 | UptimeKuma |
+| Glance | binario Go | :5678 | Glance |
+| Paperclip | Node.js (PG embebido) | :3100 | Paperclip |
+| Odysseus | bare metal (uv + Python 3.12) | :7000 | Odysseus |
+| Claude Code | interactivo | -- | No |
+| OpenCode | interactivo | -- | No |
+| Engram | stdio MCP (bajo demanda) | -- | No |
+| Playwright MCP | stdio MCP (bajo demanda) | -- | No |
+| NotebookLM MCP | stdio MCP (bajo demanda) | -- | No |
+| Tailscale | Windows service | -- | No (nativo Windows) |
+| SearXNG | **remoto** (no soportado nativo) | -- | No |
 
 ### Diferencias clave vs servidor Linux
 
-- **Docker CE nativo** dentro de WSL2 (NO Docker Desktop — incompatible con `networkingMode=mirrored`)
-- **Networking:** Windows 11 usa Mirrored (WSL2 comparte IP del host → Tailscale cubre a WSL2). Windows 10 usa NAT (IP propia)
-- **systemd habilitado** vía `/etc/wsl.conf` → `hermes.service` y `docker.service` funcionan igual
-- **Arranque:** WSL2 no arranca solo al boot → tarea programada `WSL2-Ubuntu-Autostart` al logon
-- **Suspend:** si Windows duerme, WSL2 se detiene (no es 24/7 como el servidor)
-- **.wslconfig** en `%USERPROFILE%\.wslconfig`: limita RAM/CPU, habilita mirrored, sparseVhd
-- **Windows Defender:** exclusiones configuradas para evitar degradación I/O (vmmem, wsl*, paths virtuales)
-- **Los 11 scripts cross-platform** (`~/ai-lab/scripts/`) funcionan sin cambios — WSL2 reporta `uname` como `Linux`
+- **Sin Docker**: Paperclip usa PG embebido (zero-config). Odysseus corre nativo (fork `amish-github/odysseus`)
+- **Package manager**: Scoop (no apt). WinGet no funciona en LTSC
+- **Service manager**: Servy (no systemd). Comandos: `servy start/stop/restart/list/logs`
+- **Python**: uv + Python 3.12 fijado (ChromaDB tiene bugs con 3.14)
+- **Terminal**: psmux (no tmux)
+- **SearXNG**: consumido remoto via Tailscale (`SEARXNG_URL` en `~/.env_agents`)
+- **Firewall**: reglas Windows Firewall para interfaz Tailscale (modulo 05)
+- **Defender**: exclusiones para `~/ai-lab` y `~/.local/bin`
+- **Suspend**: si Windows duerme, los servicios Servy se detienen
+- **VC++ Redistributable**: requerido para PG embebido de Paperclip (modulo 01 lo instala)

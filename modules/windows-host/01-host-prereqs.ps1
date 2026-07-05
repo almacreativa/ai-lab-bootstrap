@@ -156,8 +156,20 @@ if (-not (Get-Command servy -ErrorAction SilentlyContinue)) {
     if (Get-Command servy -ErrorAction SilentlyContinue) {
       Write-LabLog "Servy instalado."
     } else {
-      Write-LabWarn "Servy: scoop install completo pero no en PATH."
-      Write-LabWarn "Instalar manualmente: scoop install servy"
+      $scoopServyDir = Join-Path $env:USERPROFILE "scoop\apps\servy\current"
+      $servyExeFound = $null
+      if (Test-Path $scoopServyDir) {
+        $servyExeFound = Get-ChildItem -Path $scoopServyDir -Filter "*.exe" -Recurse |
+          Where-Object { $_.Name -match "servy" } | Select-Object -First 1
+      }
+      if ($servyExeFound) {
+        Copy-Item $servyExeFound.FullName (Join-Path $localBin "servy.exe") -Force
+        Refresh-LabPath
+        Write-LabLog "Servy instalado (shim manual: $($servyExeFound.Name) -> .local\bin\servy.exe)."
+      } else {
+        Write-LabWarn "Servy: scoop install completo pero ejecutable no encontrado."
+        Write-LabWarn "Verificar: dir $scoopServyDir -Recurse *.exe"
+      }
     }
   } else {
     Write-LabWarn "Scoop no disponible, no se puede instalar Servy."
