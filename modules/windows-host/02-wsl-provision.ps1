@@ -52,15 +52,20 @@ if ($repoCheck.Trim() -ne "ok") {
 }
 
 # Preparar variables para el bootstrap Linux
+# INSTALL_HERMES_WSL controla si Hermes se instala en WSL2.
+# Si agentes nativos activos, Hermes corre nativo en Windows, no en WSL2.
 $installPaperclip = if ($env:INSTALL_PAPERCLIP) { $env:INSTALL_PAPERCLIP } else { "true" }
-$installHermes    = if ($env:INSTALL_HERMES)    { $env:INSTALL_HERMES }    else { "true" }
+$installHermesWsl = if ($env:INSTALL_HERMES_WSL) { $env:INSTALL_HERMES_WSL } else { "false" }
 $installNlm       = if ($env:INSTALL_NLM)       { $env:INSTALL_NLM }       else { "true" }
 
 Write-LabLog "Lanzando bootstrap.sh dentro de WSL2 (esto puede tardar varios minutos)..."
-Write-LabLog "  INSTALL_PAPERCLIP=$installPaperclip  INSTALL_HERMES=$installHermes  INSTALL_NLM=$installNlm"
+Write-LabLog "  INSTALL_PAPERCLIP=$installPaperclip  INSTALL_HERMES=$installHermesWsl  INSTALL_NLM=$installNlm"
+if ($installHermesWsl -eq "false") {
+  Write-LabLog "  (Hermes no se instala en WSL2 --corre nativo en Windows via modulo 03)"
+}
 Write-LabWarn "Vas a ver prompts interactivos dentro de la terminal de WSL2 (confirmacion inicial)."
 
-wsl -d $distro -- bash -lc "export INSTALL_PAPERCLIP=$installPaperclip && export INSTALL_HERMES=$installHermes && export INSTALL_NLM=$installNlm && cd ~/ai-lab/repos/ai-lab-bootstrap && bash bootstrap.sh"
+wsl -d $distro -- bash -lc "export INSTALL_PAPERCLIP=$installPaperclip && export INSTALL_HERMES=$installHermesWsl && export INSTALL_NLM=$installNlm && cd ~/ai-lab/repos/ai-lab-bootstrap && bash bootstrap.sh"
 
 if ($LASTEXITCODE -ne 0) {
   Write-LabWarn "bootstrap.sh termino con errores (exit code: $LASTEXITCODE)."

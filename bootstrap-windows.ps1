@@ -15,8 +15,9 @@
 #
 #   LAB_USER_LINUX        usuario dentro de la distro WSL2 (default: detectado)
 #   INSTALL_PAPERCLIP     instalar Paperclip en WSL2 (default: true)
-#   INSTALL_HERMES        instalar Hermes Agent nativo (default: true)
-#   INSTALL_NLM           instalar notebooklm-mcp-cli (default: true)
+#   INSTALL_HERMES        instalar Hermes Agent NATIVO en Windows (default: true)
+#   INSTALL_HERMES_WSL    instalar Hermes en WSL2 (default: false si INSTALL_NATIVE_AGENTS=true)
+#   INSTALL_NLM           instalar notebooklm-mcp-cli nativo (default: true)
 #   INSTALL_NATIVE_AGENTS instalar capa de agentes nativos Windows (default: true)
 #   LAB_INSTALL_SSH_SERVER "true" para instalar OpenSSH Server en el host
 #   WSL_MEMORY            RAM para WSL2 en GB (default: 50% del total)
@@ -69,6 +70,11 @@ if (-not $env:INSTALL_HERMES)    { $env:INSTALL_HERMES = "true" }
 if (-not $env:INSTALL_NLM)       { $env:INSTALL_NLM = "true" }
 if (-not $env:INSTALL_NATIVE_AGENTS) { $env:INSTALL_NATIVE_AGENTS = "true" }
 
+# Si agentes nativos activos, Hermes NO va en WSL2 (evitar duplicacion)
+if (-not $env:INSTALL_HERMES_WSL) {
+  $env:INSTALL_HERMES_WSL = if ($env:INSTALL_NATIVE_AGENTS -eq "true") { "false" } else { $env:INSTALL_HERMES }
+}
+
 $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 $totalCPU = (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
 $wslMem = if ($env:WSL_MEMORY) { $env:WSL_MEMORY } else { [math]::Max(4, [math]::Floor($totalRAM / 2)) }
@@ -77,16 +83,25 @@ $wslCpu = if ($env:WSL_PROCESSORS) { $env:WSL_PROCESSORS } else { [math]::Max(2,
 $networkLabel = if ($isWin11) { "Mirrored (comparte IP del host)" } else { "NAT (IP propia)" }
 $userLabel = if ($env:LAB_USER_LINUX) { $env:LAB_USER_LINUX } else { "(detectado auto)" }
 
+$hermesLocation = if ($env:INSTALL_HERMES -eq "true") { "nativo (Windows)" } else { "no" }
+$hermesWslLabel = if ($env:INSTALL_HERMES_WSL -eq "true") { "si (WSL2)" } else { "no" }
+$moolmeshLocation = if ($env:INSTALL_NATIVE_AGENTS -eq "true") { "nativo (Windows)" } else { "WSL2" }
+
 Write-Host "  Sistema operativo    : $osName $osDisplayVersion (build $osBuild)"
 Write-Host "  Hardware detectado   : ${totalRAM}GB RAM, $totalCPU CPUs"
 Write-Host "  WSL2 asignado        : ${wslMem}GB RAM, $wslCpu CPUs"
 Write-Host "  Networking WSL2      : $networkLabel"
 Write-Host "  Usuario Linux (WSL2) : $userLabel"
-Write-Host "  Instalar Paperclip   : $env:INSTALL_PAPERCLIP"
-Write-Host "  Instalar Hermes      : $env:INSTALL_HERMES"
-Write-Host "  Instalar nlm         : $env:INSTALL_NLM"
-Write-Host "  Agentes nativos Win  : $env:INSTALL_NATIVE_AGENTS"
-Write-Host "  Instalar SSH Server  : $env:LAB_INSTALL_SSH_SERVER"
+Write-Host ""
+Write-Host "  --- Distribucion de servicios ---"
+Write-Host "  Paperclip            : WSL2 (Docker)  [$env:INSTALL_PAPERCLIP]"
+Write-Host "  Hermes               : $hermesLocation"
+Write-Host "  Hermes en WSL2       : $hermesWslLabel"
+Write-Host "  MoolMesh             : $moolmeshLocation"
+Write-Host "  NotebookLM MCP       : nativo (Windows)  [$env:INSTALL_NLM]"
+Write-Host "  Claude Code/OpenCode : nativo (Windows)"
+Write-Host "  Agentes nativos      : $env:INSTALL_NATIVE_AGENTS"
+Write-Host "  SSH Server           : $env:LAB_INSTALL_SSH_SERVER"
 if (-not $isWin11) {
   Write-Host ""
   Write-Host "  NOTA: Windows 10 --sin mirrored networking ni features" -ForegroundColor Yellow
