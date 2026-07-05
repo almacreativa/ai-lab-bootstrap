@@ -136,13 +136,13 @@ if ($env:INSTALL_HERMES -eq "true") {
       $svcExists = servy list 2>$null | Select-String "HermesGateway"
       if (-not $svcExists) {
         Write-LabLog "Registrando HermesGateway en Servy..."
-        servy install --name "HermesGateway" --exe $uvPath --args "run hermes gateway run --accept-hooks" --working-dir $hermesRepo --start-type auto --restart-on-failure
+        servy install --name "HermesGateway" --path $uvPath --params "run hermes gateway run --accept-hooks" --startupDir $hermesRepo --startupType Automatic --recoveryAction RestartProcess
       }
 
       $svcExists = servy list 2>$null | Select-String "HermesDashboard"
       if (-not $svcExists) {
         Write-LabLog "Registrando HermesDashboard en Servy..."
-        servy install --name "HermesDashboard" --exe $uvPath --args "run hermes dashboard --host 0.0.0.0 --port 9119 --no-open --insecure" --working-dir $hermesRepo --start-type auto --restart-on-failure
+        servy install --name "HermesDashboard" --path $uvPath --params "run hermes dashboard --host 0.0.0.0 --port 9119 --no-open --insecure" --startupDir $hermesRepo --startupType Automatic --recoveryAction RestartProcess
       }
     }
   }
@@ -182,7 +182,7 @@ if ((Get-Command mool -ErrorAction SilentlyContinue) -and (Get-Command servy -Er
   if (-not $svcExists) {
     $moolPath = (Get-Command mool -ErrorAction SilentlyContinue).Source
     Write-LabLog "Registrando MoolMesh en Servy..."
-    servy install --name "MoolMesh" --exe $moolPath --args "daemon start --host 0.0.0.0 --port 5200" --start-type auto --restart-on-failure
+    servy install --name "MoolMesh" --path $moolPath --params "daemon start --host 0.0.0.0 --port 5200" --startupType Automatic --recoveryAction RestartProcess
   }
 }
 

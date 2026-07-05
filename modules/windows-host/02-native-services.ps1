@@ -59,7 +59,7 @@ if ($env:INSTALL_DAGU -eq "true") {
     if (-not $svcExists) {
       $daguPath = (Get-Command dagu -ErrorAction SilentlyContinue).Source
       Write-LabLog "Registrando Dagu en Servy..."
-      servy install --name "Dagu" --exe $daguPath --args "start-all" --start-type auto --restart-on-failure
+      servy install --name "Dagu" --path $daguPath --params "start-all" --startupType Automatic --recoveryAction RestartProcess
     }
   }
 } else {
@@ -91,7 +91,7 @@ if ($env:INSTALL_UPTIME_KUMA -eq "true") {
       $nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
       if ($nodePath) {
         Write-LabLog "Registrando Uptime Kuma en Servy..."
-        servy install --name "UptimeKuma" --exe $nodePath --args "server\server.js" --working-dir $kumaDir --start-type auto --restart-on-failure
+        servy install --name "UptimeKuma" --path $nodePath --params "server\server.js" --startupDir $kumaDir --startupType Automatic --recoveryAction RestartProcess
       }
     }
   }
@@ -154,7 +154,7 @@ pages:
     $svcExists = servy list 2>$null | Select-String "Glance"
     if (-not $svcExists) {
       Write-LabLog "Registrando Glance en Servy..."
-      servy install --name "Glance" --exe $glanceExe --working-dir $glanceDir --start-type auto --restart-on-failure
+      servy install --name "Glance" --path $glanceExe --startupDir $glanceDir --startupType Automatic --recoveryAction RestartProcess
     }
   }
 } else {

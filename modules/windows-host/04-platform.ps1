@@ -46,7 +46,7 @@ if ($env:INSTALL_PAPERCLIP -eq "true") {
       $npxPath = (Get-Command npx -ErrorAction SilentlyContinue).Source
       if ($npxPath) {
         Write-LabLog "Registrando Paperclip en Servy..."
-        servy install --name "Paperclip" --exe $npxPath --args "paperclipai start" --working-dir $paperclipDir --start-type auto --restart-on-failure
+        servy install --name "Paperclip" --path $npxPath --params "paperclipai start" --startupDir $paperclipDir --startupType Automatic --recoveryAction RestartProcess
       }
     }
   }
@@ -93,7 +93,7 @@ if ($env:INSTALL_ODYSSEUS -eq "true") {
       if (-not $svcExists) {
         $uvPath = (Get-Command uv -ErrorAction SilentlyContinue).Source
         Write-LabLog "Registrando Odysseus en Servy..."
-        servy install --name "Odysseus" --exe $uvPath --args "run python -m odysseus" --working-dir $odysseusRepo --start-type auto --restart-on-failure
+        servy install --name "Odysseus" --path $uvPath --params "run python -m odysseus" --startupDir $odysseusRepo --startupType Automatic --recoveryAction RestartProcess
       }
     }
   }
