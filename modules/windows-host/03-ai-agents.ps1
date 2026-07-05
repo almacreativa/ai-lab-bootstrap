@@ -133,13 +133,13 @@ if ($env:INSTALL_HERMES -eq "true") {
     if ((Get-Command servy -ErrorAction SilentlyContinue) -and $hermesVer) {
       $uvPath = (Get-Command uv -ErrorAction SilentlyContinue).Source
 
-      $svcExists = servy list 2>$null | Select-String "HermesGateway"
+      $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "HermesGateway"
       if (-not $svcExists) {
         Write-LabLog "Registrando HermesGateway en Servy..."
         servy install --name "HermesGateway" --path $uvPath --params "run hermes gateway run --accept-hooks" --startupDir $hermesRepo --startupType Automatic --recoveryAction RestartProcess
       }
 
-      $svcExists = servy list 2>$null | Select-String "HermesDashboard"
+      $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "HermesDashboard"
       if (-not $svcExists) {
         Write-LabLog "Registrando HermesDashboard en Servy..."
         servy install --name "HermesDashboard" --path $uvPath --params "run hermes dashboard --host 0.0.0.0 --port 9119 --no-open --insecure" --startupDir $hermesRepo --startupType Automatic --recoveryAction RestartProcess
@@ -178,7 +178,7 @@ if (-not (Get-Command mool -ErrorAction SilentlyContinue)) {
 
 # Registrar MoolMesh en Servy
 if ((Get-Command mool -ErrorAction SilentlyContinue) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
-  $svcExists = servy list 2>$null | Select-String "MoolMesh"
+  $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "MoolMesh"
   if (-not $svcExists) {
     $moolPath = (Get-Command mool -ErrorAction SilentlyContinue).Source
     Write-LabLog "Registrando MoolMesh en Servy..."

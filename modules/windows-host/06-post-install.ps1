@@ -127,25 +127,13 @@ foreach ($svc in $optServices) {
   if ($svc.Status -eq "FALTA") { $hasErrors = $true }
 }
 
-# Servy services
+# Servy services (registrados como Windows services)
 $servyServices = @()
-$servyAvailable = Get-Command servy -ErrorAction SilentlyContinue
-if ($servyAvailable) {
-  try {
-    $rawOutput = & servy list 2>&1
-    if ($rawOutput) {
-      $servyServices = @($rawOutput) | Where-Object { $_ -and $_.ToString().Trim() }
-    }
-  } catch {}
-  # Fallback: verificar servicios conocidos individualmente
-  if ($servyServices.Count -eq 0) {
-    $knownServices = @("Dagu","HermesGateway","HermesDashboard","MoolMesh","UptimeKuma","Glance","Paperclip","Odysseus")
-    foreach ($svc in $knownServices) {
-      $svcCheck = & servy status $svc 2>&1
-      if ($LASTEXITCODE -eq 0 -or ($svcCheck -and $svcCheck -notmatch "not found|not installed")) {
-        $servyServices += $svc
-      }
-    }
+$knownServices = @("Dagu","HermesGateway","HermesDashboard","MoolMesh","UptimeKuma","Glance","Paperclip","Odysseus")
+foreach ($svc in $knownServices) {
+  $winSvc = Get-Service -Name $svc -ErrorAction SilentlyContinue
+  if ($winSvc) {
+    $servyServices += "$svc ($($winSvc.Status))"
   }
 }
 
@@ -167,7 +155,7 @@ if ($servyServices.Count -gt 0) {
     Write-Host "    - $line"
   }
 } else {
-  if ($servyAvailable) {
+  if (Get-Command servy -ErrorAction SilentlyContinue) {
     Write-Host "  Servicios Servy: ninguno registrado aun." -ForegroundColor Yellow
   } else {
     Write-Host "  Servy no disponible -- servicios no registrados." -ForegroundColor Red
@@ -211,7 +199,7 @@ Write-Host "     servy start Glance"
 Write-Host "     servy start Paperclip"
 Write-Host "     servy start Odysseus"
 Write-Host ""
-Write-Host "     Verificar: servy list"
+Write-Host "     Verificar: servy status <nombre>"
 Write-Host ""
 Write-Host "  -- 5. HEALTH CHECKS ---------------------------------------------"
 Write-Host "     curl http://localhost:9119/api/health    (Hermes)"
@@ -245,7 +233,7 @@ Write-Host "     Crear usuario admin, configurar monitors."
 Write-Host ""
 Write-Host "  MANTENIMIENTO:" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  - Ver servicios:     servy list"
+Write-Host "  - Ver servicios:     servy status <nombre>"
 Write-Host "  - Logs de servicio:  servy logs <nombre>"
 Write-Host "  - Reiniciar:         servy restart <nombre>"
 Write-Host "  - Detener:           servy stop <nombre>"

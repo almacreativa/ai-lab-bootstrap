@@ -41,7 +41,7 @@ if ($env:INSTALL_PAPERCLIP -eq "true") {
 
   # Registrar en Servy
   if ((Test-Path $paperclipDir) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
-    $svcExists = servy list 2>$null | Select-String "Paperclip"
+    $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "Paperclip"
     if (-not $svcExists) {
       $npxPath = (Get-Command npx -ErrorAction SilentlyContinue).Source
       if ($npxPath) {
@@ -89,7 +89,7 @@ if ($env:INSTALL_ODYSSEUS -eq "true") {
 
     # Registrar en Servy
     if (Get-Command servy -ErrorAction SilentlyContinue) {
-      $svcExists = servy list 2>$null | Select-String "Odysseus"
+      $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "Odysseus"
       if (-not $svcExists) {
         $uvPath = (Get-Command uv -ErrorAction SilentlyContinue).Source
         Write-LabLog "Registrando Odysseus en Servy..."

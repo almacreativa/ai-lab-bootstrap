@@ -55,7 +55,7 @@ if ($env:INSTALL_DAGU -eq "true") {
 
   # Registrar en Servy
   if ((Get-Command dagu -ErrorAction SilentlyContinue) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
-    $svcExists = servy list 2>$null | Select-String "Dagu"
+    $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "Dagu"
     if (-not $svcExists) {
       $daguPath = (Get-Command dagu -ErrorAction SilentlyContinue).Source
       Write-LabLog "Registrando Dagu en Servy..."
@@ -86,7 +86,7 @@ if ($env:INSTALL_UPTIME_KUMA -eq "true") {
 
   # Registrar en Servy
   if ((Test-Path (Join-Path $kumaDir "server\server.js")) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
-    $svcExists = servy list 2>$null | Select-String "UptimeKuma"
+    $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "UptimeKuma"
     if (-not $svcExists) {
       $nodePath = (Get-Command node -ErrorAction SilentlyContinue).Source
       if ($nodePath) {
@@ -151,7 +151,7 @@ pages:
 
   # Registrar en Servy
   if ((Test-Path $glanceExe) -and (Get-Command servy -ErrorAction SilentlyContinue)) {
-    $svcExists = servy list 2>$null | Select-String "Glance"
+    $svcExists = Get-Service -ErrorAction SilentlyContinue -Name "Glance"
     if (-not $svcExists) {
       Write-LabLog "Registrando Glance en Servy..."
       servy install --name "Glance" --path $glanceExe --startupDir $glanceDir --startupType Automatic --recoveryAction RestartProcess
