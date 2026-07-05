@@ -1,249 +1,184 @@
-# Modulo 01 (Windows host) --Long paths, WSL2, paquetes, .wslconfig,
-# Windows Defender exclusions, OpenSSH Server, plan de energia
-# Requiere PowerShell elevado (Run as Administrator)
-#
-# Detecta LTSC automaticamente y usa Scoop en vez de WinGet.
-# WinGet es inutilizable en LTSC (App Execution Aliases rotos sin Store).
+# Modulo 01 -- Prerrequisitos: Scoop, uv, Node LTS, Git, VC++ Build Tools,
+# Servy, psmux. Todo via Scoop + descargas directas (no WinGet).
 
-Write-LabLog "Paso 1/4 --Prerrequisitos del host..."
+$ErrorActionPreference = "Continue"
 
-# --- Deteccion LTSC ----------------------------------------------
-$editionId = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
-$isLTSC = $editionId -match "EnterpriseS"
-$hasWinGet = $false
-if (-not $isLTSC) {
-  try {
-    $wgVer = winget --version 2>$null
-    if ($wgVer) { $hasWinGet = $true }
-  } catch {}
+Write-LabLog "Paso 1/6 -- Prerrequisitos..."
+
+# --- Utilidad -------------------------------------------------
+function Refresh-LabPath {
+  $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
 }
-$useScoop = $isLTSC -or (-not $hasWinGet)
 
-if ($useScoop) {
-  $reason = if ($isLTSC) { "edicion LTSC detectada" } else { "winget no funcional" }
-  Write-LabLog "Package manager: Scoop ($reason). WinGet no se usara."
-} else {
-  Write-LabLog "Package manager: WinGet (edicion $editionId)."
+# --- Directorio .local\bin ------------------------------------
+$localBin = Join-Path $env:USERPROFILE ".local\bin"
+if (-not (Test-Path $localBin)) { New-Item -Path $localBin -ItemType Directory -Force | Out-Null }
+$userPath = [Environment]::GetEnvironmentVariable("PATH","User")
+if ($userPath -notlike "*$localBin*") {
+  [Environment]::SetEnvironmentVariable("PATH","$userPath;$localBin","User")
 }
+Refresh-LabPath
 
 # --- Long paths -----------------------------------------------
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
   -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force | Out-Null
-git config --system core.longpaths true 2>$null
-Write-LabLog "Long paths habilitados (registro + git --system)."
+Write-LabLog "Long paths habilitados."
 
-# --- WSL2 features -------------------------------------------
-$wslFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
-if ($wslFeature.State -ne "Enabled") {
-  Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart | Out-Null
-  Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart | Out-Null
-  Write-LabWarn "WSL2 habilitado --puede requerir reinicio antes de continuar al modulo 02."
-} else {
-  Write-LabLog "WSL2 ya estaba habilitado."
-}
-
-# --- .wslconfig (ANTES de provisionar la distro) -------------
-$wslConfigPath = Join-Path $env:USERPROFILE ".wslconfig"
-if (-not (Test-Path $wslConfigPath)) {
-  $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
-  $wslMemory = if ($env:WSL_MEMORY) { $env:WSL_MEMORY } else { [math]::Max(4, [math]::Floor($totalRAM / 2)) }
-  $wslProcessors = if ($env:WSL_PROCESSORS) { $env:WSL_PROCESSORS } else {
-    [math]::Max(2, [math]::Floor((Get-CimInstance Win32_Processor).NumberOfLogicalProcessors / 2))
-  }
-
-  if ($null -eq $isWin11) { $isWin11 = [System.Environment]::OSVersion.Version.Build -ge 22000 }
-
-  if ($isWin11) {
-    $wslConfigContent = @"
-[wsl2]
-memory=${wslMemory}GB
-processors=$wslProcessors
-swap=4GB
-networkingMode=mirrored
-dnsTunneling=true
-autoProxy=true
-localhostForwarding=true
-
-[experimental]
-autoMemoryReclaim=gradual
-sparseVhd=true
-"@
-    Write-LabLog ".wslconfig generado: memory=${wslMemory}GB, processors=$wslProcessors, mirrored networking."
-  } else {
-    $wslConfigContent = @"
-[wsl2]
-memory=${wslMemory}GB
-processors=$wslProcessors
-swap=4GB
-localhostForwarding=true
-"@
-    Write-LabLog ".wslconfig generado: memory=${wslMemory}GB, processors=$wslProcessors (Windows 10 --sin mirrored)."
-    Write-LabWarn "Windows 10: WSL2 usara NAT (IP propia). Ver docs/WINDOWS-INSTALL.md para implicaciones."
-  }
-
-  Set-Content -Path $wslConfigPath -Value $wslConfigContent -Encoding UTF8
-} else {
-  Write-LabLog ".wslconfig ya existe --no se sobreescribe. Verificar manualmente si es necesario."
-}
-
-# --- Scoop (siempre, necesario para agentes nativos y como fallback en LTSC)
+# --- Scoop ----------------------------------------------------
 if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-  Write-LabLog "Instalando Scoop (con -RunAsAdmin para sesion elevada)..."
+  Write-LabLog "Instalando Scoop..."
   $scoopInstaller = Join-Path $env:TEMP "scoop-install.ps1"
   Invoke-WebRequest -Uri "https://get.scoop.sh" -OutFile $scoopInstaller -UseBasicParsing
   & $scoopInstaller -RunAsAdmin
   Remove-Item $scoopInstaller -Force -ErrorAction SilentlyContinue
-  $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
+  Refresh-LabPath
   if (Get-Command scoop -ErrorAction SilentlyContinue) {
     Write-LabLog "Scoop instalado."
   } else {
-    Write-LabWarn "Scoop: instalacion completo pero 'scoop' no esta en PATH aun."
+    Write-LabErr "Scoop: instalacion fallo. No se puede continuar."
   }
 } else {
   Write-LabLog "Scoop ya instalado, saltando."
 }
 
-# Agregar extras bucket (Windows Terminal, Syncthing, Chromium)
-if (Get-Command scoop -ErrorAction SilentlyContinue) {
-  $buckets = scoop bucket list 2>$null
-  if ($buckets -notmatch "extras") {
-    Write-LabLog "Agregando Scoop extras bucket..."
-    scoop bucket add extras
-  }
+# Extras bucket
+$buckets = scoop bucket list 2>$null
+if ($buckets -notmatch "extras") {
+  scoop bucket add extras
+  Write-LabLog "Scoop extras bucket agregado."
 }
 
-# --- Paquetes: ruta WinGet o ruta Scoop --------------------------
-if ($useScoop) {
-  # --- RUTA SCOOP (LTSC o sin WinGet funcional) ---
-  Write-LabLog "Instalando paquetes via Scoop..."
-
-  # Main bucket: git, nodejs-lts, gh
-  $scoopMainPkgs = @("git", "nodejs-lts", "gh")
-  foreach ($pkg in $scoopMainPkgs) {
-    if (-not (Get-Command $pkg -ErrorAction SilentlyContinue)) {
-      Write-LabLog "Instalando $pkg via Scoop..."
-      scoop install $pkg
-    } else {
-      Write-LabLog "$pkg ya instalado, saltando."
-    }
-  }
-
-  # Extras bucket: windows-terminal, syncthing, chromium
-  $scoopExtraPkgs = @("windows-terminal", "syncthing", "chromium")
-  foreach ($pkg in $scoopExtraPkgs) {
-    $installed = scoop list 2>$null | Select-String $pkg
-    if (-not $installed) {
-      Write-LabLog "Instalando $pkg via Scoop (extras)..."
-      scoop install $pkg
-    } else {
-      Write-LabLog "$pkg ya instalado, saltando."
-    }
-  }
-
-  # Tailscale: no esta en Scoop, descarga directa
-  if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
-    Write-LabLog "Instalando Tailscale (descarga directa)..."
-    $tailscaleInstaller = Join-Path $env:TEMP "tailscale-setup.exe"
-    try {
-      Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile $tailscaleInstaller -UseBasicParsing
-      Start-Process -FilePath $tailscaleInstaller -ArgumentList "/S" -Wait
-      Remove-Item $tailscaleInstaller -Force -ErrorAction SilentlyContinue
-      $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
-      Write-LabLog "Tailscale instalado."
-    } catch {
-      Write-LabWarn "Tailscale: descarga fallo. Instalar manualmente desde tailscale.com/download/windows"
-    }
-  } else {
-    Write-LabLog "Tailscale ya instalado, saltando."
-  }
-
+# --- Git ------------------------------------------------------
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando Git via Scoop..."
+  scoop install git
+  Refresh-LabPath
 } else {
-  # --- RUTA WINGET (Windows normal con Store funcional) ---
-  Write-LabLog "Verificando paquetes WinGet (primera vez puede tardar mientras actualiza el indice)..."
+  Write-LabLog "Git ya instalado, saltando."
+}
+git config --system core.longpaths true 2>$null
 
-  $packages = @(
-    "Git.Git",
-    "Microsoft.WindowsTerminal",
-    "GitHub.cli",
-    "Tailscale.Tailscale",
-    "Syncthing.Syncthing"
-  )
-
-  foreach ($pkg in $packages) {
-    $installed = winget list --id $pkg --exact --accept-source-agreements 2>$null | Select-String $pkg
-    if (-not $installed) {
-      Write-LabLog "Instalando $pkg via winget..."
-      winget install --id $pkg --exact --silent --accept-package-agreements --accept-source-agreements
-    } else {
-      Write-LabLog "$pkg ya instalado, saltando."
-    }
-  }
-
-  # Node.js LTS
-  $nodeInstalled = winget list --id OpenJS.NodeJS.LTS --exact --accept-source-agreements 2>$null | Select-String "OpenJS.NodeJS.LTS"
-  if (-not $nodeInstalled) {
-    Write-LabLog "Instalando Node.js LTS via winget..."
-    winget install --id OpenJS.NodeJS.LTS --exact --silent --accept-package-agreements --accept-source-agreements
-  } else {
-    Write-LabLog "Node.js LTS ya instalado, saltando."
-  }
-
-  # Chromium
-  $chromiumInstalled = winget list --id Hibbiki.Chromium --exact --accept-source-agreements 2>$null | Select-String "Hibbiki.Chromium"
-  if (-not $chromiumInstalled) {
-    Write-LabLog "Instalando Chromium via winget..."
-    winget install --id Hibbiki.Chromium --exact --silent --accept-package-agreements --accept-source-agreements
-  } else {
-    Write-LabLog "Chromium ya instalado, saltando."
-  }
+# --- Node.js LTS ----------------------------------------------
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando Node.js LTS via Scoop..."
+  scoop install nodejs-lts
+  Refresh-LabPath
+} else {
+  Write-LabLog "Node.js ya instalado ($(node --version 2>$null)), saltando."
 }
 
-# Refrescar PATH despues de instalar paquetes
-$env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
-
-# --- uv (Python toolchain unificado) ----------------------------
+# --- uv (Python toolchain) ------------------------------------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-  Write-LabLog "Instalando uv (Astral Python toolchain)..."
+  Write-LabLog "Instalando uv..."
   $uvInstaller = Join-Path $env:TEMP "uv-install.ps1"
   Invoke-WebRequest -Uri "https://astral.sh/uv/install.ps1" -OutFile $uvInstaller -UseBasicParsing
   & $uvInstaller
   Remove-Item $uvInstaller -Force -ErrorAction SilentlyContinue
-  $env:PATH = [Environment]::GetEnvironmentVariable("PATH","User") + ";" + [Environment]::GetEnvironmentVariable("PATH","Machine")
+  Refresh-LabPath
   if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-LabLog "uv instalado ($(uv --version 2>$null))."
   } else {
-    Write-LabWarn "uv: instalador completo pero 'uv' no esta en PATH aun."
+    Write-LabWarn "uv: instalacion completa pero no esta en PATH."
   }
 } else {
   Write-LabLog "uv ya instalado ($(uv --version 2>$null)), saltando."
 }
 
-# --- Windows Defender --exclusiones para WSL2 ----------------
-Write-LabLog "Configurando exclusiones de Windows Defender para WSL2..."
-try {
-  Add-MpPreference -ExclusionProcess "vmmem.exe", "vmmemWSL.exe", "wsl.exe", "wslhost.exe", "msrdc.exe" -ErrorAction SilentlyContinue
-  Add-MpPreference -ExclusionPath "\\wsl$\", "\\wsl.localhost\" -ErrorAction SilentlyContinue
-  Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\Packages" -ErrorAction SilentlyContinue
-  Write-LabLog "Exclusiones de Defender aplicadas (procesos WSL + paths virtuales + VHDX)."
-} catch {
-  Write-LabWarn "No se pudieron aplicar exclusiones de Defender --verificar manualmente."
+# --- Python 3.12 via uv --------------------------------------
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+  $py312 = uv python list 2>$null | Select-String "3\.12"
+  if (-not $py312) {
+    Write-LabLog "Instalando Python 3.12 via uv..."
+    uv python install 3.12
+  } else {
+    Write-LabLog "Python 3.12 ya disponible, saltando."
+  }
 }
 
-# --- Plan de energia --High Performance ----------------------
-$currentPlan = powercfg /getactivescheme 2>$null
-if ($currentPlan -notmatch "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c") {
-  powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
-  if ($?) {
-    Write-LabLog "Plan de energia cambiado a 'High Performance'."
-  } else {
-    Write-LabWarn "No se pudo activar 'High Performance' --el plan puede no existir en este equipo."
-    Write-LabWarn "Verificar manualmente: Configuracion > Sistema > Energia."
+# --- GitHub CLI -----------------------------------------------
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando GitHub CLI via Scoop..."
+  scoop install gh
+  Refresh-LabPath
+} else {
+  Write-LabLog "GitHub CLI ya instalado, saltando."
+}
+
+# --- psmux (terminal multiplexer nativo) ----------------------
+if (-not (Get-Command psmux -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando psmux via Scoop..."
+  scoop install psmux
+  Refresh-LabPath
+} else {
+  Write-LabLog "psmux ya instalado, saltando."
+}
+
+# --- Visual C++ Build Tools (deteccion) -----------------------
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$hasBuildTools = $false
+if (Test-Path $vswhere) {
+  $vsInstances = & $vswhere -products * -requires Microsoft.VisualStudio.Workload.VCTools -format json 2>$null | ConvertFrom-Json
+  if ($vsInstances) { $hasBuildTools = $true }
+}
+if ($hasBuildTools) {
+  Write-LabLog "Visual C++ Build Tools detectados."
+} else {
+  Write-LabWarn "Visual C++ Build Tools NO detectados."
+  Write-LabWarn "Necesarios para Paperclip (node-gyp). Instalar manualmente:"
+  Write-LabWarn "  https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+  Write-LabWarn "  Workload: 'Desktop development with C++'"
+}
+
+# --- Servy (service manager) ----------------------------------
+if (-not (Get-Command servy -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando Servy..."
+  try {
+    $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/jandre-m/servy/releases/latest" -UseBasicParsing
+    $asset = $releases.assets | Where-Object { $_.name -match "windows.*amd64|x86_64.*windows" -and $_.name -match "\.(zip|exe)$" } | Select-Object -First 1
+    if ($asset) {
+      $tmpFile = Join-Path $env:TEMP $asset.name
+      Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpFile -UseBasicParsing
+      if ($asset.name -match "\.zip$") {
+        $tmpDir = Join-Path $env:TEMP "servy-extract"
+        Expand-Archive -Path $tmpFile -DestinationPath $tmpDir -Force
+        $servyExe = Get-ChildItem -Path $tmpDir -Filter "servy.exe" -Recurse | Select-Object -First 1
+        if ($servyExe) { Move-Item $servyExe.FullName (Join-Path $localBin "servy.exe") -Force }
+        Remove-Item $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+      } else {
+        Move-Item $tmpFile (Join-Path $localBin "servy.exe") -Force
+      }
+      Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+      Refresh-LabPath
+      Write-LabLog "Servy instalado."
+    } else {
+      Write-LabWarn "Servy: no se encontro asset compatible en GitHub releases."
+      Write-LabWarn "Instalar manualmente: https://github.com/jandre-m/servy/releases"
+    }
+  } catch {
+    Write-LabWarn "Servy: error descargando. Instalar manualmente."
   }
 } else {
-  Write-LabLog "Plan de energia ya es 'High Performance'."
+  Write-LabLog "Servy ya instalado, saltando."
 }
 
-# --- OpenSSH Server (opcional) -------------------------------
+# --- Tailscale (descarga directa, no en Scoop) ----------------
+if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
+  Write-LabLog "Instalando Tailscale (descarga directa)..."
+  $tailscaleInstaller = Join-Path $env:TEMP "tailscale-setup.exe"
+  try {
+    Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile $tailscaleInstaller -UseBasicParsing
+    Start-Process -FilePath $tailscaleInstaller -ArgumentList "/S" -Wait
+    Remove-Item $tailscaleInstaller -Force -ErrorAction SilentlyContinue
+    Refresh-LabPath
+    Write-LabLog "Tailscale instalado."
+  } catch {
+    Write-LabWarn "Tailscale: descarga fallo. Instalar desde tailscale.com/download/windows"
+  }
+} else {
+  Write-LabLog "Tailscale ya instalado, saltando."
+}
+
+# --- OpenSSH Server (opcional) --------------------------------
 if ($env:LAB_INSTALL_SSH_SERVER -eq "true") {
   $sshCapability = Get-WindowsCapability -Online -Name "OpenSSH.Server~~~~0.0.1.0"
   if ($sshCapability.State -ne "Installed") {
@@ -254,29 +189,30 @@ if ($env:LAB_INSTALL_SSH_SERVER -eq "true") {
   }
   Start-Service sshd
   Set-Service -Name sshd -StartupType Automatic
-
-  # Hardening: deshabilitar root y password auth
-  $sshdConfig = "$env:ProgramData\ssh\sshd_config"
-  (Get-Content $sshdConfig) `
-    -replace '^#?PermitRootLogin.*', 'PermitRootLogin no' `
-    -replace '^#?PasswordAuthentication.*', 'PasswordAuthentication no' `
-    -replace '^#?TCPKeepAlive.*', 'TCPKeepAlive yes' `
-    -replace '^#?ClientAliveInterval.*', 'ClientAliveInterval 30' `
-    -replace '^#?ClientAliveCountMax.*', 'ClientAliveCountMax 3' `
-    | Set-Content $sshdConfig
-  Restart-Service sshd
-
-  # ACLs para administrators_authorized_keys
-  $authKeysFile = Join-Path "$env:ProgramData\ssh" "administrators_authorized_keys"
-  if (-not (Test-Path $authKeysFile)) {
-    New-Item -Path $authKeysFile -ItemType File -Force | Out-Null
-  }
-  icacls.exe $authKeysFile /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null
-
-  Write-LabLog "SSH hardening aplicado + ACLs de administrators_authorized_keys configuradas."
-  Write-LabWarn "Agregar tu public key en: $authKeysFile"
+  Write-LabLog "OpenSSH Server habilitado y en auto-start."
 } else {
-  Write-LabLog "LAB_INSTALL_SSH_SERVER no esta en 'true' --saltando OpenSSH Server."
+  Write-LabLog "SSH Server no solicitado, saltando."
 }
 
-Write-LabLog "Modulo 01 (Windows host) completo."
+# --- Windows Defender exclusiones -----------------------------
+Write-LabLog "Configurando exclusiones de Windows Defender..."
+try {
+  $labDir = Join-Path $env:USERPROFILE "ai-lab"
+  Add-MpPreference -ExclusionPath $labDir -ErrorAction SilentlyContinue
+  Add-MpPreference -ExclusionPath $localBin -ErrorAction SilentlyContinue
+  Write-LabLog "Exclusiones de Defender aplicadas ($labDir, $localBin)."
+} catch {
+  Write-LabWarn "No se pudieron aplicar exclusiones de Defender."
+}
+
+# --- Plan de energia --High Performance -----------------------
+$currentPlan = powercfg /getactivescheme 2>$null
+if ($currentPlan -notmatch "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c") {
+  powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
+  if ($?) { Write-LabLog "Plan de energia: High Performance." }
+} else {
+  Write-LabLog "Plan de energia ya es High Performance."
+}
+
+Refresh-LabPath
+Write-LabLog "Modulo 01 completo."

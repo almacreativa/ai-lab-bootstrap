@@ -1,6 +1,7 @@
 # ============================================================
-# ai-lab-bootstrap --bootstrap-windows.ps1
-# Levanta un AI agent lab en Windows 10/11, via WSL2 + Ubuntu.
+# ai-lab-bootstrap -- bootstrap-windows.ps1
+# Levanta un AI agent lab 100% nativo en Windows 10/11.
+# Sin WSL2, sin Docker. Todo corre bare metal con Servy.
 #
 # Uso (PowerShell como Administrador):
 #   git clone https://github.com/almacreativa/ai-lab-bootstrap.git
@@ -8,31 +9,23 @@
 #   .\bootstrap-windows.ps1
 #
 # Compatibilidad:
-#   Windows 11 (22H2+) --soporte completo (mirrored networking, autoMemoryReclaim)
-#   Windows 10 (22H2+) --funcional (NAT, sin features experimentales de WSL2)
+#   Windows 10 LTSC (22H2+) -- soporte principal (sin WinGet, usa Scoop)
+#   Windows 11 (22H2+)      -- compatible
 #
 # Variables configurables (exportar antes de correr el script):
 #
-#   LAB_USER_LINUX        usuario dentro de la distro WSL2 (default: detectado)
-#   INSTALL_PAPERCLIP     instalar Paperclip en WSL2 (default: true)
-#   INSTALL_HERMES        instalar Hermes Agent NATIVO en Windows (default: true)
-#   INSTALL_HERMES_WSL    instalar Hermes en WSL2 (default: false si INSTALL_NATIVE_AGENTS=true)
-#   INSTALL_NLM           instalar notebooklm-mcp-cli nativo (default: true)
-#   INSTALL_NATIVE_AGENTS instalar capa de agentes nativos Windows (default: true)
-#   LAB_INSTALL_SSH_SERVER "true" para instalar OpenSSH Server en el host
-#   WSL_MEMORY            RAM para WSL2 en GB (default: 50% del total)
-#   WSL_PROCESSORS        CPUs para WSL2 (default: 50% de los logicos)
+#   INSTALL_HERMES        instalar Hermes Agent (default: true)
+#   INSTALL_PAPERCLIP     instalar Paperclip (default: true)
+#   INSTALL_ODYSSEUS      instalar Odysseus (default: true)
+#   INSTALL_NLM           instalar NotebookLM MCP (default: true)
+#   INSTALL_DAGU          instalar Dagu scheduler (default: true)
+#   INSTALL_UPTIME_KUMA   instalar Uptime Kuma (default: true)
+#   INSTALL_GLANCE        instalar Glance dashboard (default: true)
+#   LAB_INSTALL_SSH_SERVER "true" para instalar OpenSSH Server
 #
-# Arquitectura de dos capas:
-#   Capa Nativa (Windows bare metal):
-#     Hermes, Claude Code, OpenCode, MoolMesh, Playwright MCP, Engram,
-#     NotebookLM MCP -- servicios gestionados con Servy
-#   Capa WSL2 (Ubuntu):
-#     Docker CE, Paperclip, Dagu, SearXNG, Portainer, Uptime Kuma, Glance
-#     -- systemd dentro de WSL2, port forwarding via netsh portproxy
-#
-# Docker Desktop NO se instala --es incompatible con networkingMode=mirrored.
-# Se usa docker-ce nativo dentro de WSL2.
+# Arquitectura:
+#   Todo nativo Windows. Servicios gestionados por Servy.
+#   SearXNG se consume remoto via Tailscale (no soportado nativo).
 #
 # Guia completa: docs/WINDOWS-INSTALL.md
 # ============================================================
@@ -54,7 +47,7 @@ Write-Host " |  _ \| | | | | | || | \___ \ | | | |_) / _ \ | |_) |" -ForegroundC
 Write-Host " | |_) | |_| | |_| || |  ___) || | |  _ / ___ \|  __/ " -ForegroundColor Cyan
 Write-Host " |____/ \___/ \___/ |_| |____/ |_| |_|/_/   \_\_|    " -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  AI Agent Lab Bootstrap -- Windows 10/11 (via WSL2 + Docker CE)" -ForegroundColor Cyan
+Write-Host "  AI Agent Lab Bootstrap -- Windows Nativo (Scoop + Servy)" -ForegroundColor Cyan
 Write-Host ""
 
 # --- Deteccion de sistema ------------------------------------
@@ -62,60 +55,46 @@ $osBuild = [System.Environment]::OSVersion.Version.Build
 $isWin11 = $osBuild -ge 22000
 $osName = if ($isWin11) { "Windows 11" } else { "Windows 10" }
 $osDisplayVersion = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
+$editionId = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").EditionID
+$isLTSC = $editionId -match "EnterpriseS"
 
-# --- Configuracion --------------------------------------------
+# --- Configuracion -------------------------------------------
+if (-not $env:INSTALL_HERMES)      { $env:INSTALL_HERMES = "true" }
+if (-not $env:INSTALL_PAPERCLIP)   { $env:INSTALL_PAPERCLIP = "true" }
+if (-not $env:INSTALL_ODYSSEUS)    { $env:INSTALL_ODYSSEUS = "true" }
+if (-not $env:INSTALL_NLM)         { $env:INSTALL_NLM = "true" }
+if (-not $env:INSTALL_DAGU)        { $env:INSTALL_DAGU = "true" }
+if (-not $env:INSTALL_UPTIME_KUMA) { $env:INSTALL_UPTIME_KUMA = "true" }
+if (-not $env:INSTALL_GLANCE)      { $env:INSTALL_GLANCE = "true" }
 if (-not $env:LAB_INSTALL_SSH_SERVER) { $env:LAB_INSTALL_SSH_SERVER = "false" }
-if (-not $env:INSTALL_PAPERCLIP) { $env:INSTALL_PAPERCLIP = "true" }
-if (-not $env:INSTALL_HERMES)    { $env:INSTALL_HERMES = "true" }
-if (-not $env:INSTALL_NLM)       { $env:INSTALL_NLM = "true" }
-if (-not $env:INSTALL_NATIVE_AGENTS) { $env:INSTALL_NATIVE_AGENTS = "true" }
-
-# Si agentes nativos activos, Hermes NO va en WSL2 (evitar duplicacion)
-if (-not $env:INSTALL_HERMES_WSL) {
-  $env:INSTALL_HERMES_WSL = if ($env:INSTALL_NATIVE_AGENTS -eq "true") { "false" } else { $env:INSTALL_HERMES }
-}
 
 $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
 $totalCPU = (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
-$wslMem = if ($env:WSL_MEMORY) { $env:WSL_MEMORY } else { [math]::Max(4, [math]::Floor($totalRAM / 2)) }
-$wslCpu = if ($env:WSL_PROCESSORS) { $env:WSL_PROCESSORS } else { [math]::Max(2, [math]::Floor($totalCPU / 2)) }
 
-$networkLabel = if ($isWin11) { "Mirrored (comparte IP del host)" } else { "NAT (IP propia)" }
-$userLabel = if ($env:LAB_USER_LINUX) { $env:LAB_USER_LINUX } else { "(detectado auto)" }
-
-$hermesLocation = if ($env:INSTALL_HERMES -eq "true") { "nativo (Windows)" } else { "no" }
-$hermesWslLabel = if ($env:INSTALL_HERMES_WSL -eq "true") { "si (WSL2)" } else { "no" }
-$moolmeshLocation = if ($env:INSTALL_NATIVE_AGENTS -eq "true") { "nativo (Windows)" } else { "WSL2" }
-
-Write-Host "  Sistema operativo    : $osName $osDisplayVersion (build $osBuild)"
-Write-Host "  Hardware detectado   : ${totalRAM}GB RAM, $totalCPU CPUs"
-Write-Host "  WSL2 asignado        : ${wslMem}GB RAM, $wslCpu CPUs"
-Write-Host "  Networking WSL2      : $networkLabel"
-Write-Host "  Usuario Linux (WSL2) : $userLabel"
+Write-Host "  Sistema operativo : $osName $osDisplayVersion (build $osBuild)"
+Write-Host "  Edicion           : $editionId$(if ($isLTSC) { ' (LTSC)' })"
+Write-Host "  Hardware           : ${totalRAM}GB RAM, $totalCPU CPUs"
 Write-Host ""
-Write-Host "  --- Distribucion de servicios ---"
-Write-Host "  Paperclip            : WSL2 (Docker)  [$env:INSTALL_PAPERCLIP]"
-Write-Host "  Hermes               : $hermesLocation"
-Write-Host "  Hermes en WSL2       : $hermesWslLabel"
-Write-Host "  MoolMesh             : $moolmeshLocation"
-Write-Host "  NotebookLM MCP       : nativo (Windows)  [$env:INSTALL_NLM]"
-Write-Host "  Claude Code/OpenCode : nativo (Windows)"
-Write-Host "  Agentes nativos      : $env:INSTALL_NATIVE_AGENTS"
-Write-Host "  SSH Server           : $env:LAB_INSTALL_SSH_SERVER"
-if (-not $isWin11) {
-  Write-Host ""
-  Write-Host "  NOTA: Windows 10 --sin mirrored networking ni features" -ForegroundColor Yellow
-  Write-Host "  experimentales de WSL2. Ver docs/WINDOWS-INSTALL.md" -ForegroundColor Yellow
-}
+Write-Host "  --- Servicios a instalar ---"
+Write-Host "  Hermes             : $env:INSTALL_HERMES"
+Write-Host "  Paperclip          : $env:INSTALL_PAPERCLIP"
+Write-Host "  Odysseus           : $env:INSTALL_ODYSSEUS"
+Write-Host "  Dagu               : $env:INSTALL_DAGU"
+Write-Host "  Uptime Kuma        : $env:INSTALL_UPTIME_KUMA"
+Write-Host "  Glance             : $env:INSTALL_GLANCE"
+Write-Host "  NotebookLM MCP     : $env:INSTALL_NLM"
+Write-Host "  SSH Server         : $env:LAB_INSTALL_SSH_SERVER"
+Write-Host ""
+Write-Host "  SearXNG            : remoto (via Tailscale)" -ForegroundColor DarkGray
 Write-Host ""
 $confirm = Read-Host "  Continuar con esta configuracion? [S/n]"
 if (-not $confirm) { $confirm = "S" }
 if ($confirm -notmatch "^[Ss]$") { Write-Host "Abortado."; exit 0 }
 
-# --- Modulos --------------------------------------------------
+# --- Modulos -------------------------------------------------
 . "$ScriptDir\modules\windows-host\01-host-prereqs.ps1"
-. "$ScriptDir\modules\windows-host\02-wsl-provision.ps1"
-if ($env:INSTALL_NATIVE_AGENTS -eq "true") {
-  . "$ScriptDir\modules\windows-host\03-native-agents.ps1"
-}
-. "$ScriptDir\modules\windows-host\04-post-install.ps1"
+. "$ScriptDir\modules\windows-host\02-native-services.ps1"
+. "$ScriptDir\modules\windows-host\03-ai-agents.ps1"
+. "$ScriptDir\modules\windows-host\04-platform.ps1"
+. "$ScriptDir\modules\windows-host\05-connectivity.ps1"
+. "$ScriptDir\modules\windows-host\06-post-install.ps1"
