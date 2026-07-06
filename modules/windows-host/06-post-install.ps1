@@ -64,32 +64,17 @@ foreach ($agent in $agents) {
   }
 }
 
-# nlm (uv tool pone scripts como .exe o .cmd segun version)
-$nlmFound = Get-Command nlm -ErrorAction SilentlyContinue
-if (-not $nlmFound -and (Get-Command uv -ErrorAction SilentlyContinue)) {
-  $uvBin = (uv tool dir --bin 2>$null)
-  if ($uvBin) { $uvBin = $uvBin.Trim() }
-  $searchDirs = @(
-    $uvBin,
-    (Join-Path $env:USERPROFILE ".local\bin"),
-    (Join-Path $env:APPDATA "uv\tools\.bin"),
-    (Join-Path $env:LOCALAPPDATA "uv\tools\.bin")
-  ) | Where-Object { $_ -and (Test-Path $_) }
-  foreach ($d in $searchDirs) {
-    if (Get-ChildItem -Path $d -Filter "nlm.*" -ErrorAction SilentlyContinue) {
-      $nlmFound = $true; break
-    }
+# NotebookLM MCP (CLI v2.x = 'notebooklm-mcp', no 'nlm')
+if ($env:INSTALL_NLM -eq "true") {
+  $nlmFound = $false
+  if (Get-Command uv -ErrorAction SilentlyContinue) {
+    $nlmCheck = uv tool list 2>$null | Select-String "notebooklm-mcp"
+    if ($nlmCheck) { $nlmFound = $true }
   }
-  if (-not $nlmFound) {
-    $uvToolCheck = uv tool list 2>$null | Select-String "notebooklm"
-    if ($uvToolCheck) { $nlmFound = $true }
-  }
-}
-if ($nlmFound) {
-  $report += @{ Name = "nlm (NLM MCP)"; Status = "OK"; Detail = "via uv tool" }
-} else {
-  if ($env:INSTALL_NLM -eq "true") {
-    $report += @{ Name = "nlm (NLM MCP)"; Status = "FALTA"; Detail = "no en PATH" }
+  if ($nlmFound) {
+    $report += @{ Name = "NotebookLM MCP"; Status = "OK"; Detail = "via uv tool" }
+  } else {
+    $report += @{ Name = "NotebookLM MCP"; Status = "FALTA"; Detail = "" }
     $hasErrors = $true
   }
 }
@@ -212,7 +197,7 @@ Write-Host "     curl http://localhost:7000               (Odysseus)"
 Write-Host ""
 Write-Host "  -- 6. LOGINS DE AGENTES -----------------------------------------"
 Write-Host "     claude           <- completar login interactivo"
-Write-Host "     nlm login        <- NotebookLM (abre Chromium)"
+Write-Host "     uv tool run notebooklm-mcp login  <- NotebookLM"
 Write-Host "     gh auth login    <- GitHub CLI"
 Write-Host ""
 Write-Host "  -- 7. CONFIGURAR MCP SERVERS ------------------------------------"
@@ -220,7 +205,7 @@ Write-Host "     En Claude Code y OpenCode, configurar MCP:"
 Write-Host "       MoolMesh:      localhost:5200"
 Write-Host "       Engram:        stdio (binario local)"
 Write-Host "       Playwright:    stdio (@playwright/mcp, headed)"
-Write-Host "       NotebookLM:    stdio (nlm)"
+Write-Host "       NotebookLM:    stdio (notebooklm-mcp)"
 Write-Host "       Paperclip:     localhost:3100"
 Write-Host ""
 Write-Host "  -- 8. DAGU ADMIN ------------------------------------------------"

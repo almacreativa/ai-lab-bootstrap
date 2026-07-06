@@ -208,52 +208,21 @@ if (-not (Get-Command playwright-mcp -ErrorAction SilentlyContinue)) {
 }
 
 # --- NotebookLM MCP -------------------------------------------
+# CLI v2.x expone 'notebooklm-mcp' (no 'nlm')
 if ($env:INSTALL_NLM -eq "true") {
-  if (-not (Get-Command nlm -ErrorAction SilentlyContinue)) {
-    if (Get-Command uv -ErrorAction SilentlyContinue) {
+  if (Get-Command uv -ErrorAction SilentlyContinue) {
+    $nlmInstalled = uv tool list 2>$null | Select-String "notebooklm-mcp"
+    if (-not $nlmInstalled) {
       Write-LabLog "Instalando NotebookLM MCP..."
       uv tool install notebooklm-mcp
-      # uv tool pone scripts en distintos dirs segun la version/OS
-      $uvToolBin = (uv tool dir --bin 2>$null)
-      if ($uvToolBin) { $uvToolBin = $uvToolBin.Trim() }
-      $searchPaths = @(
-        $uvToolBin,
-        (Join-Path $env:USERPROFILE ".local\bin"),
-        (Join-Path $env:APPDATA "uv\tools\.bin"),
-        (Join-Path $env:LOCALAPPDATA "uv\tools\.bin")
-      ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-
-      foreach ($sp in $searchPaths) {
-        $userPath = [Environment]::GetEnvironmentVariable("PATH","User")
-        if ($userPath -notlike "*$sp*") {
-          [Environment]::SetEnvironmentVariable("PATH","$userPath;$sp","User")
-          Write-LabLog "Agregado $sp al PATH del usuario."
-        }
-      }
-      Refresh-LabPath
-      if (Get-Command nlm -ErrorAction SilentlyContinue) {
-        Write-LabLog "NotebookLM MCP instalado ($(nlm --version 2>$null))."
+      $nlmVer = uv tool run notebooklm-mcp --version 2>$null
+      if ($nlmVer) {
+        Write-LabLog "NotebookLM MCP instalado ($nlmVer)."
       } else {
-        # Buscar nlm.exe en los paths conocidos
-        $nlmExe = $null
-        foreach ($sp in $searchPaths) {
-          $candidate = Join-Path $sp "nlm.exe"
-          if (Test-Path $candidate) { $nlmExe = $candidate; break }
-        }
-        if ($nlmExe) {
-          Write-LabLog "NotebookLM MCP instalado en: $nlmExe"
-          Write-LabWarn "Cerrar y reabrir PowerShell para que PATH tome efecto."
-        } else {
-          Write-LabWarn "NotebookLM MCP: instalacion completa pero nlm.exe no encontrado."
-          Write-LabWarn "Paths buscados:"
-          foreach ($sp in $searchPaths) { Write-LabWarn "  $sp" }
-          Write-LabWarn "Ejecutar: uv tool run nlm --version (para verificar)"
-        }
+        Write-LabWarn "NotebookLM MCP: instalacion fallo."
       }
-    }
-  } else {
-    Write-LabLog "NotebookLM MCP ya instalado, verificando updates..."
-    if (Get-Command uv -ErrorAction SilentlyContinue) {
+    } else {
+      Write-LabLog "NotebookLM MCP ya instalado, verificando updates..."
       $upgradeOutput = uv tool upgrade notebooklm-mcp 2>&1
       if ($upgradeOutput -match "upgraded|Updated") {
         Write-LabLog "NotebookLM MCP actualizado: $upgradeOutput"
@@ -261,6 +230,8 @@ if ($env:INSTALL_NLM -eq "true") {
         Write-LabLog "NotebookLM MCP al dia."
       }
     }
+  } else {
+    Write-LabWarn "uv no disponible, no se puede instalar NotebookLM MCP."
   }
 } else {
   Write-LabLog "NotebookLM MCP no solicitado, saltando."
