@@ -207,23 +207,34 @@ if (-not (Get-Command playwright-mcp -ErrorAction SilentlyContinue)) {
   Write-LabLog "Playwright MCP ya instalado, saltando."
 }
 
-# --- NotebookLM MCP -------------------------------------------
-# CLI v2.x expone 'notebooklm-mcp' (no 'nlm')
+# --- NotebookLM MCP (jacob-bd/notebooklm-mcp-cli) ----------------
+# Paquete PyPI: notebooklm-mcp-cli (CLI: nlm)
 if ($env:INSTALL_NLM -eq "true") {
   if (Get-Command uv -ErrorAction SilentlyContinue) {
-    $nlmInstalled = uv tool list 2>$null | Select-String "notebooklm-mcp"
+    $nlmInstalled = uv tool list 2>$null | Select-String "notebooklm-mcp-cli"
     if (-not $nlmInstalled) {
-      Write-LabLog "Instalando NotebookLM MCP..."
-      uv tool install notebooklm-mcp
-      $nlmVer = uv tool run notebooklm-mcp --version 2>$null
-      if ($nlmVer) {
-        Write-LabLog "NotebookLM MCP instalado ($nlmVer)."
+      # Desinstalar paquete incorrecto si existe
+      $wrongPkg = uv tool list 2>$null | Select-String "notebooklm-mcp\s"
+      if ($wrongPkg) {
+        Write-LabWarn "Desinstalando paquete incorrecto (notebooklm-mcp)..."
+        uv tool uninstall notebooklm-mcp 2>$null
+      }
+      Write-LabLog "Instalando NotebookLM MCP (notebooklm-mcp-cli)..."
+      uv tool install notebooklm-mcp-cli
+      Refresh-LabPath
+      if (Get-Command nlm -ErrorAction SilentlyContinue) {
+        Write-LabLog "NotebookLM MCP instalado ($(nlm --version 2>$null))."
       } else {
-        Write-LabWarn "NotebookLM MCP: instalacion fallo."
+        $nlmCheck = uv tool run --from notebooklm-mcp-cli nlm --version 2>$null
+        if ($nlmCheck) {
+          Write-LabLog "NotebookLM MCP instalado ($nlmCheck). Puede requerir reabrir PowerShell para PATH."
+        } else {
+          Write-LabWarn "NotebookLM MCP: instalacion fallo."
+        }
       }
     } else {
       Write-LabLog "NotebookLM MCP ya instalado, verificando updates..."
-      $upgradeOutput = uv tool upgrade notebooklm-mcp 2>&1
+      $upgradeOutput = uv tool upgrade notebooklm-mcp-cli 2>&1
       if ($upgradeOutput -match "upgraded|Updated") {
         Write-LabLog "NotebookLM MCP actualizado: $upgradeOutput"
       } else {

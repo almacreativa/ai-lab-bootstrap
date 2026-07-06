@@ -64,17 +64,19 @@ foreach ($agent in $agents) {
   }
 }
 
-# NotebookLM MCP (CLI v2.x = 'notebooklm-mcp', no 'nlm')
+# NotebookLM MCP (paquete: notebooklm-mcp-cli, CLI: nlm)
 if ($env:INSTALL_NLM -eq "true") {
-  $nlmFound = $false
-  if (Get-Command uv -ErrorAction SilentlyContinue) {
-    $nlmCheck = uv tool list 2>$null | Select-String "notebooklm-mcp"
+  $nlmFound = Get-Command nlm -ErrorAction SilentlyContinue
+  if (-not $nlmFound -and (Get-Command uv -ErrorAction SilentlyContinue)) {
+    $nlmCheck = uv tool list 2>$null | Select-String "notebooklm-mcp-cli"
     if ($nlmCheck) { $nlmFound = $true }
   }
   if ($nlmFound) {
-    $report += @{ Name = "NotebookLM MCP"; Status = "OK"; Detail = "via uv tool" }
+    $nlmVer = ""
+    try { $nlmVer = nlm --version 2>$null } catch {}
+    $report += @{ Name = "nlm (NLM MCP)"; Status = "OK"; Detail = $nlmVer }
   } else {
-    $report += @{ Name = "NotebookLM MCP"; Status = "FALTA"; Detail = "" }
+    $report += @{ Name = "nlm (NLM MCP)"; Status = "FALTA"; Detail = "" }
     $hasErrors = $true
   }
 }
@@ -197,7 +199,7 @@ Write-Host "     curl http://localhost:7000               (Odysseus)"
 Write-Host ""
 Write-Host "  -- 6. LOGINS DE AGENTES -----------------------------------------"
 Write-Host "     claude           <- completar login interactivo"
-Write-Host "     uv tool run notebooklm-mcp login  <- NotebookLM"
+Write-Host "     nlm login        <- NotebookLM (abre Chromium)"
 Write-Host "     gh auth login    <- GitHub CLI"
 Write-Host ""
 Write-Host "  -- 7. CONFIGURAR MCP SERVERS ------------------------------------"
@@ -205,7 +207,7 @@ Write-Host "     En Claude Code y OpenCode, configurar MCP:"
 Write-Host "       MoolMesh:      localhost:5200"
 Write-Host "       Engram:        stdio (binario local)"
 Write-Host "       Playwright:    stdio (@playwright/mcp, headed)"
-Write-Host "       NotebookLM:    stdio (notebooklm-mcp)"
+Write-Host "       NotebookLM:    stdio (nlm)"
 Write-Host "       Paperclip:     localhost:3100"
 Write-Host ""
 Write-Host "  -- 8. DAGU ADMIN ------------------------------------------------"
