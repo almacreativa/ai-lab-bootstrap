@@ -151,8 +151,8 @@ if ($env:INSTALL_HERMES -eq "true") {
 }
 
 # --- MoolMesh -------------------------------------------------
-if (-not (Get-Command mool -ErrorAction SilentlyContinue)) {
-  if (Get-Command uv -ErrorAction SilentlyContinue) {
+if (Get-Command uv -ErrorAction SilentlyContinue) {
+  if (-not (Get-Command mool -ErrorAction SilentlyContinue)) {
     Write-LabLog "Instalando MoolMesh..."
     uv tool install moolmesh
     $uvToolBin = (uv tool dir --bin 2>$null)
@@ -170,10 +170,16 @@ if (-not (Get-Command mool -ErrorAction SilentlyContinue)) {
       Write-LabWarn "MoolMesh: instalacion completa pero no en PATH."
     }
   } else {
-    Write-LabWarn "uv no disponible, no se puede instalar MoolMesh."
+    Write-LabLog "MoolMesh ya instalado ($(mool --version 2>$null)), verificando updates..."
+    $upgradeOutput = uv tool upgrade moolmesh 2>&1
+    if ($upgradeOutput -match "upgraded|Updated") {
+      Write-LabLog "MoolMesh actualizado: $upgradeOutput"
+    } else {
+      Write-LabLog "MoolMesh al dia."
+    }
   }
 } else {
-  Write-LabLog "MoolMesh ya instalado ($(mool --version 2>$null)), saltando."
+  Write-LabWarn "uv no disponible, no se puede instalar MoolMesh."
 }
 
 # Registrar MoolMesh en Servy
@@ -246,7 +252,15 @@ if ($env:INSTALL_NLM -eq "true") {
       }
     }
   } else {
-    Write-LabLog "NotebookLM MCP ya instalado, saltando."
+    Write-LabLog "NotebookLM MCP ya instalado, verificando updates..."
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+      $upgradeOutput = uv tool upgrade notebooklm-mcp 2>&1
+      if ($upgradeOutput -match "upgraded|Updated") {
+        Write-LabLog "NotebookLM MCP actualizado: $upgradeOutput"
+      } else {
+        Write-LabLog "NotebookLM MCP al dia."
+      }
+    }
   }
 } else {
   Write-LabLog "NotebookLM MCP no solicitado, saltando."
