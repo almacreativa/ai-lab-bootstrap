@@ -162,6 +162,24 @@ else
   report_gap "backup" "configured" "backup no configurado"
 fi
 
+# 7. Verificar copias de scripts en ~/.hermes/scripts/ (Hermes no acepta
+# symlinks — los crons ejecutan copias físicas que pueden divergir del canónico)
+echo "[core-guard] Verificando copias de scripts de Hermes..."
+if [ -d "$HOME/.hermes/scripts" ]; then
+  for copia in "$HOME/.hermes/scripts"/*.sh; do
+    [ -e "$copia" ] || continue
+    nombre=$(basename "$copia")
+    canonico="$LAB_DIR/scripts/$nombre"
+    if [ ! -f "$canonico" ]; then
+      report_gap "hermes-script" "$nombre" "copia en ~/.hermes/scripts/ sin canónico en scripts/"
+    elif [ "$(sha256sum "$copia" | cut -d' ' -f1)" = "$(sha256sum "$canonico" | cut -d' ' -f1)" ]; then
+      report_ok "hermes-script" "$nombre"
+    else
+      report_drift "hermes-script" "$nombre" "hash igual al canónico" "divergente — cp $canonico ~/.hermes/scripts/"
+    fi
+  done
+fi
+
 # Emitir resultados
 echo ""
 echo "[core-guard] Resultados:"
