@@ -220,12 +220,9 @@ scripts/
 ├── cleanup-tmp.sh          ← limpieza de archivos temporales
 ├── dagu-mcp.sh             ← bridge stdio→HTTP para Dagu MCP (JWT + mcp-proxy)
 └── lab-daily-briefing.sh   ← briefing diario de infra (no-agent → agent si alertas)
-skills/                     ← skills de Hermes (plantillas genéricas)
-├── devops/paperclip/       ← operación de Paperclip (routines, heartbeat, DB)
-├── wiki-ingest/            ← destilación de sesiones → wiki knowledge
-├── hermes-history-ingest/  ← ingest de historial de Hermes
-├── software-development/   ← skills de desarrollo (subagent-driven, session-continuity)
-└── autonomous-ai-agents/   ← skills para agentes autónomos
+skills/                     ← skills de knowledge management (las demás skills
+├── wiki-ingest/            ←   son personalización natural de cada instancia)
+└── hermes-history-ingest/  ← ingest de historial de Hermes
 ops/                        ← framework operativo (copiado a ~/ai-lab/ops/ por módulo 05)
 ├── guards/                 ← scripts de auditoría automática
 │   ├── core-guard.sh       ← audita core contra core-manifest.yaml
