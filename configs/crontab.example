@@ -7,7 +7,7 @@
 #   @reboot sleep 15 && $HOME/ai-lab/scripts/lab-session.sh --boot
 #
 # Para migrar: crear DAG YAML equivalente en ~/.config/dagu/dags/
-# Docs: docs/DAGU_OPERACION.md en el repo i7local-lab
+# Docs: docs/DAGU_OPERACION.md en el repo lab-private
 # =============================================================================
 
 # --- Lab session auto-start on reboot (ÚNICO cron activo) ---

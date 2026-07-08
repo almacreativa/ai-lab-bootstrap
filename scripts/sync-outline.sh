@@ -4,7 +4,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LAB_DIR="$(dirname "$SCRIPT_DIR")"
 KNOWLEDGE_DIR="$LAB_DIR/knowledge"
-DOCS_DIR="$LAB_DIR/repos/i7local-lab/docs"
+DOCS_DIR="$LAB_DIR/repos/lab-private/docs"
 DELIVERABLES_BASE="$LAB_DIR/ops"
 COLLECTIONS_FILE="$KNOWLEDGE_DIR/.outline-collections.env"
 

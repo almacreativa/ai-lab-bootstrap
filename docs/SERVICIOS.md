@@ -115,7 +115,7 @@ Ver siempre `crontab -l`. Los scripts arriba documentan *qué hace cada uno*, no
 horario exacto (que puede cambiar). `systemctl list-timers` no tiene nada propio del
 lab — toda la automatización propia vive en `crontab -l` + `hermes.service`.
 
-**Explícitamente fuera de este inventario:** `repos/{hermes-agent,paperclip,ai-lab-bootstrap,i7local-lab}/scripts/`
+**Explícitamente fuera de este inventario:** `repos/{hermes-agent,paperclip,ai-lab-bootstrap,lab-private}/scripts/`
 son scripts del código fuente de cada repo (build/test/release upstream), no
 automatización operativa del lab.
 

@@ -235,6 +235,6 @@ if [ "$ERRORS" -eq 0 ]; then
   echo "Verificar visualmente en Centro de Comando: http://${LAB_IP}:9000"
 else
   echo -e "${RED}${ERRORS} servicio(s) con error — ver mensajes arriba.${NC}"
-  echo "Referencia: ~/ai-lab/repos/i7local-lab/docs/SERVICIOS.md"
+  echo "Referencia: ~/ai-lab/repos/lab-private/docs/SERVICIOS.md"
 fi
 echo ""
