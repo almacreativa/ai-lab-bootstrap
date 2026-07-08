@@ -213,7 +213,6 @@ scripts/
 ├── paperclip-boot-cleanup.sh ← limpieza post-restart de Paperclip
 ├── paperclip-watchdog.sh   ← monitor de salud de contenedores
 ├── paperclip-mcp-company.sh.template ← template para instancias MCP por empresa
-├── backup-deliverables.sh  ← espejo de workspaces de agentes al host
 ├── weekly-ingest.sh        ← pipeline semanal de destilación de sesiones
 ├── nlm-sync.sh             ← sync de knowledge a NotebookLM
 ├── security-apply-sudo.sh  ← baseline de seguridad UFW
@@ -475,7 +474,7 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | Pipeline de destilación | sesiones crudas → knowledge estructurado por empresa (cron semanal, incremental) | `scripts/weekly-ingest.sh` + `knowledge-pipeline/` + `skills/` |
 | Mem0 self-hosted | memoria episódica transversal (API REST, namespace por empresa, embeddings locales) | `stacks/mem0/` |
 | Outline | wiki pública curada con flujo de borradores (Google como OIDC + Tailscale serve) | `stacks/outline/` |
-| Espejos de deliverables | workspaces de agentes → host, separados por empresa | `scripts/backup-deliverables.sh` |
+| Espejos de deliverables | workspaces y dirs compartidos → `knowledge/<empresa>/outputs/` | `scripts/sync-company.sh` |
 | Baseline de seguridad | UFW para bare metal + regla de oro: contenedores se protegen con BINDS, no UFW | `scripts/security-apply-sudo.sh` |
 
 **Documentación:**

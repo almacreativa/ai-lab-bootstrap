@@ -91,7 +91,7 @@ CAPAS DE ACCESO (solo lectura del curado):
 | Ingest semanal multi-empresa (lock, healthcheck, continuar-ante-fallo, Telegram, Kuma) | `scripts/weekly-ingest.sh` |
 | Extractores incrementales de sesiones (Claude Code JSONL, OpenCode SQLite) | `knowledge-pipeline/` |
 | Skills de destilación para el orquestador (clasificación lab/empresa, patrones de deliverables) | `skills/` |
-| Espejo de deliverables por empresa | `scripts/backup-deliverables.sh` |
+| Espejo de deliverables por empresa | `scripts/sync-company.sh` (→ `knowledge/<empresa>/outputs/`) |
 | Sync automático a Outline (espejo completo con jerarquía) | `scripts/sync-outline.sh` |
 | Sync semi-manual a NotebookLM | `scripts/nlm-sync.sh` |
 | Detección de updates con ventana de estabilidad + SearXNG | `scripts/maintenance-check.sh` |

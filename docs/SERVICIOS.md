@@ -107,7 +107,6 @@ No son scripts sueltos sino mini-servicios con su propio `docker-compose.yml`/ap
 
 ### Fuera de `ai-lab/` por completo
 
-- `~/<empresa>/ops/backup-deliverables.sh` — cron `0 */6 * * *`, backup global de `deliverables*` por empresa (independiente del real-time que ya maneja `sync-company.sh`)
 - `hermes.service` (systemd, `Restart=always`) — `ExecStart=/usr/local/bin/hermes-start.sh`, único servicio bare-metal fuera de Docker, lee `~/.hermes/.env`
 
 ### Cron — fuente de verdad

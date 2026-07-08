@@ -80,7 +80,7 @@ y aplica UPDATE a la DB. Modos: `all`, `<empresa>`, `<empresa> <agente>`.
    Verificar:
    - Respuesta correcta (→ conoce la empresa por el promptTemplate)
    - Archivo en su workspace (regla universal de output)
-   - Archivo sincronizado en `deliverables-<slug>/` tras correr `backup-deliverables.sh`
+   - Archivo sincronizado en `knowledge/<slug>/outputs/` tras correr `sync-company.sh`
    - Memoria en el namespace de SU empresa
 
 ## Modificar instrucciones de un agente existente

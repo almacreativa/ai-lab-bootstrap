@@ -46,10 +46,10 @@ Operacion, mantenimiento y recuperacion del sistema de conocimiento del lab.
    de los agentes nuevos** (la portabilidad copia archivos de la empresa origen):
    `docker exec paperclip-server-1 find /paperclip/instances/default/workspaces/<agent_id> -mindepth 1 -delete`
 2. `mkdir -p ~/ai-lab/knowledge/companies/<id8>/{deliverables,sessions,wiki}` (id8 = primeros 8 chars del UUID)
-3. `backup-deliverables.sh`: agregar el prefijo de la empresa al `case` de routing
-4. `weekly-ingest.sh`: agregar la empresa al `case` de `DELIVERABLES_DIR`
+3. `sync-config/<slug>.json`: registrar el dir compartido en `extra_container_dirs` (lo espeja `sync-company.sh`)
+4. `weekly-ingest.sh`: agregar la empresa al `case` de `DELIVERABLES_DIR` (→ `knowledge/<slug>/outputs`)
 5. Cron: linea nueva escalonada (+30 min de la anterior)
-6. Compose de Paperclip: mounts `companies/<id8>` (ro) + `companies/<id8>/wiki` (rw, anidado) + crear `/paperclip/<nombre>-deliverables` en el contenedor + bloque en backup script
+6. Compose de Paperclip: mounts `companies/<id8>` (ro) + `companies/<id8>/wiki` (rw, anidado) + crear `/paperclip/<nombre>-deliverables` en el contenedor + entrada en sync-config
 7. Plugin LLM Wiki: configurar wiki root `/paperclip/knowledge/companies/<id8>/wiki` para esa empresa (Settings del plugin, panel de la empresa)
 8. Mem0: solo convencion — `user_id="company_<id8>"`; actualizar `shared/templates/mem0-namespacing.md`
 9. Outline: coleccion `<Empresa>` (API: `collections.create`) + registrar UUID en `.outline-collections.env`

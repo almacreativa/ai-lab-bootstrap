@@ -32,7 +32,7 @@ bash ~/ai-lab/scripts/onboard-company.sh "Nombre de Empresa"
 
 Automatiza: empresa en DB, proyecto LLM Wiki, agentes (CEO, CSO, Analyst, Wiki Maintainer), directorios knowledge, cron de ingest semanal, templates S2/S3 esqueleto.
 
-Pasos manuales post-script (A-H): volumes en docker-compose, backup-deliverables, plugin LLM Wiki, completar templates, deploy promptTemplate.
+Pasos manuales post-script (A-H): volumes en docker-compose, sync-config del dir compartido, plugin LLM Wiki, completar templates, deploy promptTemplate.
 
 **Pitfall:** NUNCA crear empresa por INSERT directo — faltan 10+ tablas y configuraciones. Ver `ONBOARDING_EMPRESA.md`.
 
@@ -165,7 +165,7 @@ Ver `references/zombie-cleanup.md` en el skill de Paperclip.
 | | Routines (Paperclip) | Crons del host |
 |---|---|---|
 | **Qué hacen** | Crean issues → agente ejecuta | Operan filesystem/git |
-| **Ejemplos** | "Producir contenido", "Informe semanal" | backup-deliverables, weekly-ingest |
+| **Ejemplos** | "Producir contenido", "Informe semanal" | sync-company, weekly-ingest |
 | **Dónde viven** | DB `routines` + `routine_triggers` | `crontab -l` |
 | **Quién las procesa** | Scheduler interno de Paperclip | cron del OS |
 | **Complementarios** | Sí — uno no reemplaza al otro | |

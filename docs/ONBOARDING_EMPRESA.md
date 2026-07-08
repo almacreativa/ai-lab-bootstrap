@@ -49,8 +49,10 @@ Dos líneas en `volumes:` del server — **el curado (ro) antes del wiki (rw)**:
 **Por qué importa:** los agentes comparten contenedor con bash/file tools — lo que no
 está montado es lo único que de verdad no pueden leer (ver ADR #11 en `DECISIONES_KM.md`).
 
-### B) Bloque de sync del dir compartido en `backup-deliverables.sh`
-Copiar el bloque `if docker exec ... test -d /paperclip/<slug>-deliverables` existente.
+### B) Registrar el dir compartido en `sync-config/<slug>.json`
+Agregar a `extra_container_dirs`:
+`{"container_path": "/paperclip/<slug>-deliverables", "output_name": "<slug>-deliverables"}`
+(`sync-company.sh` lo espeja a `~/ai-lab/knowledge/<slug>/outputs/`).
 
 ### C) Plugin LLM Wiki (UI, panel de la empresa)
 `Local wiki folder = /paperclip/knowledge/companies/<id8>/wiki` → Health check 3× Yes.
@@ -93,7 +95,7 @@ Tarea a un agente de la empresa:
 Validar:
 - El agente conoce la empresa (→ promptTemplate llegó)
 - Archivo en su workspace (`/paperclip/instances/default/workspaces/<AGENT_UUID>/`)
-- Archivo sincronizado en `deliverables-<slug>/` después de correr `backup-deliverables.sh`
+- Archivo sincronizado en `knowledge/<slug>/outputs/` después de correr `sync-company.sh`
 - Página visible en `companies/<id8>/wiki/` (y en Obsidian)
 - Memoria en su namespace y NO en el de otras empresas:
 ```bash

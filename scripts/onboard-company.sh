@@ -5,7 +5,7 @@
 # Uso:    bash onboard-company.sh "<NombreEmpresa>"
 #         (la empresa ya debe existir en Paperclip — crearla primero en la UI)
 #
-# Automatiza: detección de ID/prefijo, carpetas de knowledge, routing de espejos,
+# Automatiza: detección de ID/prefijo, carpetas de knowledge,
 #             mapa del ingest, cron escalonado, colecciones de Outline, doc de Mem0,
 #             AGENTS.md esqueleto.
 # Imprime guía para lo manual: mounts del compose, plugin LLM Wiki, instrucciones
@@ -55,21 +55,11 @@ fi
 mkdir -p "${KNOWLEDGE}/companies/${ID8}"/{deliverables,sessions,wiki}
 log "Knowledge: ${KNOWLEDGE}/companies/${ID8}/{deliverables,sessions,wiki} ✓"
 
-# ── 4. Routing del espejo de deliverables (backup-deliverables.sh) ───────────
-if ! grep -q "    $PREFIX)" "${OPS}/backup-deliverables.sh"; then
-  python3 - "$PREFIX" "$SLUG" "${OPS}/backup-deliverables.sh" << 'PYEOF'
-import sys
-prefix, slug, path = sys.argv[1], sys.argv[2], sys.argv[3]
-s = open(path).read()
-anchor = '    *)   company_dest='
-nueva = f'    {prefix}) company_dest="${{HOME}}/ai-lab/ops/deliverables-{slug}" ;;\n'
-s = s.replace(anchor, nueva + anchor, 1)
-open(path, 'w').write(s)
-PYEOF
-  log "Routing de espejo: $PREFIX → deliverables-$SLUG ✓"
-else
-  log "Routing de espejo ya existía ✓"
-fi
+# ── 4. Espejo de deliverables ────────────────────────────────────────────────
+# Lo cubre sync-company.sh: los workspaces y dirs compartidos del contenedor se
+# espejan a ~/ai-lab/knowledge/<slug>/outputs/ según stacks/sync-config/<slug>.json
+# (ver paso manual B para registrar el dir compartido <slug>-deliverables).
+log "Espejo de deliverables: via sync-company.sh + sync-config/$SLUG.json (paso B)"
 
 # ── 5. Mapa del ingest semanal (weekly-ingest.sh) ────────────────────────────
 if ! grep -q "  $ID8)" "${SCRIPTS}/weekly-ingest.sh"; then
@@ -78,13 +68,13 @@ import sys
 id8, slug, path = sys.argv[1], sys.argv[2], sys.argv[3]
 s = open(path).read()
 anchor = '  *)        DELIVERABLES_DIR='
-nueva = f'  {id8}) DELIVERABLES_DIR="$HOME/ai-lab/ops/deliverables-{slug}" ;;\n'
+nueva = f'  {id8}) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/{slug}/outputs" ;;\n'
 s = s.replace(anchor, nueva + anchor, 1)
 open(path, 'w').write(s)
 PYEOF
   log "Mapa de ingest: $ID8 → deliverables-$SLUG ✓"
 fi
-bash -n "${SCRIPTS}/weekly-ingest.sh" && bash -n "${OPS}/backup-deliverables.sh"
+bash -n "${SCRIPTS}/weekly-ingest.sh"
 
 # ── 6. Cron escalonado (último ingest + 30 min, mismo domingo) ───────────────
 if ! crontab -l 2>/dev/null | grep -q "weekly-ingest.sh $ID8"; then
@@ -235,8 +225,10 @@ A) Compose de Paperclip (~/ai-lab/repos/paperclip/docker/docker-compose.yml),
       cd ~/ai-lab/repos/paperclip/docker && docker compose up -d server
       docker exec paperclip-server-1 mkdir -p /paperclip/$SLUG-deliverables
 
-B) backup-deliverables.sh: agregar bloque de sync del dir compartido (copiar el
-   bloque de <empresa>-deliverables existente, cambiando $SLUG).
+B) sync-config: crear/editar ~/ai-lab/stacks/sync-config/$SLUG.json y registrar
+   el dir compartido en extra_container_dirs:
+      {"container_path": "/paperclip/$SLUG-deliverables", "output_name": "$SLUG-deliverables"}
+   (sync-company.sh lo espejará a ~/ai-lab/knowledge/$SLUG/outputs/).
 
 C) Plugin LLM Wiki (UI de Paperclip, panel de $NAME):
    Local wiki folder = /paperclip/knowledge/companies/$ID8/wiki

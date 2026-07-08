@@ -29,9 +29,9 @@ KNOWLEDGE_DIR="$HOME/ai-lab/knowledge/companies/${COMPANY_ID}"
 # y el directorio de deliverables de cada empresa.
 LAB_PRIMARY="${LAB_PRIMARY:-changeme-empresa-a}"
 case "$COMPANY_ID" in
-  changeme-empresa-a) DELIVERABLES_DIR="$HOME/ai-lab/ops/deliverables-empresa-a" ;;
-  changeme-empresa-b) DELIVERABLES_DIR="$HOME/ai-lab/ops/deliverables-empresa-b" ;;
-  *)                  DELIVERABLES_DIR="$HOME/ai-lab/ops/deliverables-${COMPANY_ID}" ;;
+  changeme-empresa-a) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/empresa-a/outputs" ;;
+  changeme-empresa-b) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/empresa-b/outputs" ;;
+  *)                  DELIVERABLES_DIR="$HOME/ai-lab/knowledge/companies/${COMPANY_ID}/deliverables" ;;
 esac
 SESSIONS_DIR="$KNOWLEDGE_DIR/sessions"
 EXTRACTORS_DIR="$HOME/shared/demos/process_sessions"
