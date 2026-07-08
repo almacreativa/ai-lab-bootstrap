@@ -72,7 +72,7 @@ def main():
         except Exception:
             date = datetime.date.today().isoformat()
 
-        fname = f"{date}_{slugify(query)}.md"
+        fname = f"{date}_{slugify(query, 52)}_{rid[-6:]}.md"  # sufijo id: evita colisión de slugs
         dest = DEST_DIR / fname
 
         sources = d.get("sources") or []

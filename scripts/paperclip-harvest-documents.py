@@ -79,7 +79,7 @@ def main():
         dest_dir = company_dir(d["company"])
         dest_dir.mkdir(parents=True, exist_ok=True)
         date = (d["updated"] or "")[:10] or datetime.date.today().isoformat()
-        fname = f"{date}_{slugify(d['title'])}.md"
+        fname = f"{date}_{slugify(d['title'], 52)}_{did[-6:]}.md"  # sufijo id: evita colisión de slugs
         dest = dest_dir / fname
 
         content = "\n".join([

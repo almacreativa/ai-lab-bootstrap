@@ -47,7 +47,8 @@ if [ "${N_ACCOUNTS:-0}" = "0" ]; then
 fi
 
 RESP=$(api "/api/email/list?folder=${FOLDER}&filter=${FILTER}&limit=${LIMIT}")
-TMP=$(mktemp)
+mkdir -p "$OUT_DIR"
+TMP=$(mktemp -p "$OUT_DIR" .harvest-XXXXXX)  # mismo FS que el destino → mv atómico (§5.4)
 FILTER="$FILTER" FOLDER="$FOLDER" python3 -c "
 import json, sys, os, datetime
 d = json.loads(sys.stdin.read() or '{}')

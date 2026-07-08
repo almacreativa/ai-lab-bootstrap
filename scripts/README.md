@@ -37,6 +37,12 @@ instancia (espejo versionado del sistema vivo).
 | `paperclip-mcp-company.sh.template` | Template del MCP de Paperclip por empresa |
 | `paperclip-*.sh` | Monitores y pollers de Paperclip (crons de Hermes) |
 | `nlm-sync.sh` | Sincronización de cuadernos NotebookLM |
+| `odysseus-research.sh` | Deep Research en Odysseus (internal token; start/status/wait/report) |
+| `odysseus-email-check.sh` | Triage de emails de Odysseus → `knowledge/daily/` |
+| `odysseus-task-poll.sh` | Tareas programadas + research activo → state file |
+| `odysseus-harvest-research.py` | Cosecha research de Odysseus → `knowledge/research/odysseus/` |
+| `paperclip-harvest-documents.py` | Cosecha documents de la DB de Paperclip → `knowledge/<empresa>/outputs/db-documents/` |
+| `odysseus-index-knowledge.py` | Indexador RAG del hub (se despliega al data dir de Odysseus; incremental) |
 | `create-routine.sh` | Alta de rutinas/crons de Hermes |
 | `cleanup-tmp.sh` | Limpieza de temporales |
 | `security-apply-sudo.sh` | Endurecimiento de sudo |
