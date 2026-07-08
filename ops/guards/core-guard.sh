@@ -261,6 +261,23 @@ for s in m.get('scripts') or []:
     print(f\"{s['name']}\t{len(s.get('consumers') or [])}\")
 " 2>/dev/null)
 
+# 11. Detectar conflictos de Syncthing en las carpetas sincronizadas
+# Los .sync-conflict-* silenciosos son la forma en que el hub se degrada
+# sin que nadie lo note (plan integración conocimientos §5.4).
+echo "[core-guard] Verificando conflictos de Syncthing..."
+for sync_dir in "$HOME/ai-lab/knowledge" "$HOME/ai-lab/ops" "$HOME/shared/demos"; do
+  [ -d "$sync_dir" ] || continue
+  etiqueta=$(basename "$sync_dir")
+  conflictos=$(find "$sync_dir" -name "*.sync-conflict-*" -not -path "*/.stversions/*" 2>/dev/null | head -5)
+  if [ -z "$conflictos" ]; then
+    report_ok "sync-conflict" "$etiqueta"
+  else
+    n=$(echo "$conflictos" | wc -l)
+    primero=$(echo "$conflictos" | head -1 | sed "s|$HOME/||")
+    report_gap "sync-conflict" "$etiqueta" "$n conflicto(s) — ej: $primero — resolver y borrar"
+  fi
+done
+
 # Emitir resultados
 echo ""
 echo "[core-guard] Resultados:"

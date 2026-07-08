@@ -200,6 +200,7 @@ for other in scripts:
 # Herramientas de invocación manual deliberada — no son huérfanos
 MANUAL_SCRIPTS = {
     "onboard-company.sh", "create-routine.sh", "security-apply-sudo.sh",
+    "odysseus-research.sh",
     "nlm-sync.sh", "lab-session.sh",
 }
 

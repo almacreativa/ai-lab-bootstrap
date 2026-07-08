@@ -6,7 +6,7 @@
 #         (la empresa ya debe existir en Paperclip — crearla primero en la UI)
 #
 # Automatiza: detección de ID/prefijo, carpetas de knowledge,
-#             mapa del ingest, cron escalonado, colecciones de Outline, doc de Mem0,
+#             mapa del ingest, paso en el DAG semanal de Dagu, doc de Mem0,
 #             AGENTS.md esqueleto.
 # Imprime guía para lo manual: mounts del compose, plugin LLM Wiki, instrucciones
 #             de agentes, limpieza de workspaces clonados.
@@ -16,14 +16,23 @@
 set -euo pipefail
 
 NAME="${1:?Uso: onboard-company.sh \"<NombreEmpresa>\" (debe existir ya en Paperclip)}"
-KNOWLEDGE="${HOME}/ai-lab/knowledge"
-OPS="${HOME}/ai-lab/ops"
-SCRIPTS="${HOME}/ai-lab/scripts"
+KNOWLEDGE="$HOME/ai-lab/knowledge"
+OPS="$HOME/ai-lab/ops"
+SCRIPTS="$HOME/ai-lab/scripts"
 
 log() { echo "[onboard] $*"; }
 
+if [[ "$(uname)" == "Darwin" ]]; then
+  IS_MACOS=true
+  DB_CMD="psql -U paperclip -d paperclip -tA"
+  PCP_BASE="$HOME/ai-lab/repos/paperclip"
+else
+  IS_MACOS=false
+  DB_CMD="docker exec paperclip-db-1 psql -U paperclip -d paperclip -tA"
+fi
+
 # ── 1. Detectar la empresa en Paperclip ──────────────────────────────────────
-ROW=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -tA \
+ROW=$($DB_CMD \
   -c "SELECT id, issue_prefix FROM companies WHERE name ILIKE '${NAME}';")
 [ -z "$ROW" ] && { log "ERROR: empresa '$NAME' no existe en Paperclip. Crearla en la UI primero."; exit 1; }
 UUID=$(echo "$ROW" | cut -d'|' -f1)
@@ -33,27 +42,36 @@ SLUG=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-')
 log "Empresa: $NAME | UUID: $UUID | id8: $ID8 | prefijo: $PREFIX | slug: $SLUG"
 
 # ── 2. ¿Workspaces clonados? (la portabilidad copia contenido de la origen) ──
-AGENTS=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -tA \
+AGENTS=$($DB_CMD \
   -c "SELECT name, id FROM agents WHERE company_id='${UUID}';")
 if [ -n "$AGENTS" ]; then
   log "Agentes existentes:"
   echo "$AGENTS" | sed 's/^/    /'
   while IFS='|' read -r aname aid; do
-    CNT=$(docker exec paperclip-server-1 sh -c \
-      "ls -A /paperclip/instances/default/workspaces/$aid 2>/dev/null | wc -l" || echo 0)
+    if $IS_MACOS; then
+      CNT=$(ls -A "${PCP_BASE}/instances/default/workspaces/$aid" 2>/dev/null | wc -l || echo 0)
+    else
+      CNT=$(docker exec paperclip-server-1 sh -c \
+        "ls -A /paperclip/instances/default/workspaces/$aid 2>/dev/null | wc -l" || echo 0)
+    fi
     if [ "${CNT:-0}" -gt 0 ]; then
-      log "⚠️  Workspace de '$aname' tiene $CNT items — si la empresa fue CLONADA, contiene datos de la origen."
+      log "Workspace de '$aname' tiene $CNT items — si la empresa fue CLONADA, contiene datos de la origen."
       read -rp "    ¿Vaciar workspace de $aname? [s/N] " R
-      [ "$R" = "s" ] && docker exec paperclip-server-1 \
-        find "/paperclip/instances/default/workspaces/$aid" -mindepth 1 -delete \
-        && log "    vaciado ✓"
+      if [ "$R" = "s" ]; then
+        if $IS_MACOS; then
+          find "${PCP_BASE}/instances/default/workspaces/$aid" -mindepth 1 -delete && log "    vaciado"
+        else
+          docker exec paperclip-server-1 \
+            find "/paperclip/instances/default/workspaces/$aid" -mindepth 1 -delete && log "    vaciado"
+        fi
+      fi
     fi
   done <<< "$AGENTS"
 fi
 
 # ── 3. Carpetas de knowledge ─────────────────────────────────────────────────
-mkdir -p "${KNOWLEDGE}/companies/${ID8}"/{deliverables,sessions,wiki}
-log "Knowledge: ${KNOWLEDGE}/companies/${ID8}/{deliverables,sessions,wiki} ✓"
+mkdir -p "$KNOWLEDGE/companies/$ID8"/{deliverables,sessions,wiki}
+log "Knowledge: $KNOWLEDGE/companies/$ID8/{deliverables,sessions,wiki} ✓"
 
 # ── 4. Espejo de deliverables ────────────────────────────────────────────────
 # Lo cubre sync-company.sh: los workspaces y dirs compartidos del contenedor se
@@ -62,8 +80,8 @@ log "Knowledge: ${KNOWLEDGE}/companies/${ID8}/{deliverables,sessions,wiki} ✓"
 log "Espejo de deliverables: via sync-company.sh + sync-config/$SLUG.json (paso B)"
 
 # ── 5. Mapa del ingest semanal (weekly-ingest.sh) ────────────────────────────
-if ! grep -q "  $ID8)" "${SCRIPTS}/weekly-ingest.sh"; then
-  python3 - "$ID8" "$SLUG" "${SCRIPTS}/weekly-ingest.sh" << 'PYEOF'
+if ! grep -q "  $ID8)" "$SCRIPTS/weekly-ingest.sh"; then
+  python3 - "$ID8" "$SLUG" "$SCRIPTS/weekly-ingest.sh" << 'PYEOF'
 import sys
 id8, slug, path = sys.argv[1], sys.argv[2], sys.argv[3]
 s = open(path).read()
@@ -74,61 +92,42 @@ open(path, 'w').write(s)
 PYEOF
   log "Mapa de ingest: $ID8 → deliverables-$SLUG ✓"
 fi
-bash -n "${SCRIPTS}/weekly-ingest.sh"
+bash -n "$SCRIPTS/weekly-ingest.sh"
 
-# ── 6. Cron escalonado (último ingest + 30 min, mismo domingo) ───────────────
-if ! crontab -l 2>/dev/null | grep -q "weekly-ingest.sh $ID8"; then
-  LAST_MIN=$(crontab -l | grep "weekly-ingest.sh" | awk '{print $2*60+$1}' | sort -n | tail -1)
-  NEW_TOTAL=$(( ${LAST_MIN:-120} + 90 ))
-  NH=$((NEW_TOTAL / 60)); NM=$((NEW_TOTAL % 60))
-  (crontab -l 2>/dev/null; echo "$NM $NH * * 0 ${SCRIPTS}/weekly-ingest.sh $ID8 >> ${HOME}/ai-lab/logs/ingest-$ID8.log 2>&1") | crontab -
-  log "Cron: domingo ${NH}:$(printf '%02d' $NM) ✓"
-fi
-
-# ── 7. Colecciones de Outline ────────────────────────────────────────────────
-if [ -f "${HOME}/ai-lab/stacks/outline/.apikey" ]; then
-  python3 - "$NAME" "$ID8" << 'PYEOF'
-import json, sys, urllib.request
-name, id8 = sys.argv[1], sys.argv[2]
-key = open(f"{__import__('os').environ['HOME']}/ai-lab/stacks/outline/.apikey").read().strip()
-def api(path, payload):
-    req = urllib.request.Request(f'http://127.0.0.1:3010/api/{path}',
-        data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-    return json.load(urllib.request.urlopen(req))['data']
-existing = {c['name']: c['id'] for c in api('collections.list', {"limit": 50})}
-cname = name
-desc = f"Documentación publicada de {name} ({id8})."
-if cname not in existing:
-    c = api('collections.create', {"name": cname, "description": desc})
-    coll_id = c['id']
-    print(f"[onboard] Outline: colección '{cname}' → {coll_id}")
-else:
-    coll_id = existing[cname]
-    print(f"[onboard] Outline: '{cname}' ya existía → {coll_id}")
+# ── 6. Paso de ingest en el DAG semanal de Dagu ──────────────────────────────
+# (el crontab quedó retirado — la fuente de scheduling es Dagu desde 2026-06-20)
+DAG_FILE="$HOME/.config/dagu/dags/weekly-ingest.yaml"
+if [ -f "$DAG_FILE" ] && ! grep -q "weekly-ingest.sh $ID8" "$DAG_FILE"; then
+  python3 - "$ID8" "$SLUG" "$DAG_FILE" << 'PYEOF'
+import re, sys
+id8, slug, path = sys.argv[1], sys.argv[2], sys.argv[3]
+s = open(path).read()
+steps = re.findall(r'^  - name: (\S+)', s, re.M)
+depends = f"    depends: [{steps[-1]}]\n" if steps else ""
+new = (f"  - name: ingest-{slug}\n"
+       f"    run: $HOME_PLACEHOLDER/ai-lab/scripts/weekly-ingest.sh {id8}\n"
+       f"    timeout_sec: 5400\n"
+       f"    continue_on:\n      failure: true\n"
+       f"{depends}"
+       f"    retry_policy:\n      limit: 2\n      interval_sec: 120\n\n")
 import os
-env_file = os.path.expanduser("~/ai-lab/knowledge/.outline-collections.env")
-entry = f"OUTLINE_{id8}={coll_id}"
-if os.path.exists(env_file):
-    content = open(env_file).read()
-    if f"OUTLINE_{id8}=" not in content:
-        open(env_file, 'a').write(f"\n{entry}\n")
-        print(f"[onboard] .outline-collections.env: {entry} agregado")
-    else:
-        print(f"[onboard] .outline-collections.env: OUTLINE_{id8} ya existía")
+new = new.replace("$HOME_PLACEHOLDER", os.path.expanduser("~"))
+if "handler_on:" in s:
+    s = s.replace("handler_on:", new + "handler_on:", 1)
 else:
-    open(env_file, 'w').write(f"{entry}\n")
-    print(f"[onboard] .outline-collections.env creado con {entry}")
+    s = s.rstrip() + "\n\n" + new
+open(path, "w").write(s)
 PYEOF
+  log "DAG weekly-ingest: paso ingest-$SLUG agregado ✓ (revisar con: dagu status)"
 else
-  log "⚠️  Outline .apikey no encontrada — crear colección '$NAME' a mano y registrar UUID en .outline-collections.env"
+  log "DAG weekly-ingest: paso ya existía (o DAG no encontrado) ✓"
 fi
 
-# ── 7.5 Goal de empresa en Paperclip ─────────────────────────────────────────
-GOAL_EXISTS=$(docker exec paperclip-db-1 psql -U paperclip -d paperclip -tA \
+# ── 7. Goal de empresa en Paperclip ────────────────────────────────────────
+GOAL_EXISTS=$($DB_CMD \
   -c "SELECT count(*) FROM goals WHERE company_id = '$UUID' AND level = 'company';")
 if [ "$GOAL_EXISTS" = "0" ]; then
-  docker exec paperclip-db-1 psql -U paperclip -d paperclip -c "
+  $DB_CMD -c "
     INSERT INTO goals (id, company_id, title, level, status, created_at, updated_at)
     VALUES (gen_random_uuid(), '$UUID',
       '[COMPLETAR: misión general de $NAME — qué hace, para quién, qué la diferencia]',
@@ -139,7 +138,7 @@ else
 fi
 
 # ── 8. Convención Mem0 (documentar el namespace) ─────────────────────────────
-NSDOC="${KNOWLEDGE}/shared/templates/mem0-namespacing.md"
+NSDOC="$KNOWLEDGE/shared/templates/mem0-namespacing.md"
 if [ -f "$NSDOC" ] && ! grep -q "company_$ID8" "$NSDOC"; then
   python3 - "$ID8" "$NAME" "$NSDOC" << 'PYEOF'
 import sys
@@ -153,21 +152,21 @@ PYEOF
 fi
 
 # ── 9.5 Plantilla S2 (company prompt) ────────────────────────────────────────
-S2_DEST="${KNOWLEDGE}/shared/templates/prompt-section2-${SLUG}.md"
+S2_DEST="$KNOWLEDGE/shared/templates/prompt-section2-${SLUG}.md"
 if [ ! -f "$S2_DEST" ]; then
   sed -e "s/{{COMPANY_NAME}}/$NAME/g" -e "s/{{PREFIX}}/$PREFIX/g" \
-    "${KNOWLEDGE}/shared/templates/prompt-section2-template.md" > "$S2_DEST"
+    "$KNOWLEDGE/shared/templates/prompt-section2-template.md" > "$S2_DEST"
   log "S2 prompt: $S2_DEST creado → COMPLETAR descripción de la empresa ✓"
 else
   log "S2 prompt: $S2_DEST ya existía ✓"
 fi
 
 # ── 9.6 Esqueletos S3 (agent prompts) ───────────────────────────────────────
-S3_DIR="${KNOWLEDGE}/shared/templates/prompt-section3"
+S3_DIR="$KNOWLEDGE/shared/templates/prompt-section3"
 while IFS='|' read -r aname aid; do
   [ -z "$aname" ] && continue
   aslug=$(echo "$aname" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-  s3file="${S3_DIR}/${SLUG}-${aslug}.md"
+  s3file="$S3_DIR/${SLUG}-${aslug}.md"
   if [ ! -f "$s3file" ]; then
     cat > "$s3file" << S3EOF
 Your role: $aname
@@ -185,7 +184,7 @@ S3EOF
 done <<< "$AGENTS"
 
 # ── 9. AGENTS.md esqueleto (completar a mano o con un agente) ────────────────
-AGMD="${KNOWLEDGE}/companies/${ID8}/AGENTS.md"
+AGMD="$KNOWLEDGE/companies/$ID8/AGENTS.md"
 if [ ! -f "$AGMD" ]; then
   cat > "$AGMD" << EOF
 # $NAME — Contexto para Agentes
@@ -204,7 +203,7 @@ Prefijo de issues: \`$PREFIX\`.
 - Deliverables finales: /paperclip/$SLUG-deliverables/
 
 ## Convenciones
-- Todo en español. Commits firmados solo por el equipo, sin co-author de IA.
+- Todo en español. Commits como "Alma Creativa" sin co-author de IA.
 - NUNCA credenciales en wiki, memorias ni deliverables.
 - Aislamiento: prohibido leer/referenciar datos de otras empresas.
 EOF
@@ -247,9 +246,9 @@ F) Smoke test: tarea a un agente — leer AGENTS.md + wiki_write_page + Mem0.
 G) (Cuando tenga contenido) Cuaderno NLM propio + push monitor en Kuma.
 
 H) Deploy de promptTemplate a los agentes de $NAME:
-   1. Completar ${KNOWLEDGE}/shared/templates/prompt-section2-${SLUG}.md (descripción de empresa)
-   2. Completar cada archivo en ${KNOWLEDGE}/shared/templates/prompt-section3/${SLUG}-*.md (roles)
-   3. Ejecutar: bash ${SCRIPTS}/deploy-agent-prompts.sh $SLUG
+   1. Completar $KNOWLEDGE/shared/templates/prompt-section2-${SLUG}.md (descripción de empresa)
+   2. Completar cada archivo en $KNOWLEDGE/shared/templates/prompt-section3/${SLUG}-*.md (roles)
+   3. Ejecutar: bash $SCRIPTS/deploy-agent-prompts.sh $SLUG
 ═══════════════════════════════════════════════════════════════════
 EOF
 log "Onboarding automático completo. Validar con los pasos A-G."
