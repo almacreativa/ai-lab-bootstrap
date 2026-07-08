@@ -238,7 +238,7 @@ ops/                        ← framework operativo (copiado a ~/ai-lab/ops/ por
 └── runbooks/               ← lecciones aprendidas codificadas
 docs/                       ← documentación genérica del lab (ver tabla abajo)
 knowledge-pipeline/         ← scripts Python del pipeline de destilación
-stacks/                     ← docker-compose de servicios (Outline, Mem0, Glance, etc.)
+stacks/                     ← docker-compose de servicios (Mem0, Glance, Odysseus, etc.)
 ```
 
 ### Directorios creados en el host por el bootstrap
@@ -470,7 +470,7 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 |---|---|---|
 | Pipeline de destilación | sesiones crudas → knowledge estructurado por empresa (cron semanal, incremental) | `scripts/weekly-ingest.sh` + `knowledge-pipeline/` + `skills/` |
 | Mem0 self-hosted | memoria episódica transversal (API REST, namespace por empresa, embeddings locales) | `stacks/mem0/` |
-| Outline | wiki pública curada con flujo de borradores (Google como OIDC + Tailscale serve) | `stacks/outline/` |
+| Outline | (RETIRADO 2026-06-28 — compose se conserva como referencia) | `stacks/outline/` |
 | Espejos de deliverables | workspaces y dirs compartidos → `knowledge/<empresa>/outputs/` | `scripts/sync-company.sh` |
 | Baseline de seguridad | UFW para bare metal + regla de oro: contenedores se protegen con BINDS, no UFW | `scripts/security-apply-sudo.sh` |
 
@@ -491,7 +491,10 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | Documento | Contenido |
 |---|---|
 | `docs/GUIA_OPERADOR.md` | Guía del operador — rutina diaria, puertas de entrada, flujos de trabajo |
-| `docs/KNOWLEDGE_MANAGEMENT.md` | Arquitectura KM — pipeline, Mem0, Outline, decisiones |
+| `docs/KNOWLEDGE_MANAGEMENT.md` | Arquitectura KM — pipeline, Mem0, decisiones |
+| `docs/KNOWLEDGE_HUB.md` | Contrato genérico de carpetas del hub de conocimiento |
+| `docs/NOTEBOOKLM_MCP.md` | Conexión NotebookLM (CLI, MCP, gateway, workflow research) |
+| `docs/PAPERCLIP_MCP.md` | MCP genérico de Paperclip por empresa |
 | `docs/KM_PLAN.md` | Plan de ejecución KM v3.2 — las 8 fases implementadas |
 | `docs/KM_RUNBOOK.md` | Runbook de operaciones — mantenimiento, recuperación, troubleshooting |
 | `docs/SERVICIOS.md` | Inventario de servicios — puertos, contenedores, estado |

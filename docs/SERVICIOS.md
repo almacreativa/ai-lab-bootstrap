@@ -11,8 +11,7 @@
 | Paperclip DB (pgvector/pg17, vol `paperclip_pgdata_v2`) | Docker | `127.0.0.1:5432` | ~170MB | local |
 | Mem0 (wrapper FastAPI) | Docker | `127.0.0.1:8765` + red `paperclip_default` (`mem0:8765`) | ~380MB limit | local + contenedores |
 | Ollama (nomic-embed-text) | Docker | `127.0.0.1:11434` | ~512MB limit | local + red mem0 |
-| Outline | Docker | `127.0.0.1:3010` ← `tailscale serve` → `https://<HOSTNAME>.<TAILSCALE_DOMAIN>` | ~1GB limit | tailnet (HTTPS) |
-| Outline Postgres 16 / Redis 7 | Docker | internos | 384/256MB limit | — |
+| Outline | (RETIRADO 2026-06-28 — datos preservados en volumes) |
 | Uptime Kuma | Docker | `<SERVER_IP>:3001` + redes outline/mem0 | 128MB limit | tailnet |
 | SearXNG | Docker | `127.0.0.1:8080` | ~150MB | local |
 | Portainer | Docker | `<SERVER_IP>:9443` | ~80MB | tailnet |
@@ -80,7 +79,7 @@ bootstrap salvo que se indique lo contrario.
 | `onboard-company.sh` | manual | Onboarding completo de empresa nueva (aislamiento en todas las capas) |
 | `sync-company.sh <slug>` | cron escalonado por empresa (minutos distintos para evitar solapamiento) | entradas/ → validar → issue → contenedor → outputs/ → repo. Config en `stacks/sync-config/<slug>.json` |
 | `sync-<slug>-knowledge.sh` | manual | Sync específico de una empresa: contenedor↔repo de contenido propio |
-| `sync-outline.sh --all` | cron `15,45 * * * *` | Espejo completo del knowledge a Outline |
+| `sync-outline.sh` | (obsoleto — Outline retirado; la visibilidad la da Odysseus sobre knowledge/) |
 | `weekly-ingest.sh <uuid>` | cron domingo (escalonado por empresa) | Ingesta semanal de KM por empresa (Fase 6) |
 | `nlm-sync.sh` | manual | Sync semi-manual knowledge → cuaderno NotebookLM (Fase 5) |
 | `nlm-distill.sh` | manual | Destilación batch: cuaderno NLM → knowledge curado |
@@ -101,7 +100,7 @@ No son scripts sueltos sino mini-servicios con su propio `docker-compose.yml`/ap
 |---|---|
 | `mem0/` | `app.py` + `Dockerfile` + `docker-compose.yml` — wrapper FastAPI que corre como contenedor `mem0` |
 | `nlm-gateway/` | `app.py` + `start.sh` + `notebooks.yaml` — gateway HTTP a NotebookLM (puerto 8770, bare-metal, cron `@reboot sleep 20`) |
-| `outline/` | `docker-compose.yml` del wiki Outline |
+| `outline/` | compose del wiki Outline (retirado, referencia) |
 | `paperclip-config/` | `opencode.jsonc` — config compartida de los agentes Paperclip |
 | `sync-config/` | `<slug>.json` por empresa — config que lee `sync-company.sh` |
 
@@ -136,7 +135,7 @@ Guia completa de instalacion: `docs/WINDOWS-INSTALL.md`.
 | MoolMesh | bare metal (uv tool) | :5200 | MoolMesh |
 | Dagu | binario Go | :8480 | Dagu |
 | Uptime Kuma | Node.js | :3001 | UptimeKuma |
-| Glance | binario Go | :5678 | Glance |
+| Glance | binario Go | :9000 | Glance |
 | Paperclip | Node.js (PG embebido) | :3100 | Paperclip |
 | Odysseus | bare metal (uv + Python 3.12) | :7000 | Odysseus |
 | Claude Code | interactivo | -- | No |
