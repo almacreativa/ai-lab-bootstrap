@@ -22,6 +22,10 @@ fi
 
 ISSUES=()
 
+# Estado estructurado para el aggregator (plan unificación monitoreo/operación)
+STATUS_DIR="${LAB_DIR:-$HOME/ai-lab}/ops-local/status"
+CHECKS=()   # formato: tipo|nombre|estado|accion
+
 notify() {
   local msg="$1"
   echo "[NOTIFY] $msg"
@@ -37,6 +41,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
       echo "  $svc no está corriendo — intentando cargar..."
       launchctl load "$HOME/Library/LaunchAgents/${svc}.plist" 2>/dev/null || true
       ISSUES+=("$svc no estaba corriendo — se cargó")
+      CHECKS+=("service|$svc|running|loaded")
+    else
+      CHECKS+=("service|$svc|running|")
     fi
   done
 
@@ -58,6 +65,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
       echo "  $svc: no responde en $url — reiniciando..."
       launchctl kickstart -k "gui/$(id -u)/com.almacreativa.${svc}" 2>/dev/null || true
       ISSUES+=("$svc no respondía en $url — se reinició")
+      CHECKS+=("endpoint|$svc|fail|restarted")
+    else
+      CHECKS+=("endpoint|$svc|ok|")
     fi
   done
 
@@ -80,10 +90,14 @@ else
         echo "  $container existe pero no está corriendo — iniciando..."
         docker start "$container" >/dev/null 2>&1
         ISSUES+=("$container estaba detenido — se inició")
+        CHECKS+=("container|$container|running|restarted")
       else
         echo "  $container no existe — fuera de alcance de este script"
+        CHECKS+=("container|$container|absent|")
         continue
       fi
+    else
+      CHECKS+=("container|$container|running|")
     fi
 
     current=$(container_networks "$container")
@@ -92,9 +106,13 @@ else
         echo "  $container: falta red $net — conectando..."
         if docker network connect "$net" "$container" 2>&1; then
           ISSUES+=("$container reconectado a red $net")
+          CHECKS+=("network|$container:$net|connected|reconnected")
         else
           ISSUES+=("$container: fallo al conectar a $net")
+          CHECKS+=("network|$container:$net|disconnected|connect-failed")
         fi
+      else
+        CHECKS+=("network|$container:$net|connected|")
       fi
     done
   done
@@ -110,8 +128,25 @@ else
       echo "  $container: no responde en $url — reiniciando contenedor..."
       docker restart "$container" >/dev/null 2>&1
       ISSUES+=("$container no respondía en $url — se reinició")
+      CHECKS+=("endpoint|$container|fail|restarted")
+    else
+      CHECKS+=("endpoint|$container|ok|")
     fi
   done
+
+  # NLM Gateway (systemd user; responde 404 en / pero eso significa vivo)
+  # DBUS: necesario cuando corre desde Dagu (system service) — mismo fix que bootstrap-guard
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+  NLM_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:8770" 2>/dev/null || echo "000")
+  if [[ "$NLM_CODE" == "000" ]]; then
+    echo "  nlm-gateway: no responde en :8770 — reiniciando servicio..."
+    systemctl --user restart nlm-gateway 2>/dev/null || true
+    ISSUES+=("nlm-gateway no respondía en :8770 — se reinició")
+    CHECKS+=("endpoint|nlm-gateway|fail|restarted")
+  else
+    CHECKS+=("endpoint|nlm-gateway|ok|")
+  fi
 fi
 
 if [[ ${#ISSUES[@]} -gt 0 ]]; then
@@ -121,5 +156,30 @@ $(printf '  - %s\n' "${ISSUES[@]}")"
 else
   echo "  Todo sano. Sin acciones."
 fi
+
+# ── Archivo de estado para el aggregator ──
+mkdir -p "$STATUS_DIR"
+{
+  printf '%s\n' "${CHECKS[@]}"
+  echo "==="
+  printf '%s\n' "${ISSUES[@]}"
+} | STATUS_FILE="$STATUS_DIR/health.json" python3 -c "
+import json, os, sys, datetime
+lines = sys.stdin.read().split('\n')
+sep = lines.index('===')
+checks = [l for l in lines[:sep] if l]
+issues = [l for l in lines[sep+1:] if l]
+out = {
+    'timestamp': datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+    'checks': [],
+    'issues_found': len(issues),
+    'actions_taken': issues,
+}
+for c in checks:
+    t, name, state, action = (c.split('|') + ['', ''])[:4]
+    out['checks'].append({'type': t, 'name': name, 'status': state, 'action': action or None})
+with open(os.environ['STATUS_FILE'], 'w') as f:
+    json.dump(out, f, ensure_ascii=False, indent=1)
+" 2>/dev/null || echo "  [WARN] no se pudo escribir health.json"
 
 echo "=== fin $(date -u '+%H:%M UTC') ==="

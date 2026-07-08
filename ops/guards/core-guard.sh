@@ -180,6 +180,87 @@ if [ -d "$HOME/.hermes/scripts" ]; then
   done
 fi
 
+# 8. Verificar crons de Hermes contra jobs.json
+echo "[core-guard] Verificando crons de Hermes..."
+while IFS=$'\t' read -r cron_name cron_enabled; do
+  [ -z "$cron_name" ] && continue
+  estado=$(python3 -c "
+import json
+try:
+    jobs = json.load(open('$HOME/.hermes/cron/jobs.json')).get('jobs', [])
+except Exception:
+    print('no-jobs-file'); raise SystemExit
+for j in jobs:
+    if j.get('name') == '''$cron_name''':
+        print('enabled' if j.get('enabled') else 'disabled')
+        break
+else:
+    print('missing')
+" 2>/dev/null || echo "error")
+  case "$estado" in
+    enabled)  report_ok "hermes-cron" "$cron_name" ;;
+    disabled)
+      if [ "$cron_enabled" = "True" ]; then
+        report_drift "hermes-cron" "$cron_name" "enabled" "deshabilitado"
+      else
+        report_ok "hermes-cron" "$cron_name"
+      fi ;;
+    missing)  report_gap "hermes-cron" "$cron_name" "ya no existe en jobs.json" ;;
+    *)        report_gap "hermes-cron" "$cron_name" "no se pudo leer jobs.json" ;;
+  esac
+done < <(python3 -c "
+import yaml
+m = yaml.safe_load(open('$MANIFEST'))
+for c in m.get('hermes_crons') or []:
+    print(f\"{c['name']}\t{c.get('enabled')}\")
+" 2>/dev/null)
+
+# 9. Verificar MCPs configurados (rutas de scripts/binarios válidas)
+echo "[core-guard] Verificando MCPs configurados..."
+while IFS=$'\t' read -r mcp_scope mcp_name mcp_cmd; do
+  [ -z "$mcp_name" ] && continue
+  ok=true
+  for token in $mcp_cmd; do
+    case "$token" in
+      /*)  [ -e "$token" ] || ok=false ;;
+      *.sh|*.py)
+        [ -e "$token" ] || [ -e "$HOME/ai-lab/scripts/$token" ] || ok=false ;;
+    esac
+  done
+  # El comando base debe existir (binario en PATH o ruta)
+  base=$(echo "$mcp_cmd" | awk '{print $1}')
+  if [ -n "$base" ] && [[ "$base" != /* ]]; then
+    command -v "$base" >/dev/null 2>&1 || ok=false
+  fi
+  if $ok; then
+    report_ok "mcp" "$mcp_scope/$mcp_name"
+  else
+    report_gap "mcp" "$mcp_scope/$mcp_name" "comando o ruta inválida: $mcp_cmd"
+  fi
+done < <(python3 -c "
+import yaml
+m = yaml.safe_load(open('$MANIFEST'))
+for scope, entries in (m.get('mcps') or {}).items():
+    for e in entries or []:
+        print(f\"{scope}\t{e['name']}\t{e.get('command','')}\")
+" 2>/dev/null)
+
+# 10. Detectar scripts huérfanos (sin ningún consumidor conocido)
+echo "[core-guard] Verificando scripts huérfanos..."
+while IFS=$'\t' read -r script_name n_consumers; do
+  [ -z "$script_name" ] && continue
+  if [ "$n_consumers" = "0" ]; then
+    report_drift "script" "$script_name" "con consumidor" "huérfano — ningún DAG/cron/servicio lo ejecuta"
+  else
+    report_ok "script" "$script_name"
+  fi
+done < <(python3 -c "
+import yaml
+m = yaml.safe_load(open('$MANIFEST'))
+for s in m.get('scripts') or []:
+    print(f\"{s['name']}\t{len(s.get('consumers') or [])}\")
+" 2>/dev/null)
+
 # Emitir resultados
 echo ""
 echo "[core-guard] Resultados:"

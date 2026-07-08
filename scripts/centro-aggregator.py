@@ -43,6 +43,7 @@ DAGU_URL = f"http://{LAB_IP}:8480"
 MOOLMESH_URL = f"http://{LAB_IP}:5200"
 HERMES_CRONS = os.path.expanduser("~/.hermes/cron/jobs.json")
 CPU_TEMP_LOG = os.path.expanduser("~/ai-lab/logs/cpu-temp.log")
+STATUS_DIR = os.path.expanduser("~/ai-lab/ops-local/status")
 _hermes_env = load_env("~/.hermes/.env")
 
 DAGU_USER = _scripts_env.get("DAGU_AUTH_USER") or _hermes_env.get("DAGU_AUTH_USER", "")
@@ -71,6 +72,24 @@ def fetch_json(url, headers=None, timeout=5):
             req.add_header(k, v)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
+
+
+def read_status(name):
+    """Lee un archivo de estado de ops-local/status/. Devuelve (data, edad_min) o (None, None).
+    Los escriben los scripts operacionales (plan unificación monitoreo/operación)."""
+    import datetime
+    path = Path(STATUS_DIR) / name
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return None, None
+    age_min = None
+    try:
+        ts = datetime.datetime.fromisoformat(data.get("timestamp", ""))
+        age_min = int((datetime.datetime.now(ts.tzinfo) - ts).total_seconds() // 60)
+    except Exception:
+        pass
+    return data, age_min
 
 
 def dagu_get_token():
@@ -148,14 +167,26 @@ def endpoint_system():
     except Exception:
         parts.append(row("Disco", "error", "color-negative"))
 
-    # NLM Gateway (responds 404 on / but that means it's alive)
-    try:
-        urllib.request.urlopen("http://127.0.0.1:8770", timeout=2)
-        parts.append(row("NLM Gateway :8770", "activo", "color-positive"))
-    except urllib.error.HTTPError:
-        parts.append(row("NLM Gateway :8770", "activo", "color-positive"))
-    except Exception:
-        parts.append(row("NLM Gateway :8770", "caído", "color-negative"))
+    # Salud operacional — la fuente es health.json (lo escribe lab-health-check,
+    # que es quien verifica y corrige; el aggregator solo renderiza)
+    health, age = read_status("health.json")
+    if health:
+        checks = health.get("checks", [])
+        bad = [c for c in checks if c.get("status") in ("fail", "absent", "disconnected")]
+        acted = [c for c in checks if c.get("action")]
+        n_ok = len(checks) - len(bad)
+        stale = age is not None and age > 45
+        if stale:
+            parts.append(row("Health-check", f"sin datos hace {age}min", "color-negative"))
+        elif bad:
+            names = ", ".join(c["name"] for c in bad[:3])
+            parts.append(row("Health-check", f"{n_ok}/{len(checks)} — falla: {names}", "color-negative"))
+        elif acted:
+            parts.append(row("Health-check", f"{n_ok}/{len(checks)} ok (auto-corrigió)", "color-highlight"))
+        else:
+            parts.append(row("Health-check", f"{n_ok}/{len(checks)} ok · hace {age}min", "color-positive"))
+    else:
+        parts.append(row("Health-check", "sin health.json", "color-negative"))
 
     return '<div style="font-size:0.9em">' + ''.join(parts) + '</div>'
 
@@ -404,6 +435,67 @@ def endpoint_hermes_crons():
     return html
 
 
+def endpoint_health_actions():
+    """Últimas acciones correctivas del lab (health-check + watchdog).
+    Da visibilidad en Glance a lo que el lab se auto-corrigió."""
+    parts = []
+
+    health, age_h = read_status("health.json")
+    if health:
+        actions = health.get("actions_taken", [])
+        if actions:
+            parts.append('<div class="color-highlight" style="margin-bottom:2px">Health-check corrigió:</div>')
+            for a in actions[:5]:
+                parts.append(f'<div style="opacity:0.85;margin:1px 0">• {a}</div>')
+        else:
+            parts.append(row("Health-check", f"sin acciones · hace {age_h}min", "color-positive"))
+    else:
+        parts.append(row("Health-check", "sin health.json", "color-negative"))
+
+    wd, age_w = read_status("watchdog.json")
+    if wd:
+        z = wd.get("zombies_killed", 0)
+        mem = wd.get("memory_pct")
+        mem_txt = f" · mem {mem}%" if mem is not None else ""
+        if wd.get("memory_pressure") or z > 0:
+            detail = []
+            if z:
+                detail.append(f"{z} zombie(s) eliminados")
+            if wd.get("memory_pressure"):
+                detail.append("presión de memoria — mató opencode")
+            parts.append(row("Watchdog", "; ".join(detail) + mem_txt, "color-highlight"))
+        else:
+            parts.append(row("Watchdog", f"sin acciones{mem_txt} · hace {age_w}min", "color-positive"))
+    else:
+        parts.append(row("Watchdog", "sin watchdog.json", "color-negative"))
+
+    return '<div style="font-size:0.85em">' + ''.join(parts) + '</div>'
+
+
+def endpoint_maintenance():
+    """Actualizaciones pendientes detectadas por maintenance-check (lunes 9am)."""
+    data, age = read_status("maintenance.json")
+    if not data:
+        return error_html("sin maintenance.json (corre los lunes 9am)")
+
+    updates = data.get("updates_available", [])
+    tools = data.get("tools", [])
+    age_txt = f"hace {age // 1440}d" if age and age >= 1440 else (f"hace {age}min" if age is not None else "")
+
+    parts = []
+    if not updates:
+        parts.append(row("Herramientas", f"{len(tools)} al día · {age_txt}", "color-positive"))
+    else:
+        parts.append(
+            f'<div style="margin-bottom:4px;opacity:0.7">{len(updates)} update(s) pendientes · {age_txt}</div>')
+        for u in updates:
+            cls = "color-highlight" if u.get("stable") else "text-muted"
+            suffix = " ✓estable" if u.get("stable") else f" ({u.get('days_since_release', '?')}d)"
+            parts.append(row(u["tool"], f"{u['installed']} → {u['available']}{suffix}", cls))
+
+    return '<div style="font-size:0.85em">' + ''.join(parts) + '</div>'
+
+
 # --- HTTP Server ---
 
 ROUTES = {
@@ -412,6 +504,8 @@ ROUTES = {
     '/dags': endpoint_dags,
     '/sessions': endpoint_sessions,
     '/hermes-crons': endpoint_hermes_crons,
+    '/health-actions': endpoint_health_actions,
+    '/maintenance': endpoint_maintenance,
 }
 
 

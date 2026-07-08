@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # maintenance-check.sh — Detecta actualizaciones disponibles con ventana de estabilidad
-# Verifica hermes-agent y opencode, filtra releases con <5 días, investiga con SearXNG
+# Cubre: hermes-agent, opencode, claude (Claude Code), engram, moolmesh, dagu, nlm.
+# Filtra releases con <STABILITY_DAYS días, investiga con SearXNG, notifica por Telegram
+# y escribe estado estructurado en ops-local/status/maintenance.json.
 # Cron sugerido: 0 9 * * 1   (lunes 9am)
 
-set -euo pipefail
+set -uo pipefail
 
 STABILITY_DAYS=5
 SEARXNG="http://localhost:8080/search"
@@ -11,6 +13,7 @@ HERMES_ENV="$HOME/.hermes-env/bin/pip"
 OPENCODE_BIN="$HOME/.opencode/bin/opencode"
 NOTIFY_SCRIPT="$HOME/ai-lab/scripts/telegram-notify.sh"
 LOG="$HOME/ai-lab/logs/maintenance.log"
+STATUS_DIR="${LAB_DIR:-$HOME/ai-lab}/ops-local/status"
 
 mkdir -p "$(dirname "$LOG")"
 exec > >(tee -a "$LOG") 2>&1
@@ -68,87 +71,115 @@ except Exception as e:
 " 2>/dev/null || echo "  (error en búsqueda)"
 }
 
+# ── Fuentes de "última versión" (imprimen "version|fecha_iso" o nada) ──
+pypi_latest() {
+  curl -sf --max-time 10 "https://pypi.org/pypi/$1/json" 2>/dev/null | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+v = d['info']['version']
+files = d.get('releases', {}).get(v, []) or d.get('urls', [])
+date = files[0]['upload_time'][:19] if files else ''
+print(f'{v}|{date}')" 2>/dev/null || true
+}
+
+npm_latest() {
+  npm view "$1" version time.modified --json 2>/dev/null | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f\"{d.get('version','')}|{d.get('time.modified','')[:19]}\")" 2>/dev/null || true
+}
+
+github_latest() {
+  # Toma el release más reciente cuyo tag sea "v<numero>..." (algunos repos
+  # publican otros artefactos con tags distintos en el mismo repo).
+  curl -sfL --max-time 10 "https://api.github.com/repos/$1/releases?per_page=15" 2>/dev/null | python3 -c "
+import json, sys, re
+for r in json.load(sys.stdin):
+    tag = r.get('tag_name', '')
+    if re.match(r'^v?[0-9]+\.[0-9]+', tag):
+        print(f\"{tag.lstrip('v')}|{r.get('published_at','')[:19]}\")
+        break" 2>/dev/null || true
+}
+
 UPDATES_FOUND=0
 REPORT=""
+TOOL_STATES=()   # formato: nombre|instalado|disponible|dias|estable
 
-# ════════════════════════════════════════════════
-# 1. hermes-agent
-# ════════════════════════════════════════════════
-echo ""
-echo "[ hermes-agent ]"
-INSTALLED_H=$("$HERMES_ENV" show hermes-agent 2>/dev/null | grep ^Version | awk '{print $2}' || echo "desconocido")
-LATEST_H=$("$HERMES_ENV" index versions hermes-agent 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "")
-RELEASE_DATE_H=$(curl -sf "https://pypi.org/pypi/hermes-agent/${LATEST_H}/json" 2>/dev/null \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); files=d.get('urls',[]); print(files[0]['upload_time'] if files else '')" \
-  2>/dev/null || echo "")
+# ── Chequeo genérico de una herramienta ──
+check_tool() {
+  local name="$1" installed="$2" latest_pair="$3" hint="$4"
+  local latest="${latest_pair%%|*}"
+  local release_date="${latest_pair#*|}"
+  [[ "$release_date" == "$latest_pair" ]] && release_date=""
 
-echo "  Instalado : $INSTALLED_H"
-echo "  Disponible: $LATEST_H  (publicado: ${RELEASE_DATE_H:-desconocido})"
+  echo ""
+  echo "[ $name ]"
+  echo "  Instalado : ${installed:-desconocido}"
+  echo "  Disponible: ${latest:-desconocido}  (publicado: ${release_date:-desconocido})"
 
-if [[ -n "$LATEST_H" && "$LATEST_H" != "$INSTALLED_H" ]]; then
-  DAYS_H=999
-  [[ -n "$RELEASE_DATE_H" ]] && DAYS_H=$(days_since "$RELEASE_DATE_H")
-  echo "  Días desde release: $DAYS_H"
+  local days=0 stable=false
+  if [[ -n "$latest" && -n "$installed" && "$installed" != "desconocido" && "$latest" != "$installed" ]]; then
+    days=999
+    [[ -n "$release_date" ]] && days=$(days_since "$release_date")
+    echo "  Días desde release: $days"
 
-  if [[ "$DAYS_H" -ge "$STABILITY_DAYS" ]]; then
-    echo "  → Pasa ventana de estabilidad ($STABILITY_DAYS días). Investigando..."
-    VULN_H=$(search_issues "hermes-agent $LATEST_H vulnerability security issue")
-    BUG_H=$(search_issues "hermes-agent $LATEST_H bug regression breaking")
-    UPDATES_FOUND=$(( UPDATES_FOUND + 1 ))
-    REPORT+="
-*hermes-agent*: \`$INSTALLED_H\` → \`$LATEST_H\` (hace ${DAYS_H}d)
-
-_Seguridad/issues:_
-${VULN_H}
-
-_Bugs/regresiones:_
-${BUG_H}
-"
-  else
-    echo "  → Solo ${DAYS_H}d desde el release — esperando ventana de ${STABILITY_DAYS}d (faltan $((STABILITY_DAYS - DAYS_H))d)"
-  fi
-else
-  echo "  → Al día"
-fi
-
-# ════════════════════════════════════════════════
-# 2. opencode
-# ════════════════════════════════════════════════
-echo ""
-echo "[ opencode ]"
-INSTALLED_OC=$("$OPENCODE_BIN" --version 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
-NPM_INFO=$(npm view opencode-ai version time.modified --json 2>/dev/null || echo "{}")
-LATEST_OC=$(echo "$NPM_INFO" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('version',''))" 2>/dev/null || echo "")
-RELEASE_DATE_OC=$(echo "$NPM_INFO" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('time.modified','')[:19])" 2>/dev/null || echo "")
-
-echo "  Instalado : $INSTALLED_OC"
-echo "  Disponible: $LATEST_OC  (publicado: ${RELEASE_DATE_OC:-desconocido})"
-
-if [[ -n "$LATEST_OC" && "$LATEST_OC" != "$INSTALLED_OC" ]]; then
-  DAYS_OC=999
-  [[ -n "$RELEASE_DATE_OC" ]] && DAYS_OC=$(days_since "$RELEASE_DATE_OC")
-  echo "  Días desde release: $DAYS_OC"
-
-  if [[ "$DAYS_OC" -ge "$STABILITY_DAYS" ]]; then
-    echo "  → Pasa ventana de estabilidad. Investigando..."
-    VULN_OC=$(search_issues "opencode $LATEST_OC vulnerability security issue")
-    BUG_OC=$(search_issues "opencode $LATEST_OC bug regression breaking")
-    UPDATES_FOUND=$(( UPDATES_FOUND + 1 ))
-    REPORT+="
-*opencode*: \`$INSTALLED_OC\` → \`$LATEST_OC\` (hace ${DAYS_OC}d)
+    if [[ "$days" -ge "$STABILITY_DAYS" ]]; then
+      stable=true
+      echo "  → Pasa ventana de estabilidad ($STABILITY_DAYS días). Investigando..."
+      local vuln bug
+      vuln=$(search_issues "$name $latest vulnerability security issue")
+      bug=$(search_issues "$name $latest bug regression breaking")
+      UPDATES_FOUND=$(( UPDATES_FOUND + 1 ))
+      REPORT+="
+*$name*: \`$installed\` → \`$latest\` (hace ${days}d)
+_Actualizar:_ $hint
 
 _Seguridad/issues:_
-${VULN_OC}
+${vuln}
 
 _Bugs/regresiones:_
-${BUG_OC}
+${bug}
 "
+    else
+      echo "  → Solo ${days}d desde el release — esperando ventana de ${STABILITY_DAYS}d (faltan $((STABILITY_DAYS - days))d)"
+    fi
   else
-    echo "  → Solo ${DAYS_OC}d desde el release — esperando ventana de ${STABILITY_DAYS}d (faltan $((STABILITY_DAYS - DAYS_OC))d)"
+    echo "  → Al día"
   fi
-else
-  echo "  → Al día"
-fi
+  TOOL_STATES+=("$name|${installed:-desconocido}|${latest:-}|${days}|${stable}")
+}
+
+# ════════════════════════════════════════════════
+# Inventario de herramientas
+# ════════════════════════════════════════════════
+
+INSTALLED=$("$HERMES_ENV" show hermes-agent 2>/dev/null | grep ^Version | awk '{print $2}' || echo "desconocido")
+check_tool "hermes-agent" "$INSTALLED" "$(pypi_latest hermes-agent)" \
+  '`pip install --upgrade hermes-agent` + reiniciar servicio'
+
+INSTALLED=$("$OPENCODE_BIN" --version 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
+check_tool "opencode" "$INSTALLED" "$(npm_latest opencode-ai)" \
+  '`curl -fsSL https://opencode.ai/install | bash`'
+
+INSTALLED=$(claude --version 2>/dev/null | grep -oP '^[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
+check_tool "claude-code" "$INSTALLED" "$(npm_latest @anthropic-ai/claude-code)" \
+  '`claude update` (o `npm i -g @anthropic-ai/claude-code`)'
+
+INSTALLED=$(engram --version 2>/dev/null | awk '{print $2}' || echo "desconocido")
+check_tool "engram" "$INSTALLED" "$(github_latest Gentleman-Programming/engram)" \
+  'descargar release de GitHub (ver bootstrap módulo 04-ai-tools)'
+
+INSTALLED=$(mool --version 2>/dev/null | awk '{print $2}' || echo "desconocido")
+check_tool "moolmesh" "$INSTALLED" "$(pypi_latest moolmesh)" \
+  '`pipx upgrade moolmesh` + reiniciar servicio moolmesh'
+
+INSTALLED=$(dagu version 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
+check_tool "dagu" "$INSTALLED" "$(github_latest dagu-org/dagu)" \
+  'reinstalar binario — OJO: el installer crea un system service que choca (runbook)'
+
+INSTALLED=$(nlm --version 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
+check_tool "nlm" "$INSTALLED" "$(pypi_latest notebooklm-mcp-cli)" \
+  '`uv tool upgrade notebooklm-mcp-cli` (o pipx upgrade)'
 
 # ════════════════════════════════════════════════
 # Resultado final
@@ -158,14 +189,41 @@ if [[ "$UPDATES_FOUND" -gt 0 ]]; then
   HEADER="🔧 *Mantenimiento del lab — ${UPDATES_FOUND} actualización(es) disponible(s)*
 
 Versiones con ≥${STABILITY_DAYS} días de estabilidad. Revisar antes de actualizar:"
-  notify "${HEADER}${REPORT}
-
-_Para actualizar:_
-• hermes-agent: \`pip install --upgrade hermes-agent\` + reiniciar servicio
-• opencode: \`curl -fsSL https://opencode.ai/install | bash\`" "INFO"
+  notify "${HEADER}${REPORT}" "INFO"
   echo "Notificación enviada."
 else
   echo "Todo al día o dentro de la ventana de estabilidad. Sin notificación."
 fi
+
+# ── Archivo de estado para el aggregator ──
+mkdir -p "$STATUS_DIR"
+printf '%s\n' "${TOOL_STATES[@]}" | STATUS_FILE="$STATUS_DIR/maintenance.json" python3 -c "
+import json, os, sys, datetime
+tools = []
+all_current = True
+for line in sys.stdin.read().splitlines():
+    if not line:
+        continue
+    name, installed, latest, days, stable = (line.split('|') + ['']*5)[:5]
+    pending = bool(latest) and latest != installed and installed != 'desconocido'
+    if pending:
+        all_current = False
+    tools.append({
+        'tool': name,
+        'installed': installed,
+        'available': latest or None,
+        'update_pending': pending,
+        'days_since_release': int(days) if days.isdigit() else None,
+        'stable': stable == 'true',
+    })
+out = {
+    'timestamp': datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+    'updates_available': [t for t in tools if t['update_pending']],
+    'tools': tools,
+    'all_current': all_current,
+}
+with open(os.environ['STATUS_FILE'], 'w') as f:
+    json.dump(out, f, ensure_ascii=False, indent=1)
+" 2>/dev/null || echo "[WARN] no se pudo escribir maintenance.json"
 
 echo "=== fin $(date -u '+%H:%M UTC') ==="

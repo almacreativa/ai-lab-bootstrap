@@ -113,6 +113,114 @@ else
   echo "  configured: false" >> "$MANIFEST"
 fi
 
+# Crons de Hermes, MCPs configurados y scripts (con detección de huérfanos)
+# — plan unificación monitoreo/operación, fase 3
+python3 - "$MANIFEST" "$LAB_DIR" << 'PYEOF'
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+manifest, lab_dir = sys.argv[1], sys.argv[2]
+home = Path.home()
+out = []
+
+def yq(s):
+    return str(s).replace('"', "'")
+
+# ── Crons de Hermes ──
+out.append("\nhermes_crons:")
+try:
+    jobs = json.loads((home / ".hermes/cron/jobs.json").read_text()).get("jobs", [])
+    for j in jobs:
+        out.append(f'  - name: "{yq(j.get("name", "?"))}"')
+        out.append(f'    enabled: {str(bool(j.get("enabled"))).lower()}')
+        sched = j.get("schedule_display") or j.get("schedule") or "?"
+        out.append(f'    schedule: "{yq(sched)}"')
+        cmd = str(j.get("command") or j.get("script") or j.get("prompt") or "")
+        m = re.search(r'([\w.-]+\.(?:sh|py))', cmd)
+        if m:
+            out.append(f'    script: "{m.group(1)}"')
+except Exception:
+    out.append("  []")
+
+# ── MCPs configurados ──
+out.append("\nmcps:")
+out.append("  claude_code:")
+try:
+    servers = json.loads((home / ".claude.json").read_text()).get("mcpServers", {})
+    for name, cfg in servers.items():
+        cmdline = " ".join([cfg.get("command", "")] + cfg.get("args", []))
+        out.append(f'    - name: "{yq(name)}"')
+        out.append(f'      command: "{yq(cmdline.strip())}"')
+except Exception:
+    out.append("    []")
+out.append("  hermes:")
+try:
+    import yaml
+    hcfg = yaml.safe_load((home / ".hermes/config.yaml").read_text()) or {}
+    for name, cfg in (hcfg.get("mcp_servers") or {}).items():
+        cmdline = " ".join([str(cfg.get("command", ""))] + [str(a) for a in (cfg.get("args") or [])])
+        out.append(f'    - name: "{yq(name)}"')
+        out.append(f'      command: "{yq(cmdline.strip())}"')
+except Exception:
+    out.append("    []")
+
+# ── Scripts de ~/ai-lab/scripts/ con consumidores ──
+scripts_dir = Path(lab_dir) / "scripts"
+scripts = sorted([p.name for p in scripts_dir.iterdir()
+                  if p.suffix in (".sh", ".py") and p.is_file()])
+
+# Fuentes donde puede aparecer un consumidor
+sources = {}   # etiqueta → texto
+for dag in sorted((home / ".config/dagu/dags").glob("*.yaml")):
+    sources[f"dag:{dag.name}"] = dag.read_text()
+try:
+    sources["crontab"] = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+except Exception:
+    pass
+try:
+    sources["hermes-cron"] = (home / ".hermes/cron/jobs.json").read_text()
+except Exception:
+    pass
+try:
+    sources["hermes-config"] = (home / ".hermes/config.yaml").read_text()
+except Exception:
+    pass
+try:
+    sources["claude-mcp"] = (home / ".claude.json").read_text()
+except Exception:
+    pass
+for unit in sorted((home / ".config/systemd/user").glob("*.service")):
+    sources[f"systemd:{unit.name}"] = unit.read_text()
+for other in scripts:
+    try:
+        sources[f"script:{other}"] = (scripts_dir / other).read_text()
+    except Exception:
+        pass
+
+# Herramientas de invocación manual deliberada — no son huérfanos
+MANUAL_SCRIPTS = {
+    "onboard-company.sh", "create-routine.sh", "security-apply-sudo.sh",
+    "nlm-sync.sh", "lab-session.sh",
+}
+
+out.append("\nscripts:")
+for name in scripts:
+    consumers = sorted(set(
+        label for label, text in sources.items()
+        if name in text and label != f"script:{name}"
+    ))
+    if not consumers and name in MANUAL_SCRIPTS:
+        consumers = ["manual"]
+    out.append(f'  - name: "{name}"')
+    if consumers:
+        out.append(f'    consumers: [{", ".join(chr(34) + c + chr(34) for c in consumers)}]')
+    else:
+        out.append("    consumers: []")
+
+with open(manifest, "a") as f:
+    f.write("\n".join(out) + "\n")
+PYEOF
+
 # Software de sistema
 echo "" >> "$MANIFEST"
 echo "system:" >> "$MANIFEST"
