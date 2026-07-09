@@ -7,10 +7,11 @@ mounts de knowledge/ no aparecen ahí. Este espejo usa la PROPIA API de la
 Library (POST/PUT /api/document, con versionamiento nativo) — cero cambios
 al código de Odysseus.
 
-Dirección ÚNICA: hub → Library (la Library es una lente, no fuente de verdad).
-Cada documento lleva un banner que lo aclara. Si alguien edita la copia en
-Library, el próximo cambio del archivo del hub la pisa — pero el versionamiento
-de la Library conserva esa edición como versión anterior (recuperable).
+Dirección hub → Library, con PROTECCIÓN DE EDICIONES LOCALES: si el operador
+editó la copia en la Library, el espejo NUNCA la pisa — la marca como editada,
+avisa por Telegram (con diff vs el hub) y espera la decisión humana:
+`odysseus-library-promote.py` la promueve al hub o la descarta. La fuente de
+verdad sigue siendo el hub; la vuelta existe como acto deliberado del humano.
 
 Alcance curado (configurable en SCOPE): el conocimiento del lab navegable,
 no el bulk de outputs/wikis (eso lo cubre el RAG + modo agente).
@@ -44,9 +45,40 @@ SCOPE = [
 ]
 
 BANNER = ("> 🔄 **Espejo del hub** — fuente de verdad: `knowledge/{rel}`. "
-          "Editá desde la Mac (Obsidian) o pidiéndoselo a Hermes/al agente. "
-          "Los cambios hechos aquí en la Library NO vuelven al hub "
-          "(quedan como versión recuperable si el archivo cambia).\n\n")
+          "Si editás este documento acá, el espejo lo protege (no lo pisa) y "
+          "te llega un aviso para promover tus cambios al hub o descartarlos. "
+          "También podés editar desde la Mac (Obsidian) o vía Hermes/agente.\n\n")
+
+def lib_hashes(doc_ids):
+    """sha256 del contenido actual de cada doc en la Library — UNA consulta a la
+    DB de la app (read-only) en vez de 100+ llamadas HTTP."""
+    if not doc_ids:
+        return {}
+    r = subprocess.run(
+        ["docker", "exec", "-i", CONTAINER, "python", "-c",
+         "import sqlite3, json, sys, hashlib\n"
+         "ids = json.load(sys.stdin)\n"
+         "c = sqlite3.connect('file:/app/data/app.db?mode=ro', uri=True)\n"
+         "out = {}\n"
+         "q = 'SELECT id, current_content FROM documents WHERE id IN (%s)' % ','.join('?'*len(ids))\n"
+         "for i, content in c.execute(q, ids):\n"
+         "    out[i] = hashlib.sha256((content or '').encode()).hexdigest()\n"
+         "print(json.dumps(out))"],
+        input=json.dumps(doc_ids).encode(), capture_output=True, timeout=60)
+    try:
+        return json.loads(r.stdout.decode() or "{}")
+    except Exception:
+        return {}
+
+
+def sha(text):
+    import hashlib
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def notify(msg):
+    subprocess.run([str(HOME / "ai-lab/scripts/telegram-notify.sh"), msg, "INFO"],
+                   capture_output=True, timeout=30)
 
 
 def api(method, path, payload=None):
@@ -102,9 +134,8 @@ def apply_dates(fixes):
          "c = sqlite3.connect('/app/data/app.db')\n"
          "for doc_id, ts in fixes:\n"
          "    c.execute('UPDATE documents SET created_at=?, updated_at=? WHERE id=?', (ts, ts, doc_id))\n"
-         "c.commit()\n"
-         "print(f'{len(fixes)} fechas alineadas')"],
-        input=payload.encode(), timeout=60)
+         "c.commit()"],
+        input=payload.encode(), capture_output=True, timeout=60)
 
 
 def title_for(rel, label):
@@ -120,8 +151,17 @@ def main():
         state = {}
 
     created = updated = archived = unchanged = failed = 0
+    protected = []
     seen = set()
     date_fixes = []
+
+    # Detección de ediciones locales: comparar el contenido actual de la Library
+    # contra el hash de lo último que ESTE espejo escribió.
+    hashes = lib_hashes([e["doc_id"] for e in state.values() if e.get("doc_id")])
+    for rel, entry in state.items():
+        cur = hashes.get(entry.get("doc_id", ""))
+        if cur and entry.get("sha") and cur != entry["sha"]:
+            entry["edited"] = True
 
     for rel, f, label in iter_files():
         seen.add(rel)
@@ -130,6 +170,15 @@ def main():
         except OSError:
             continue
         entry = state.get(rel)
+
+        # PROTECCIÓN: copia editada por el operador — no pisar jamás.
+        if entry and entry.get("edited"):
+            if not entry.get("notified"):
+                hub_changed = entry.get("mtime") != mtime
+                protected.append((rel, entry["doc_id"], hub_changed))
+                entry["notified"] = True
+            continue
+
         if entry and entry.get("mtime") == mtime:
             unchanged += 1
             continue
@@ -143,7 +192,7 @@ def main():
             resp = api("PUT", f"/api/document/{entry['doc_id']}",
                        {"content": content, "summary": "sync del hub"})
             if resp.get("id"):
-                state[rel] = {"doc_id": entry["doc_id"], "mtime": mtime}
+                state[rel] = {"doc_id": entry["doc_id"], "mtime": mtime, "sha": sha(content)}
                 date_fixes.append((entry["doc_id"], real_date(rel, f)))
                 updated += 1
             else:
@@ -155,11 +204,20 @@ def main():
                         "language": "markdown"})
             doc_id = resp.get("id")
             if doc_id:
-                state[rel] = {"doc_id": doc_id, "mtime": mtime}
+                state[rel] = {"doc_id": doc_id, "mtime": mtime, "sha": sha(content)}
                 date_fixes.append((doc_id, real_date(rel, f)))
                 created += 1
             else:
                 failed += 1
+
+    # Aviso por Telegram de las ediciones nuevas (una vez por documento)
+    if protected:
+        lines = ["📚 Library: documento(s) editados por el operador — el espejo NO los pisó:"]
+        for rel, doc_id, hub_changed in protected:
+            extra = " ⚠️ el archivo del hub TAMBIÉN cambió" if hub_changed else ""
+            lines.append(f"• {rel}{extra}")
+        lines.append("Decidir con: odysseus-library-promote.py list | promote <rel> | discard <rel>")
+        notify("\n".join(lines))
 
     # Archivos que desaparecieron del hub → soft-archive en Library
     for rel in [r for r in list(state) if r not in seen]:
@@ -174,6 +232,7 @@ def main():
     print(json.dumps({
         "success": True, "created": created, "updated": updated,
         "unchanged": unchanged, "archived": archived, "failed": failed,
+        "protected_edits": [r for r, e in state.items() if e.get("edited")],
         "total_mirrored": len(state),
     }, ensure_ascii=False))
     return 0 if failed == 0 else 1
