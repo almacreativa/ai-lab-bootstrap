@@ -2,8 +2,8 @@
 # Ingest semanal de knowledge management, parametrizado por empresa (Fase 6 del plan).
 #
 # Uso:        bash weekly-ingest.sh <company_id>
-# Alma:       bash weekly-ingest.sh <company-id>
-# Cron:       0 2 * * 0 $HOME/ai-lab/scripts/weekly-ingest.sh <company-id> >> $HOME/ai-lab/logs/ingest-<company-id>.log 2>&1
+# Alma:       bash weekly-ingest.sh 85a05c8a
+# Cron:       0 2 * * 0 /home/fmicalizzi/ai-lab/scripts/weekly-ingest.sh 85a05c8a >> /home/fmicalizzi/ai-lab/logs/ingest-85a05c8a.log 2>&1
 #
 # Config opcional en ~/ai-lab/scripts/.env (NO commitear):
 #   TELEGRAM_BOT_TOKEN=...   TELEGRAM_CHAT_ID=...   KUMA_PUSH_URL=https://.../api/push/XXXX
@@ -25,16 +25,15 @@ KNOWLEDGE_DIR="$HOME/ai-lab/knowledge/companies/${COMPANY_ID}"
 # LAB_PRIMARY: la empresa operadora del lab. Las sesiones de Claude Code/OpenCode/
 # Hermes son fuentes DEL HOST y se atribuyen a ella por defecto (lo etiquetado
 # [company:X] lo enruta el clasificador del skill de Hermes).
-# CONFIGURAR: ID de la empresa primaria (las sesiones del host se atribuyen a ella)
-# y el directorio de deliverables de cada empresa.
-LAB_PRIMARY="${LAB_PRIMARY:-changeme-empresa-a}"
+LAB_PRIMARY="85a05c8a"
 case "$COMPANY_ID" in
-  changeme-empresa-a) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/empresa-a/outputs" ;;
-  changeme-empresa-b) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/empresa-b/outputs" ;;
-  *)                  DELIVERABLES_DIR="$HOME/ai-lab/knowledge/companies/${COMPANY_ID}/deliverables" ;;
+  85a05c8a) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/alma/outputs/alma-deliverables" ;;
+  0424a440) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/expansia/outputs" ;;      # ExpansIA
+  6b8a8c27) DELIVERABLES_DIR="$HOME/ai-lab/knowledge/katun/outputs" ;;         # KATÚN
+  *)        DELIVERABLES_DIR="$HOME/ai-lab/knowledge/companies/${COMPANY_ID}/deliverables" ;;
 esac
 SESSIONS_DIR="$KNOWLEDGE_DIR/sessions"
-EXTRACTORS_DIR="$HOME/shared/demos/process_sessions"
+EXTRACTORS_DIR="$HOME/ai-lab/knowledge-pipeline"
 HERMES_DASHBOARD="http://localhost:9119"
 HERMES_BIN="$HOME/.hermes-env/bin/hermes"   # ruta completa: el cron no tiene hermes en PATH
 ZEN_MODEL="opencode/deepseek-v4-flash-free"
@@ -51,14 +50,11 @@ SUMMARY=()
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 notify_telegram() {
+  # Centralizado en telegram-notify.sh (fallback Markdown→plano + exit real).
+  # Regla del lab: NUNCA curl directo a la API de Telegram fuera de ese script.
   local msg="$1"
-  if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-    curl -sf -m 15 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-      -d chat_id="$TELEGRAM_CHAT_ID" -d text="$msg" >/dev/null \
-      || log "WARN: fallo el envio de Telegram"
-  else
-    log "NOTIFY (sin Telegram configurado): $msg"
-  fi
+  "$HOME/ai-lab/scripts/telegram-notify.sh" "$msg" INFO >/dev/null 2>&1 \
+    || log "WARN: fallo el envio de Telegram"
 }
 
 # Ejecuta un paso con timeout. Si falla: registra, notifica y CONTINÚA.
@@ -105,6 +101,11 @@ mkdir -p "$SESSIONS_DIR"
 # Las sesiones de CC/OC/Hermes no tienen atribución automática por empresa.
 # Default: empresa primaria. El skill de Hermes enruta lo etiquetado [company:X].
 if [ "$COMPANY_ID" = "$LAB_PRIMARY" ]; then
+  # Paso 0 — autocuración: todo agente de Paperclip (incl. creados esta semana)
+  # queda con el bloque de contexto del lab en sus instrucciones (idempotente)
+  run_step "sync instrucciones de agentes" 180 \
+    bash "$HOME/ai-lab/scripts/sync-agent-instructions.sh"
+
   run_step "extractor OpenCode" 300 \
     python3 "$EXTRACTORS_DIR/opencode_extract.py" \
       --company-id "$COMPANY_ID" --output-dir "$SESSIONS_DIR" --since-days 8
@@ -117,9 +118,9 @@ if [ "$COMPANY_ID" = "$LAB_PRIMARY" ]; then
     "$HOME/.hermes-env/bin/hermes" chat --provider opencode-zen --model "$ZEN_MODEL" --max-turns 80 \
       -q "Ejecuta el skill hermes-history-ingest sobre ~/.hermes/sessions/ (últimos 8 días).
           Respeta el estado incremental en ~/ai-lab/knowledge/.state/hermes.processed.yaml.
-          Empresas conocidas para clasificar: la empresa primaria (default),
-          <company-b-id> (<EmpresaB> — solo sesiones etiquetadas [company:<company-b-id>] o
-          claramente sobre <EmpresaB>). Lo administrativo del lab va a lab-insights.md."
+          Empresas conocidas para clasificar: 85a05c8a (ALMA, primaria, default),
+          0424a440 (ExpansIA — solo sesiones etiquetadas [company:0424a440] o
+          claramente sobre ExpansIA). Lo administrativo del lab va a lab-insights.md."
 else
   log "SKIP extractores de sesiones: ${COMPANY_ID} no es la empresa primaria (fuentes del host → ${LAB_PRIMARY})"
 fi
@@ -130,6 +131,7 @@ if [ -d "$DELIVERABLES_DIR" ]; then
     "$HOME/.hermes-env/bin/hermes" chat --provider opencode-zen --model "$ZEN_MODEL" --max-turns 60 \
       -q "Ejecuta el skill wiki-ingest sobre ${DELIVERABLES_DIR}/
           con company_id=${COMPANY_ID}. Respeta el estado incremental.
+          Ignora el subdirectorio wiki/ si existe (el wiki ya se ingesta por otra via).
           Output en ~/ai-lab/knowledge/companies/${COMPANY_ID}/patterns.md"
 else
   log "SKIP wiki-ingest: no existe $DELIVERABLES_DIR"
@@ -143,10 +145,6 @@ run_step "refresh insights + AGENTS.md" 1200 \
         nuevos (no duplicar; los recurrentes se marcan con contador). Después revisa
         ${KNOWLEDGE_DIR}/AGENTS.md: si hay cambios sustanciales (proyectos nuevos,
         decisiones), actualizalo manteniéndolo bajo 500 palabras."
-
-# ── 6. Sincronizar knowledge a Outline ────────────────────────────────────────
-run_step "sincronizar Outline" 300 \
-  bash "$SCRIPT_DIR/sync-outline.sh" --knowledge --deliverables --company "$COMPANY_ID"
 
 # ── 7. Ping a Uptime Kuma (dead man's switch) ────────────────────────────────
 if [ -n "$KUMA_PUSH_URL" ]; then

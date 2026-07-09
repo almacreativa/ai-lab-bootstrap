@@ -278,6 +278,23 @@ for sync_dir in "$HOME/ai-lab/knowledge" "$HOME/ai-lab/ops" "$HOME/shared/demos"
   fi
 done
 
+# 12. Notificaciones Telegram centralizadas
+# Regla: NADIE llama a la API de Telegram directamente salvo telegram-notify.sh
+# (que tiene fallback Markdown→plano y exit code real). Un curl directo con
+# parse_mode puede perder avisos en silencio — bug detectado 2026-07-09.
+# El patrón exige la URL completa (https://) para no matchear menciones en comentarios.
+echo "[core-guard] Verificando centralización de notificaciones Telegram..."
+BYPASSERS=$(grep -rl "https://api\.telegram\.org" \
+  "$HOME/ai-lab/scripts" "$HOME/ai-lab/ops" "$HOME/.hermes/scripts" \
+  "$HOME/.config/dagu/dags" 2>/dev/null | grep -v "telegram-notify.sh" || true)
+if [ -z "$BYPASSERS" ]; then
+  report_ok "telegram" "centralizado"
+else
+  for b in $BYPASSERS; do
+    report_drift "telegram" "$(basename "$b")" "via telegram-notify.sh" "curl directo a api.telegram.org — riesgo de aviso perdido"
+  done
+fi
+
 # Emitir resultados
 echo ""
 echo "[core-guard] Resultados:"
