@@ -527,6 +527,10 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 
 | Documento | Contenido |
 |---|---|
+| `docs/POST-BOOTSTRAP.md` | Pasos post-instalación: auth de servicios, NLM headless via CDP, MCPs |
+| `docs/PLAYWRIGHT_MCP.md` | Visual testing headless para agentes (Chromium + MCP) |
+| `docs/DESTILACION_CONOCIMIENTO.md` | Patrón: doc masiva → motor RAG → batería de preguntas → knowledge curado |
+| `docs/SYNC_ENTRADAS_OUTPUTS.md` | El sistema entradas/outputs por empresa (sync-company) |
 | `docs/TROUBLESHOOTING.md` | Síntoma → causa → fix (20+ problemas reales resueltos) |
 | `docs/LESSONS.md` | 16 lecciones de producción |
 | `configs/hermes-config.yaml.example` | Template completo del config.yaml de Hermes |
