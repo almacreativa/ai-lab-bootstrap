@@ -37,6 +37,7 @@ instancia (espejo versionado del sistema vivo).
 | `paperclip-mcp-company.sh.template` | Template del MCP de Paperclip por empresa |
 | `paperclip-*.sh` | Monitores y pollers de Paperclip (crons de Hermes) |
 | `nlm-sync.sh` | Sincronización de cuadernos NotebookLM |
+| `nlm-distill.sh` | Destilación de conocimiento por batería de preguntas (ver docs/DESTILACION_CONOCIMIENTO.md) |
 | `odysseus-research.sh` | Deep Research en Odysseus (internal token; start/status/wait/report) |
 | `odysseus-email-check.sh` | Triage de emails de Odysseus → `knowledge/daily/` |
 | `odysseus-task-poll.sh` | Tareas programadas + research activo → state file |
