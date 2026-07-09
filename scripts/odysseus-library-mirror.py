@@ -77,6 +77,36 @@ def iter_files():
             yield rel, f, label
 
 
+DATE_RE = __import__("re").compile(r"(20\d{2}-\d{2}-\d{2})")
+
+def real_date(rel, f):
+    """Fecha histórica del documento: la del nombre de archivo si la tiene,
+    si no el mtime — para que la Library conserve la trazabilidad temporal."""
+    m = DATE_RE.search(Path(rel).name)
+    if m:
+        return f"{m.group(1)} 12:00:00"
+    import datetime
+    return datetime.datetime.utcfromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def apply_dates(fixes):
+    """Alinea created_at/updated_at en el SQLite de la app (la API no permite
+    fijarlos). Un solo docker exec para todo el lote."""
+    if not fixes:
+        return
+    payload = json.dumps(fixes)
+    subprocess.run(
+        ["docker", "exec", "-i", CONTAINER, "python", "-c",
+         "import sqlite3, json, sys\n"
+         "fixes = json.load(sys.stdin)\n"
+         "c = sqlite3.connect('/app/data/app.db')\n"
+         "for doc_id, ts in fixes:\n"
+         "    c.execute('UPDATE documents SET created_at=?, updated_at=? WHERE id=?', (ts, ts, doc_id))\n"
+         "c.commit()\n"
+         "print(f'{len(fixes)} fechas alineadas')"],
+        input=payload.encode(), timeout=60)
+
+
 def title_for(rel, label):
     name = Path(rel).stem.replace("-", " ").replace("_", " · ", 1)
     return f"[{label}] {name}"
@@ -91,6 +121,7 @@ def main():
 
     created = updated = archived = unchanged = failed = 0
     seen = set()
+    date_fixes = []
 
     for rel, f, label in iter_files():
         seen.add(rel)
@@ -113,6 +144,7 @@ def main():
                        {"content": content, "summary": "sync del hub"})
             if resp.get("id"):
                 state[rel] = {"doc_id": entry["doc_id"], "mtime": mtime}
+                date_fixes.append((entry["doc_id"], real_date(rel, f)))
                 updated += 1
             else:
                 # el doc pudo haber sido borrado en la UI — recrear
@@ -124,6 +156,7 @@ def main():
             doc_id = resp.get("id")
             if doc_id:
                 state[rel] = {"doc_id": doc_id, "mtime": mtime}
+                date_fixes.append((doc_id, real_date(rel, f)))
                 created += 1
             else:
                 failed += 1
@@ -136,6 +169,7 @@ def main():
             archived += 1
         del state[rel]
 
+    apply_dates(date_fixes)
     STATE_FILE.write_text(json.dumps(state, indent=1, ensure_ascii=False))
     print(json.dumps({
         "success": True, "created": created, "updated": updated,
