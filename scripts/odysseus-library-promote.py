@@ -127,14 +127,41 @@ def cmd_promote(state, rel):
     print(f"✓ Promovido: Library → knowledge/{rel} (Syncthing lo distribuye; el RAG lo re-indexa en ≤6h)")
 
 
+BANNER = ("> 🔄 **Espejo del hub** — fuente de verdad: `knowledge/{rel}`. "
+          "Si editás este documento acá, el espejo lo protege (no lo pisa) y "
+          "te llega un aviso para promover tus cambios al hub o descartarlos. "
+          "También podés editar desde la Mac (Obsidian) o vía Hermes/agente.\n\n")
+
+
+def api_put(doc_id, content):
+    payload = json.dumps({"content": content, "summary": "discard: re-sync del hub"}).encode()
+    r = subprocess.run(
+        ["docker", "exec", "-i", CONTAINER, "sh", "-c",
+         f'curl -s -X PUT -H "X-Odysseus-Internal-Token: $ODYSSEUS_INTERNAL_TOKEN" '
+         f'-H "X-Odysseus-Owner: admin" -H "Content-Type: application/json" '
+         f'--data-binary @- "http://localhost:7000/api/document/{doc_id}"'],
+        input=payload, capture_output=True, timeout=60)
+    try:
+        return json.loads(r.stdout.decode() or "{}")
+    except Exception:
+        return {}
+
+
 def cmd_discard(state, rel):
     e = state.get(rel) or sys.exit(f"'{rel}' no está en el espejo")
+    hub_file = KNOWLEDGE / rel
+    if not hub_file.exists():
+        sys.exit(f"El archivo del hub knowledge/{rel} no existe — nada que re-imponer")
+    # Re-imponer directamente (el espejo protegería la copia editada si se lo delegamos)
+    content = BANNER.format(rel=rel) + hub_file.read_text(encoding="utf-8")
+    resp = api_put(e["doc_id"], content)
+    if not resp.get("id"):
+        sys.exit(f"No se pudo actualizar el documento en la Library: {str(resp)[:150]}")
+    e["mtime"] = hub_file.stat().st_mtime
+    e["sha"] = sha(content)
     e.pop("edited", None)
     e.pop("notified", None)
-    e["mtime"] = 0  # fuerza re-sync desde el hub en la próxima corrida
     save_state(state)
-    r = subprocess.run([sys.executable, str(HOME / "ai-lab/scripts/odysseus-library-mirror.py")],
-                       capture_output=True, text=True, timeout=600)
     print(f"✓ Descartado: la versión del hub fue re-impuesta en la Library "
           f"(tu edición queda en el historial de versiones del documento).")
 

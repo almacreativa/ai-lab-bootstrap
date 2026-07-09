@@ -49,6 +49,19 @@ ${MESSAGE}
 🖥 Auto-healing System"
 
 # ── Enviar ──
-curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+# Markdown primero; si Telegram rechaza el parseo de entidades (p.ej. un "_"
+# suelto en un nombre de archivo), reintentar en texto plano — un aviso feo
+# siempre es mejor que un aviso perdido en silencio.
+TEXT_JSON=$(printf '%s' "$FORMATTED" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
+RESP=$(curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
   -H "Content-Type: application/json" \
-  -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": $(printf '%s' "$FORMATTED" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))'), \"parse_mode\": \"Markdown\"}" 2>&1
+  -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": ${TEXT_JSON}, \"parse_mode\": \"Markdown\"}" 2>&1)
+
+if ! echo "$RESP" | grep -q '"ok":true'; then
+  RESP=$(curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -H "Content-Type: application/json" \
+    -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": ${TEXT_JSON}}" 2>&1)
+fi
+
+echo "$RESP"
+echo "$RESP" | grep -q '"ok":true'
