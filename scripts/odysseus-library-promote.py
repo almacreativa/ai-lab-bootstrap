@@ -35,6 +35,11 @@ CONTAINER = "odysseus"
 PROMOTE_DIRS = {"projects", "research", "daily", "shared"}
 
 
+def notify(msg):
+    subprocess.run([str(HOME / "ai-lab/scripts/telegram-notify.sh"), msg, "INFO"],
+                   capture_output=True, timeout=30)
+
+
 def load_state():
     return json.loads(STATE_FILE.read_text())
 
@@ -124,6 +129,8 @@ def cmd_promote(state, rel):
     e.pop("edited", None)
     e.pop("notified", None)
     save_state(state)
+    msg = f"✅ Promovido al hub: knowledge/{rel} — tu edición de la Library ya es la versión oficial (Syncthing la distribuye; RAG re-indexa en ≤6h)."
+    notify(msg)
     print(f"✓ Promovido: Library → knowledge/{rel} (Syncthing lo distribuye; el RAG lo re-indexa en ≤6h)")
 
 
@@ -162,6 +169,7 @@ def cmd_discard(state, rel):
     e.pop("edited", None)
     e.pop("notified", None)
     save_state(state)
+    notify(f"↩️ Descartado: knowledge/{rel} — se re-impuso la versión del hub en la Library (tu edición queda en el historial de versiones del documento).")
     print(f"✓ Descartado: la versión del hub fue re-impuesta en la Library "
           f"(tu edición queda en el historial de versiones del documento).")
 
@@ -185,6 +193,7 @@ def cmd_promote_new(state, doc_id, folder):
     state[rel] = {"doc_id": doc_id, "mtime": dest.stat().st_mtime,
                   "sha": sha(doc.get("content") or "")}
     save_state(state)
+    notify(f"✅ Documento nuevo promovido al hub: '{title}' → knowledge/{rel} (queda espejado; futuras ediciones siguen el flujo protegido).")
     print(f"✓ Promovido documento nuevo: '{title}' → knowledge/{rel} "
           f"(ahora es un doc espejado — futuras ediciones siguen el flujo protegido)")
 
