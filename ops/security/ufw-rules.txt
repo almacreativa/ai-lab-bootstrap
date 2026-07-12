@@ -1,0 +1,9 @@
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] Anywhere on tailscale0     ALLOW IN    Anywhere                  
+[ 2] 22/tcp                     ALLOW IN    Anywhere                  
+[ 3] Anywhere (v6) on tailscale0 ALLOW IN    Anywhere (v6)             
+[ 4] 22/tcp (v6)                ALLOW IN    Anywhere (v6)             
+

@@ -1,0 +1,5 @@
+# Ejemplo de crontab para security hardening
+# Ubicar los scripts en ~/scripts/ o ajustar paths según instalación.
+#
+0 8 * * * $HOME/scripts/sync-upstream.sh
+*/15 * * * * $HOME/scripts/exposure-watchdog.sh >/dev/null 2>&1
