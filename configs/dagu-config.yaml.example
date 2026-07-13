@@ -1,6 +1,12 @@
 # Dagu server configuration
 # Copy to ~/.config/dagu/config.yaml and adjust host/port
 # Docs: https://dagu.readthedocs.io/
+#
+# GOTCHA data dirs: el wizard del installer oficial (system install) usa
+# /var/lib/dagu como data dir; un install de usuario usa ~/.local/share/dagu.
+# El lab corre UN solo service system con --config apuntando a este archivo
+# (dags en ~/.config/dagu/dags). Si Dagu "pierde historial", verificar que no
+# haya dos services con data dirs distintos (ver configs/dagu.service).
 
 host: 0.0.0.0
 port: 8480

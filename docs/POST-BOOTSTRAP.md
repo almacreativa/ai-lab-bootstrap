@@ -360,25 +360,27 @@ opencode  # seleccionar provider y autenticar
 
 ### 3.1 Dagu
 
-Dagu puede correr como system service (si se usó el installer interactivo)
-o como user service (si `apply-configs.sh` lo creó). `apply-configs.sh` tiene
-un guard que detecta si existe un system service y, si es así, solo copia DAGs
-y config sin crear un user service duplicado.
+**Canónico del lab: UN solo service, system-scope** (`/etc/systemd/system/dagu.service`,
+`User=<usuario del lab>`, `ExecStart ... --config ~/.config/dagu/config.yaml`).
+Lo despliega `modules/05-docker-stack.sh` a partir de `configs/dagu.service`,
+instalando el binario SIN el wizard del installer (`--no-prompt --service no`).
+
+**Gotcha de los DOS data dirs:** el wizard interactivo del installer oficial
+(v2.8.3+) crea su propio system service con data dir en `/var/lib/dagu`,
+mientras que un install de usuario usa `~/.local/share/dagu`. Si conviven un
+system service del wizard y un user service del bootstrap, hay dos schedulers
+compitiendo por el puerto y el historial queda repartido en dos data dirs.
+Ante un Dagu "que pierde historial" o entra en crash-loop, revisar ambos.
 
 ```bash
-# Verificar qué tipo de service existe:
-if systemctl list-unit-files dagu.service --no-pager 2>/dev/null | grep -q dagu; then
-  echo "Dagu corre como SYSTEM service"
-  sudo systemctl start dagu
-  sudo systemctl is-active dagu
-else
-  echo "Dagu corre como USER service"
-  systemctl --user start dagu
-  systemctl --user is-active dagu
-fi
+sudo systemctl start dagu
+sudo systemctl is-active dagu
 
-# IMPORTANTE: NO tener ambos — el user service chocará con el system service
-# en el mismo puerto y entrará en crash-loop.
+# IMPORTANTE: NO tener ademas un user service — chocará con el system service
+# en el mismo puerto y entrará en crash-loop. Si existe uno de una versión
+# anterior del bootstrap:
+#   systemctl --user disable --now dagu.service
+#   rm ~/.config/systemd/user/dagu.service
 
 # Verificar que escucha en 0.0.0.0 (no 127.0.0.1):
 ss -tlnp | grep 8480
@@ -415,8 +417,8 @@ curl -s http://localhost:9119/health
 
 **Verificación de fase:**
 ```bash
-systemctl --user is-active dagu moolmesh
-sudo systemctl is-active hermes
+systemctl --user is-active moolmesh
+sudo systemctl is-active dagu hermes
 ```
 
 ---

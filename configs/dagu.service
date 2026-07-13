@@ -1,3 +1,15 @@
+# Dagu — servicio systemd de SISTEMA (canonico del lab).
+# Instalado por modules/05-docker-stack.sh en /etc/systemd/system/dagu.service.
+#
+# GOTCHA (conflicto documentado con el installer v2.8.3+): el wizard interactivo
+# del installer oficial de Dagu crea su propio /etc/systemd/system/dagu.service
+# con data dir en /var/lib/dagu, que choca con cualquier user service previo
+# (dos schedulers compitiendo, DOS data dirs: /var/lib/dagu vs ~/.local/share/dagu).
+# Por eso el bootstrap instala el binario SIN wizard (--no-prompt --service no)
+# y despliega UN solo service: este, system-scope, corriendo como el usuario del
+# lab, con --config apuntando a ~/.config/dagu/config.yaml (dags en
+# ~/.config/dagu/dags). No crear ademas un user service.
+
 [Unit]
 Description=Dagu Workflow Orchestrator
 After=network-online.target
@@ -5,10 +17,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+User={{LAB_USER}}
 ExecStart={{DAGU_PATH}} start-all --config={{HOME}}/.config/dagu/config.yaml
 Restart=always
 RestartSec=10
 Environment=HOME={{HOME}}
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

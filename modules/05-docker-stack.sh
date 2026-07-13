@@ -386,12 +386,26 @@ chmod +x "$LAB_DIR/scripts/lab-health-check.sh"
 fi
 
 # ── Dagu (workflow orchestrator — reemplaza crontab) ──
+# IMPORTANTE: instalar SIN el wizard interactivo. Desde v2.8.3 el installer
+# oficial corre un wizard que crea su propio /etc/systemd/system/dagu.service
+# (data dir en /var/lib/dagu), chocando con el service que despliega este
+# módulo. Canónico del lab: UN solo service (system-scope, configs/dagu.service),
+# config en ~/.config/dagu/config.yaml, dags en ~/.config/dagu/dags.
+# Los flags --no-prompt --service no instalan solo el binario.
 if ! command -v dagu &>/dev/null && [ ! -f "$HOME/.local/bin/dagu" ]; then
-  log "Instalando Dagu..."
-  curl -sSL https://raw.githubusercontent.com/dagu-org/dagu/main/scripts/installer.sh | bash
+  log "Instalando Dagu (solo binario, sin wizard)..."
+  curl -fsSL https://raw.githubusercontent.com/dagu-org/dagu/main/scripts/installer.sh \
+    | bash -s -- --no-prompt --service no --install-dir "$HOME/.local/bin"
   log "Dagu $(dagu version 2>/dev/null || echo 'instalado')."
 else
   log "Dagu ya instalado ($(dagu version 2>/dev/null || echo "$HOME/.local/bin/dagu"))."
+fi
+
+# Si un install previo dejó el service del wizard, avisar (no lo tocamos solos)
+if [ -f /etc/systemd/system/dagu.service ] && ! grep -q "config=$HOME/.config/dagu/config.yaml" /etc/systemd/system/dagu.service 2>/dev/null; then
+  warn "Ya existe /etc/systemd/system/dagu.service (posible wizard del installer)."
+  warn "Verificar que apunte a ~/.config/dagu/config.yaml — GOTCHA: el service del"
+  warn "wizard usa /var/lib/dagu como data dir (DOS data dirs si conviven)."
 fi
 
 # Dagu config
@@ -422,17 +436,20 @@ if [ -d "$SCRIPT_DIR/configs/dagu-dags" ]; then
   log "DAGs base instalados. Templates (.template) requieren configuración manual."
 fi
 
-# Dagu systemd user service
-mkdir -p "$HOME/.config/systemd/user"
-if [ ! -f "$HOME/.config/systemd/user/dagu.service" ] && [ -f "$DAGU_SERVICE_SRC" ]; then
+# Dagu systemd service — UN solo service, system-scope, corriendo como $LAB_USER
+if [ -f "$HOME/.config/systemd/user/dagu.service" ]; then
+  warn "Existe un dagu.service de usuario (~/.config/systemd/user/) de una versión"
+  warn "anterior del bootstrap — deshabilitarlo para no tener dos schedulers:"
+  warn "  systemctl --user disable --now dagu.service && rm ~/.config/systemd/user/dagu.service"
+fi
+if [ ! -f /etc/systemd/system/dagu.service ] && [ -f "$DAGU_SERVICE_SRC" ]; then
   DAGU_BIN=$(command -v dagu 2>/dev/null || echo "$HOME/.local/bin/dagu")
-  sed "s|{{HOME}}|$HOME|g; s|{{DAGU_PATH}}|$DAGU_BIN|g" "$DAGU_SERVICE_SRC" > "$HOME/.config/systemd/user/dagu.service"
-  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-  export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-  systemctl --user daemon-reload
-  systemctl --user enable dagu.service
-  log "dagu.service instalado y habilitado (systemd user)."
-  warn "Iniciar con: systemctl --user start dagu"
+  sed "s|{{HOME}}|$HOME|g; s|{{DAGU_PATH}}|$DAGU_BIN|g; s|{{LAB_USER}}|$LAB_USER|g" "$DAGU_SERVICE_SRC" \
+    | sudo tee /etc/systemd/system/dagu.service > /dev/null
+  sudo systemctl daemon-reload
+  sudo systemctl enable dagu.service
+  log "dagu.service instalado y habilitado (systemd system, User=$LAB_USER)."
+  warn "Iniciar con: sudo systemctl start dagu"
 else
   log "dagu.service ya existe — no se sobreescribe."
 fi
