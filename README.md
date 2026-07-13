@@ -498,6 +498,7 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | `docs/KM_PLAN.md` | Plan de ejecución KM v3.2 — las 8 fases implementadas |
 | `docs/KM_RUNBOOK.md` | Runbook de operaciones — mantenimiento, recuperación, troubleshooting |
 | `docs/SERVICIOS.md` | Inventario de servicios — puertos, contenedores, estado |
+| `docs/OBSERVABILIDAD.md` | Contrato de status JSON (ops-local/status/) — quién escribe cada archivo y su frescura esperada |
 | `docs/WORKFLOWS.md` | Flujos de operación — instalación, semana típica, onboarding |
 | `docs/DECISIONES_KM.md` | ADRs — decisiones de arquitectura con contexto y razones |
 | `docs/ADR-ENGRAM.md` | ADR específico de Engram — memoria compartida entre agentes |
