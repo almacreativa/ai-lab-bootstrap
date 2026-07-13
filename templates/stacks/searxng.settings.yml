@@ -1,0 +1,19 @@
+# SearXNG settings del lab — montado como /etc/searxng/settings.yml (read-only)
+# Se combina con los defaults de la imagen via use_default_settings.
+#
+# IMPORTANTE: NO poner secret_key aca. El secret se inyecta por la variable
+# de entorno SEARXNG_SECRET (definida en .env del stack, generada con
+# openssl rand -hex 24).
+#
+# El default de SearXNG solo permite formato html; los agentes del lab
+# consumen la API JSON (?format=json), por eso se habilita explicitamente.
+
+use_default_settings: true
+
+server:
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json

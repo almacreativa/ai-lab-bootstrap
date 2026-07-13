@@ -1,6 +1,12 @@
 # SearXNG — metabuscador privado para agentes del lab
 # Solo accesible desde localhost y la red Docker ai-lab-net
 # Desplegado en stacks/searxng/ por setup-instance.sh
+#
+# Requiere:
+#   - settings.yml junto a este compose (setup-instance.sh lo copia del template)
+#   - .env con SEARXNG_SECRET (copiar .env.example y generar el secret con:
+#     openssl rand -hex 24). Sin bind mount, la config viviria en un volumen
+#     anonimo con el secret adentro — fragil e inauditable.
 
 services:
   searxng:
@@ -9,6 +15,12 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      # SEARXNG_SECRET es la variable oficial que sobreescribe server.secret_key
+      # (ver docs.searxng.org, Settings > server). Nunca hardcodear el secret.
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?Definir SEARXNG_SECRET en .env (openssl rand -hex 24)}
     networks:
       - ai-lab-net
 
