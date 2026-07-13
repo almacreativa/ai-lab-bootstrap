@@ -228,6 +228,8 @@ ops/                        ← framework operativo (copiado a ~/ai-lab/ops/ por
 │   ├── core-guard.sh       ← audita core contra core-manifest.yaml
 │   ├── profile-guard.sh    ← audita perfil contra profile.yaml
 │   ├── bootstrap-guard.sh  ← audita cobertura del bootstrap
+│   ├── manifest-guard.sh   ← audita que el repo privado del operador este
+│   │                          clasificado en perfil-manifest.yaml (modelo lab-seed)
 │   └── guard-lib.sh        ← funciones compartidas (JSON output, Telegram)
 ├── backup/                 ← scripts de backup y disaster recovery
 │   ├── lab-backup.sh       ← backup incremental restic (genérico)

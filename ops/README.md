@@ -11,6 +11,7 @@ ops/
 │   ├── guard-lib.sh           # Funciones compartidas (report_ok, report_gap, emit_json, etc.)
 │   ├── core-guard.sh          # Audita binarios, servicios, containers, networks, DAGs, backup
 │   ├── bootstrap-guard.sh     # Detecta qué del sistema está cubierto por el bootstrap
+│   ├── manifest-guard.sh      # Audita clasificacion del repo privado (perfil-manifest.yaml, modelo lab-seed)
 │   └── profile-guard.sh       # Audita perfiles desplegados contra su profile.yaml
 ├── manifests/
 │   └── generate-core-manifest.sh  # Genera snapshot YAML del estado del sistema
