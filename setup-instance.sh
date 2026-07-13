@@ -16,22 +16,30 @@ usage() {
   echo "Configura una instancia del lab después de correr bootstrap.sh."
   echo ""
   echo "Opciones:"
-  echo "  --secrets FILE   Desencriptar secrets desde archivo age"
-  echo "  --skip-backup    No configurar backup (útil para labs temporales)"
-  echo "  --skip-services  No iniciar servicios systemd"
-  echo "  -h, --help       Mostrar esta ayuda"
+  echo "  --secrets FILE     Desencriptar secrets desde archivo age"
+  echo "  --skip-backup      No configurar backup (útil para labs temporales)"
+  echo "  --skip-services    No iniciar servicios systemd"
+  echo "  --git-name NAME    user.name global de git para la instancia"
+  echo "  --git-email EMAIL  user.email global de git para la instancia"
+  echo "                     (default: se pregunta interactivo; si ya hay config"
+  echo "                     global, se respeta y no se toca)"
+  echo "  -h, --help         Mostrar esta ayuda"
   exit 0
 }
 
 SECRETS_FILE=""
 SKIP_BACKUP=false
 SKIP_SERVICES=false
+GIT_NAME_ARG="${GIT_USER_NAME:-}"
+GIT_EMAIL_ARG="${GIT_USER_EMAIL:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --secrets) SECRETS_FILE="$2"; shift 2 ;;
     --skip-backup) SKIP_BACKUP=true; shift ;;
     --skip-services) SKIP_SERVICES=true; shift ;;
+    --git-name) GIT_NAME_ARG="$2"; shift 2 ;;
+    --git-email) GIT_EMAIL_ARG="$2"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "Opción desconocida: $1"; usage ;;
   esac
@@ -46,7 +54,7 @@ echo ""
 # -----------------------------------------------
 # Paso 1: Secrets
 # -----------------------------------------------
-log "Paso 1/9: Secrets"
+log "Paso 1/10: Secrets"
 
 SCRIPTS_ENV="$LAB_DIR/scripts/.env"
 HERMES_ENV="$HOME/.hermes/.env"
@@ -153,9 +161,37 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 2: Backup
+# Paso 2: Identidad git de la instancia
 # -----------------------------------------------
-log "Paso 2/9: Backup"
+# Sin esto, los repos nuevos heredan un config global vacío y las sesiones
+# de agentes terminan creando commits firmados "sin configurar".
+log "Paso 2/10: Identidad git"
+
+if git config --global user.name &>/dev/null && git config --global user.email &>/dev/null; then
+  log "Git ya configurado: $(git config --global user.name) <$(git config --global user.email)> — no se toca"
+else
+  if [ -z "$GIT_NAME_ARG" ] || [ -z "$GIT_EMAIL_ARG" ]; then
+    if [ -t 0 ]; then
+      echo ""
+      echo "  Identidad git global de la instancia (para commits de repos del lab):"
+      [ -z "$GIT_NAME_ARG" ] && read -r -p "  user.name: " GIT_NAME_ARG
+      [ -z "$GIT_EMAIL_ARG" ] && read -r -p "  user.email: " GIT_EMAIL_ARG
+    fi
+  fi
+  if [ -n "$GIT_NAME_ARG" ] && [ -n "$GIT_EMAIL_ARG" ]; then
+    git config --global user.name "$GIT_NAME_ARG"
+    git config --global user.email "$GIT_EMAIL_ARG"
+    log "Git configurado: $GIT_NAME_ARG <$GIT_EMAIL_ARG>"
+  else
+    warn "Identidad git sin configurar — pasar --git-name/--git-email o correr:"
+    warn "  git config --global user.name '...' && git config --global user.email '...'"
+  fi
+fi
+
+# -----------------------------------------------
+# Paso 3: Backup
+# -----------------------------------------------
+log "Paso 3/10: Backup"
 
 if [ "$SKIP_BACKUP" = true ]; then
   log "Backup saltado (--skip-backup)"
@@ -177,9 +213,9 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 3: Copiar ops/ al host
+# Paso 4: Copiar ops/ al host
 # -----------------------------------------------
-log "Paso 3/9: Framework operativo (ops/)"
+log "Paso 4/10: Framework operativo (ops/)"
 
 OPS_DEST="$LAB_DIR/ops"
 mkdir -p "$OPS_DEST"/{guards,backup,manifests,runbooks}
@@ -201,9 +237,9 @@ done
 log "ops/ copiado a $OPS_DEST ($(find "$OPS_DEST" -type f | wc -l) archivos)"
 
 # -----------------------------------------------
-# Paso 4: Generar core-manifest.yaml
+# Paso 5: Generar core-manifest.yaml
 # -----------------------------------------------
-log "Paso 4/9: Core manifest"
+log "Paso 5/10: Core manifest"
 
 if [ -x "$OPS_DEST/manifests/generate-core-manifest.sh" ]; then
   "$OPS_DEST/manifests/generate-core-manifest.sh"
@@ -213,9 +249,9 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 5: Instalar DAGs operativos
+# Paso 6: Instalar DAGs operativos
 # -----------------------------------------------
-log "Paso 5/9: DAGs operativos"
+log "Paso 6/10: DAGs operativos"
 
 DAGS_DIR="$HOME/.config/dagu/dags"
 mkdir -p "$DAGS_DIR"
@@ -232,9 +268,9 @@ for dag in "$BOOTSTRAP_DIR/configs/dagu-dags"/lab-*.yaml; do
 done
 
 # -----------------------------------------------
-# Paso 6: Generar CLAUDE.md
+# Paso 7: Generar CLAUDE.md
 # -----------------------------------------------
-log "Paso 6/9: CLAUDE.md"
+log "Paso 7/10: CLAUDE.md"
 
 TEMPLATE="$BOOTSTRAP_DIR/templates/CLAUDE.md.template"
 CLAUDE_MD="$HOME/CLAUDE.md"
@@ -288,9 +324,9 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 7: Repo de instancia (<hostname>-lab)
+# Paso 8: Repo de instancia (<hostname>-lab)
 # -----------------------------------------------
-log "Paso 7/9: Repo de instancia"
+log "Paso 8/10: Repo de instancia"
 
 INSTANCE_HOSTNAME=$(hostname -s)
 INSTANCE_REPO_DIR="$LAB_DIR/repos/${INSTANCE_HOSTNAME}-lab"
@@ -353,9 +389,9 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 8: Stacks de infraestructura
+# Paso 9: Stacks de infraestructura
 # -----------------------------------------------
-log "Paso 8/9: Stacks de infraestructura"
+log "Paso 9/10: Stacks de infraestructura"
 
 STACKS_TEMPLATES="$BOOTSTRAP_DIR/templates/stacks"
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "0.0.0.0")
@@ -377,6 +413,18 @@ if [ -d "$STACKS_TEMPLATES" ]; then
         -e "s|{{HOME}}|${HOME}|g" \
         "$tmpl" > "$STACK_DIR/docker-compose.yml"
     log "Stack generado: $STACK_NAME"
+
+    # Archivos acompanantes del stack (config bind-mounted + .env.example)
+    if [ -f "$STACKS_TEMPLATES/$STACK_NAME.settings.yml" ] && [ ! -f "$STACK_DIR/settings.yml" ]; then
+      cp "$STACKS_TEMPLATES/$STACK_NAME.settings.yml" "$STACK_DIR/settings.yml"
+      log "  settings.yml copiado para $STACK_NAME"
+    fi
+    if [ -f "$STACKS_TEMPLATES/$STACK_NAME.env.example" ]; then
+      [ -f "$STACK_DIR/.env.example" ] || cp "$STACKS_TEMPLATES/$STACK_NAME.env.example" "$STACK_DIR/.env.example"
+      if [ ! -f "$STACK_DIR/.env" ]; then
+        warn "Stack $STACK_NAME requiere .env — copiar $STACK_DIR/.env.example a .env, completar secrets (chmod 600)"
+      fi
+    fi
   done
 
   docker network create ai-lab-net 2>/dev/null && log "Red ai-lab-net creada" || true
@@ -385,9 +433,9 @@ else
 fi
 
 # -----------------------------------------------
-# Paso 9: Servicios
+# Paso 10: Servicios
 # -----------------------------------------------
-log "Paso 9/9: Servicios"
+log "Paso 10/10: Servicios"
 
 if [ "$SKIP_SERVICES" = true ]; then
   log "Inicio de servicios saltado (--skip-services)"
@@ -395,7 +443,14 @@ else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 
-  for svc in dagu moolmesh centro-de-comando; do
+  # Dagu corre como servicio system (UN solo service — ver modules/05)
+  if systemctl is-enabled dagu.service &>/dev/null 2>&1; then
+    sudo systemctl start dagu.service 2>/dev/null && \
+      log "Servicio iniciado: dagu (system)" || \
+      warn "No se pudo iniciar: dagu"
+  fi
+
+  for svc in moolmesh centro-de-comando; do
     if systemctl --user is-enabled "${svc}.service" &>/dev/null 2>&1; then
       systemctl --user start "${svc}.service" 2>/dev/null && \
         log "Servicio iniciado: $svc" || \
