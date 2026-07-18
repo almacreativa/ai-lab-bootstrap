@@ -1,41 +1,47 @@
-# Hardening de Seguridad — Fase 1
+# Hardening de Seguridad — Exposure Watchdog
 
-**Fecha:** 2026-07-06
-**Fase:** 1 — Línea base
+**Parte del bootstrap.** Complementa a `scripts/security-apply-sudo.sh` monitoreando
+que sus reglas se mantengan vigentes. Corre sin sudo cada 15 minutos vía Dagu.
 
-## Cambios aplicados
+## Qué monitorea
 
-### UFW (Firewall)
-- Política: deny incoming, allow outgoing
-- Reglas: solo Tailscale (tailscale0) y SSH (22/tcp)
-- Archivo de referencia: `ufw-rules.txt`
+| Check | Qué detecta |
+|---|---|
+| Túneles no autorizados | `cloudflared`, `ngrok`, `frp`, `pagekite`, `localtunnel`, `serveo` |
+| Firewall caído | UFW inactivo (las reglas de `security-apply-sudo.sh` pueden haberse perdido) |
+| Fail2ban caído | Servicio fail2ban inactivo |
+| Puertos nuevos | Cualquier puerto en `0.0.0.0` fuera del baseline |
+| Docker expuesto | Contenedores con binds `0.0.0.0` (Docker puentea UFW) |
 
-### Fail2ban
-- Jail activo: sshd
-- Archivo de referencia: `fail2ban-status.txt`
+## Baseline de puertos
 
-### Exposure Watchdog
-- Script: `exposure-watchdog.sh`
-- Schedule: cada 15 minutos via crontab
-- Monitorea: túneles no autorizados (cloudflared, ngrok, etc.), UFW/fail2ban vivos, puertos wildcard nuevos, contenedores Docker expuestos
-- Baseline de puertos aprobados: 22, 631, 4321, 5200, 22000
-- Requisitos: `hermes` CLI en `$PATH` para notificaciones Telegram
+Definido por `scripts/security-apply-sudo.sh`:
 
-### Crontab
-- `exposure-watchdog.sh` cada 15 min
-- `sync-upstream.sh` diario 8am
-- Archivo de referencia: `crontab.txt`
+| Puerto | Servicio | Acceso |
+|---|---|---|
+| 22 | SSH | Tailscale (100.64.0.0/10) + LAN (192.168.0.0/24) |
+| 9119 | Hermes Dashboard | Tailscale |
+| 22000 | Syncthing P2P | Tailscale + LAN |
+
+Cualquier otro puerto en `0.0.0.0` dispara una alerta.
 
 ## Instalación
 
-```bash
-# 1. Copiar scripts
-cp exposure-watchdog.sh ~/scripts/
-chmod +x ~/scripts/exposure-watchdog.sh
+El watchdog se instala como parte de `setup-instance.sh`:
 
-# 2. Instalar crontab (ajustar paths)
-crontab -l | { cat; cat crontab.txt; } | crontab -
+1. El script `exposure-watchdog.sh` se copia a `$LAB_DIR/scripts/`
+2. El DAG `lab-exposure-watchdog.yaml` se copia a `~/.config/dagu/dags/`
+3. Dagu lo ejecuta cada 15 minutos automáticamente
 
-# 3. Crear directorios
-mkdir -p ~/logs ~/.local/state
-```
+## Requisitos
+
+- `$LAB_DIR` definido (default: `~/ai-lab`)
+- `$LAB_DIR/scripts/telegram-notify.sh` (incluido en el bootstrap)
+- UFW y fail2ban instalados y configurados (`security-apply-sudo.sh`)
+- Dagu corriendo como servicio systemd
+
+## Notificaciones
+
+Las alertas se envían por Telegram usando `telegram-notify.sh`.
+Solo se notifica cuando el conjunto de alertas **cambia** respecto a la ejecución anterior
+(deduplicación por hash MD5), evitando spam.
