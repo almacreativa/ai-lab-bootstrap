@@ -80,6 +80,14 @@ else
   log "SSH hardening aplicado (keepalive 30s, sin root, sin password)."
 fi
 
+# fail2ban — rate limiting para SSH desde LAN
+if ! command -v fail2ban-server &>/dev/null; then
+  sudo apt install -y fail2ban
+  log "fail2ban instalado."
+else
+  log "fail2ban ya instalado, saltando."
+fi
+
 # Syncthing — en WSL2 se omite: correr desde el host Windows (acceso de red más simple)
 if [ -n "$WSL_DISTRO_NAME" ]; then
   log "WSL2 detectado — saltando Syncthing (usar la instalación del host Windows)."
