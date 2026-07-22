@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Remediación de seguridad — bloque S2 (todo lo que requiere sudo, en una pasada).
-# Fuente: ~/shared/demos/security-remediation-plan.md
+# security-apply-sudo.sh v2 — Hardening de seguridad derivado del manifiesto.
+#
+# Lee core-manifest.yaml para generar reglas UFW por puerto (modelo per-port)
+# e instalar/configurar fail2ban si corresponde.
 #
 # USO:  sudo bash ~/ai-lab/scripts/security-apply-sudo.sh
 #
 # Idempotente: correrlo dos veces no rompe nada.
-# IMPORTANTE: correr desde consola física o SSH vía Tailscale. La regla de SSH
-# se agrega ANTES de activar UFW para no perder acceso.
+# IMPORTANTE: correr desde consola física o SSH vía Tailscale. SSH se agrega
+# ANTES de borrar la regla amplia para no perder acceso.
 
-set -u
+set -euo pipefail
 
 PASS=0; FAIL=0
 ok()   { echo "  ✅ $1"; PASS=$((PASS+1)); }
@@ -20,10 +22,41 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-REAL_USER="${SUDO_USER:-<usuario>}"
+LAB_DIR="${LAB_DIR:-/home/${SUDO_USER:-$USER}/ai-lab}"
+MANIFEST="$LAB_DIR/ops/core-manifest.yaml"
+ENV_FILE="$LAB_DIR/scripts/.env"
 TAILSCALE_NET="100.64.0.0/10"
 
-echo "=== S2.1 — CUPS: detener y deshabilitar (no se imprime desde este servidor) ==="
+if [ ! -f "$MANIFEST" ]; then
+  echo "ERROR: Manifiesto no encontrado en $MANIFEST"
+  echo "Generar con: $LAB_DIR/ops/manifests/generate-core-manifest.sh"
+  exit 1
+fi
+
+echo "=== Leyendo manifiesto: $MANIFEST ==="
+
+eval "$(python3 -c "
+import yaml, sys
+m = yaml.safe_load(open('$MANIFEST'))
+net = m.get('network', {})
+sec = m.get('security', {})
+print(f'LAN_SUBNET=\"{net.get(\"lan_subnet\", \"\")}\"')
+print(f'TAILSCALE_IP=\"{net.get(\"tailscale_ip\", \"\")}\"')
+print(f'FAIL2BAN_REQUIRED=\"{str(sec.get(\"fail2ban\", False)).lower()}\"')
+for p in sec.get('allowed_ports', []):
+    port = p.get('port', '')
+    proto = p.get('proto', 'tcp')
+    sources = ','.join(p.get('from', []))
+    svc = p.get('service', 'unknown')
+    print(f'PORT_ENTRY=\"{port}|{proto}|{sources}|{svc}\"')
+" 2>&1)" || { echo "ERROR: Fallo parseando manifiesto"; exit 1; }
+
+echo "  Tailscale IP: $TAILSCALE_IP"
+echo "  LAN subnet:   $LAN_SUBNET"
+echo "  fail2ban:     $FAIL2BAN_REQUIRED"
+echo ""
+
+echo "=== S2.1 — CUPS: detener y deshabilitar ==="
 if snap list cups >/dev/null 2>&1; then
   if snap services cups 2>/dev/null | grep -q active; then
     snap stop --disable cups && ok "CUPS (snap) detenido y deshabilitado" || err "No se pudo detener CUPS"
@@ -31,63 +64,135 @@ if snap list cups >/dev/null 2>&1; then
     ok "CUPS ya estaba detenido"
   fi
 else
-  ok "CUPS (snap) no instalado — nada que hacer"
+  ok "CUPS (snap) no instalado"
 fi
-# Por si también existe la versión apt
 systemctl list-unit-files cups.service >/dev/null 2>&1 && systemctl disable --now cups cups-browsed 2>/dev/null
 true
 
 echo ""
-echo "=== S2.2 — UFW: baseline para servicios bare metal ==="
-echo "  (Docker bypassea UFW — los binds de los contenedores ya fueron corregidos aparte)"
+echo "=== S2.2 — UFW: reglas por puerto desde manifiesto ==="
+echo "  (Docker bypassea UFW — los binds protegen los contenedores)"
 
-# Reglas ANTES de habilitar, SSH primero.
-# SSH restringido a Tailscale + LAN (ajuste 2026-06-11, validado en vivo).
-# OJO si se reusa en un servidor nuevo: asegurarse de que Tailscale esté activo
-# o tener consola física — si no, esto te deja afuera.
-ufw default deny incoming >/dev/null
-ufw default allow outgoing >/dev/null
-ufw allow from "$TAILSCALE_NET" to any port 22 proto tcp comment 'SSH via Tailscale' >/dev/null
-ufw allow from 192.168.0.0/24 to any port 22 proto tcp comment 'SSH LAN' >/dev/null
-# Limpiar la regla amplia si quedó de una corrida anterior
-ufw status | grep -q "^22/tcp.*ALLOW.*Anywhere" && ufw delete allow 22/tcp >/dev/null 2>&1
-ufw allow from "$TAILSCALE_NET" to any port 9119 proto tcp comment 'Hermes dashboard via Tailscale' >/dev/null
-ufw allow from 172.16.0.0/12 to any port 9119 proto tcp comment 'Kuma monitor -> Hermes' >/dev/null
-ufw allow from "$TAILSCALE_NET" to any port 22000 proto tcp comment 'Syncthing P2P via Tailscale' >/dev/null
-ufw allow from 192.168.0.0/24 to any port 22000 proto tcp comment 'Syncthing P2P LAN' >/dev/null
+ufw default deny incoming >/dev/null 2>&1
+ufw default allow outgoing >/dev/null 2>&1
 
-if ufw status | grep -q "Status: active"; then
-  ufw reload >/dev/null && ok "UFW ya activo — reglas recargadas"
-else
-  ufw --force enable >/dev/null && ok "UFW habilitado con baseline" || err "No se pudo habilitar UFW"
-fi
-echo "  Reglas actuales:"
-ufw status numbered | sed 's/^/    /'
+while IFS='|' read -r port proto sources svc; do
+  [ -z "$port" ] && continue
+  IFS=',' read -ra srcs <<< "$sources"
+  for src in "${srcs[@]}"; do
+    case "$src" in
+      tailscale)
+        ufw allow from "$TAILSCALE_NET" to any port "$port" proto "$proto" comment "$svc via Tailscale" >/dev/null 2>&1
+        ;;
+      lan)
+        ufw allow from "$LAN_SUBNET" to any port "$port" proto "$proto" comment "$svc LAN" >/dev/null 2>&1
+        ;;
+    esac
+  done
+  ok "Puerto $port/$proto ($svc) — fuentes: $sources"
+done < <(python3 -c "
+import yaml
+m = yaml.safe_load(open('$MANIFEST'))
+for p in m.get('security', {}).get('allowed_ports', []):
+    port = p.get('port', '')
+    proto = p.get('proto', 'tcp')
+    sources = ','.join(p.get('from', []))
+    svc = p.get('service', 'unknown')
+    print(f'{port}|{proto}|{sources}|{svc}')
+")
 
 echo ""
-echo "=== S2.3 — Verificación final ==="
+echo "  Caso especial: Hermes 9119 desde Docker (Uptime Kuma → monitoreo)"
+ufw allow from 172.16.0.0/12 to any port 9119 proto tcp comment 'Kuma monitor -> Hermes' >/dev/null 2>&1
 
-# CUPS no debe escuchar
+echo ""
+echo "=== S2.3 — Eliminar regla amplia por interfaz (modelo viejo) ==="
+if ufw status | grep -q "Anywhere on tailscale0.*ALLOW"; then
+  ufw delete allow in on tailscale0 >/dev/null 2>&1 && ok "Regla 'allow in on tailscale0' eliminada" || warn "No se pudo eliminar regla por interfaz"
+else
+  ok "Regla por interfaz ya no existe"
+fi
+
+echo ""
+if ufw status | grep -q "Status: active"; then
+  ufw reload >/dev/null 2>&1 && ok "UFW recargado"
+else
+  ufw --force enable >/dev/null 2>&1 && ok "UFW habilitado" || err "No se pudo habilitar UFW"
+fi
+
+echo ""
+echo "=== S2.4 — fail2ban ==="
+if [ "$FAIL2BAN_REQUIRED" = "true" ]; then
+  if ! command -v fail2ban-server &>/dev/null; then
+    apt install -y fail2ban >/dev/null 2>&1 && ok "fail2ban instalado" || err "No se pudo instalar fail2ban"
+  else
+    ok "fail2ban ya instalado"
+  fi
+
+  if [ ! -f /etc/fail2ban/jail.local ]; then
+    cat > /etc/fail2ban/jail.local <<'JAIL'
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+JAIL
+    ok "jail.local creado para SSH"
+  else
+    ok "jail.local ya existe"
+  fi
+
+  systemctl enable fail2ban >/dev/null 2>&1
+  systemctl restart fail2ban >/dev/null 2>&1
+  if systemctl is-active fail2ban >/dev/null 2>&1; then
+    ok "fail2ban activo"
+  else
+    err "fail2ban no pudo arrancar"
+  fi
+else
+  ok "fail2ban no requerido por el manifiesto — saltando"
+fi
+
+echo ""
+echo "=== S2.5 — Verificación final ==="
+
 if ss -tln | grep -q ":631 "; then
-  err "Puerto 631 (CUPS) sigue escuchando — revisar manualmente"
+  err "Puerto 631 (CUPS) sigue escuchando"
 else
   ok "Puerto 631 cerrado"
 fi
 
-# SSH accesible (reglas restringidas presentes)
-ufw status | grep "22" | grep -q "100.64.0.0/10" && ok "SSH restringido a Tailscale + LAN" || err "FALTA regla SSH — revisar YA antes de cerrar la sesión"
-ufw status | grep -q "^22/tcp.*ALLOW.*Anywhere" && warn "Regla SSH amplia (Anywhere) todavía presente — borrar con: ufw delete allow 22/tcp"
+if ufw status | grep -q "22.*100.64.0.0/10"; then
+  ok "SSH accesible desde Tailscale"
+else
+  err "FALTA regla SSH desde Tailscale — REVISAR ANTES DE CERRAR SESIÓN"
+fi
 
-# Hermes restringido
-ufw status | grep -q "9119" && ok "Hermes 9119 restringido a Tailscale" || err "Falta regla de Hermes"
+if ufw status | grep -q "22.*$LAN_SUBNET"; then
+  ok "SSH accesible desde LAN (anti-lockout)"
+else
+  err "FALTA regla SSH desde LAN"
+fi
+
+if ufw status | grep -q "Anywhere on tailscale0.*ALLOW"; then
+  warn "Regla amplia por interfaz TODAVÍA presente"
+else
+  ok "Sin reglas amplias por interfaz"
+fi
+
+echo ""
+echo "  Reglas UFW actuales:"
+ufw status numbered | sed 's/^/    /'
 
 echo ""
 echo "=== Resumen: $PASS OK, $FAIL errores ==="
 echo ""
 echo "VALIDAR DESDE EL MAC (antes de cerrar esta terminal):"
-echo "  1. ssh sigue funcionando (abrir una segunda sesión SSH AHORA para probar)"
-echo "  2. http://<TAILSCALE_IP>:9119 (dashboard Hermes) accesible"
-echo "  3. Syncthing sigue sincronizando (~/shared/demos en el Mac)"
+echo "  1. ssh sigue funcionando (abrir segunda sesión SSH AHORA)"
+echo "  2. Todos los servicios responden via Tailscale"
 echo ""
-echo "Si algo se rompió: sudo ufw disable  # vuelve todo atrás al instante"
+echo "Si algo se rompió: sudo ufw disable"
 exit $FAIL
