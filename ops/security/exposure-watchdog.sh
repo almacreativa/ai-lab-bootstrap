@@ -39,11 +39,25 @@ $tun")
 fi
 
 # ── 2) Firewall y fail2ban vivos ──
-if [ "$(systemctl is-active ufw 2>/dev/null)" != "active" ]; then
+# systemctl is-active puede devolver "unknown" sin sudo; fallback por proceso/comando
+ufw_status=$(systemctl is-active ufw 2>/dev/null || true)
+if [ "$ufw_status" != "active" ] && [ "$ufw_status" != "unknown" ]; then
   alerts+=("UFW NO ESTÁ ACTIVO — las reglas de security-apply-sudo.sh pueden haberse caído")
+elif [ "$ufw_status" = "unknown" ]; then
+  # Sin permisos systemctl — verificar por comando ufw status o proceso
+  if ! ufw status 2>/dev/null | grep -q "^Status: active" && ! pgrep -f "ufw" &>/dev/null; then
+    alerts+=("UFW NO SE PUEDE VERIFICAR (sin permisos systemctl)")
+  fi
 fi
-if [ "$(systemctl is-active fail2ban 2>/dev/null)" != "active" ]; then
+
+fail2ban_status=$(systemctl is-active fail2ban 2>/dev/null || true)
+if [ "$fail2ban_status" != "active" ] && [ "$fail2ban_status" != "unknown" ]; then
   alerts+=("FAIL2BAN NO ESTÁ ACTIVO")
+elif [ "$fail2ban_status" = "unknown" ]; then
+  # Sin permisos systemctl — verificar por proceso fail2ban-server
+  if ! pgrep -f "fail2ban-server" &>/dev/null; then
+    alerts+=("FAIL2BAN NO SE PUEDE VERIFICAR (sin permisos systemctl)")
+  fi
 fi
 
 # ── 3) Puertos wildcard fuera de baseline ──
