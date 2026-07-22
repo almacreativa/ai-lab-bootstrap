@@ -13,6 +13,17 @@ HOSTNAME=$(hostname)
 GENERATED=$(date -Iseconds)
 
 TAILSCALE_IP=$(tailscale ip -4 2>/dev/null || echo "not configured")
+TAILSCALE_IFACE="tailscale0"
+LAN_IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}' || echo "")
+LAN_IP=""
+LAN_SUBNET=""
+if [ -n "$LAN_IFACE" ]; then
+  LAN_IP=$(ip -4 addr show "$LAN_IFACE" 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | head -1 || true)
+  LAN_CIDR=$(ip -4 addr show "$LAN_IFACE" 2>/dev/null | awk '/inet / {print $2}' | head -1 || true)
+  if [ -n "$LAN_CIDR" ]; then
+    LAN_SUBNET=$(python3 -c "import ipaddress; print(ipaddress.ip_network('$LAN_CIDR', strict=False))" 2>/dev/null || echo "")
+  fi
+fi
 
 cat > "$MANIFEST" << HEADER
 # core-manifest.yaml — generado automáticamente por generate-core-manifest.sh
@@ -23,6 +34,93 @@ tailscale_ip: "${TAILSCALE_IP}"
 core_version: "1.0.0"
 
 HEADER
+
+# --- Sección network: detección dinámica de red ---
+cat >> "$MANIFEST" << NETWORK
+network:
+  tailscale_ip: "${TAILSCALE_IP}"
+  tailscale_iface: "${TAILSCALE_IFACE}"
+  lan_subnet: "${LAN_SUBNET}"
+  lan_ip: "${LAN_IP}"
+
+NETWORK
+
+# --- Sección security: política de puertos (declarativa, no auto-detectada) ---
+cat >> "$MANIFEST" << 'SECURITY'
+security:
+  model: "per-port"
+  ufw_default: "deny incoming"
+  fail2ban: true
+
+  allowed_ports:
+    - port: 22
+      proto: tcp
+      from: [tailscale, lan]
+      service: SSH
+    - port: 9119
+      proto: tcp
+      from: [tailscale]
+      service: Hermes dashboard
+    - port: 22000
+      proto: tcp
+      from: [tailscale, lan]
+      service: Syncthing P2P
+    - port: 8480
+      proto: tcp
+      from: [tailscale]
+      service: Dagu
+    - port: 5200
+      proto: tcp
+      from: [tailscale]
+      service: MoolMesh
+    - port: 9001
+      proto: tcp
+      from: [tailscale]
+      service: centro-de-comando
+    - port: 8770
+      proto: tcp
+      from: [tailscale]
+      service: NLM gateway
+    - port: 8646
+      proto: tcp
+      from: [tailscale]
+      service: Hermes xAI proxy
+    - port: 8384
+      proto: tcp
+      from: [tailscale]
+      service: Syncthing GUI
+    - port: 9000
+      proto: tcp
+      from: [tailscale]
+      service: Glance (host network)
+
+  docker_binds:
+    - service: paperclip-server
+      port: 3100
+      bind: [localhost, tailscale]
+    - service: paperclip-db
+      port: 5432
+      bind: [localhost]
+    - service: odysseus
+      port: 7000
+      bind: [localhost, tailscale]
+    - service: portainer
+      port: 9443
+      bind: [tailscale]
+    - service: uptime-kuma
+      port: 3001
+      bind: [tailscale]
+    - service: searxng
+      port: 8080
+      bind: [localhost]
+    - service: glance
+      port: 9000
+      bind: [host_network]
+    - service: chromadb-odysseus
+      port: 8100
+      bind: [localhost]
+
+SECURITY
 
 # Binarios en ~/.local/bin/
 echo "binaries:" >> "$MANIFEST"

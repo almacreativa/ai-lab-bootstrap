@@ -38,7 +38,7 @@
 
 ## UFW (baseline)
 
-`deny incoming` por defecto. Permitidos: 22 (Tailscale `100.64.0.0/10` + LAN `192.168.0.0/24`),
+`deny incoming` por defecto. Permitidos: 22 (Tailscale `100.64.0.0/10` + LAN `192.168.50.0/24`),
 9119 (Tailscale + `172.16.0.0/12` para el monitor de Kuma), 22000 (Tailscale + LAN).
 **Importante:** UFW NO protege puertos publicados por Docker — la protección es el bind.
 Script idempotente: `~/ai-lab/scripts/security-apply-sudo.sh`.

@@ -19,7 +19,7 @@ Definido por `scripts/security-apply-sudo.sh`:
 
 | Puerto | Servicio | Acceso |
 |---|---|---|
-| 22 | SSH | Tailscale (100.64.0.0/10) + LAN (192.168.0.0/24) |
+| 22 | SSH | Tailscale (100.64.0.0/10) + LAN (variable `LAN_SUBNET`, default 192.168.50.0/24) |
 | 9119 | Hermes Dashboard | Tailscale |
 | 22000 | Syncthing P2P | Tailscale + LAN |
 

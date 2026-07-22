@@ -59,6 +59,15 @@ fi
 NEW_HOSTNAME=$(hostname -s)
 NEW_HOME="$HOME"
 
+LAN_IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}' || echo "")
+NEW_LAN_SUBNET=""
+if [ -n "$LAN_IFACE" ]; then
+  LAN_CIDR=$(ip -4 addr show "$LAN_IFACE" 2>/dev/null | awk '/inet / {print $2}' | head -1 || true)
+  if [ -n "$LAN_CIDR" ]; then
+    NEW_LAN_SUBNET=$(python3 -c "import ipaddress; print(ipaddress.ip_network('$LAN_CIDR', strict=False))" 2>/dev/null || echo "")
+  fi
+fi
+
 # --- Detectar identidad VIEJA (del manifest restaurado o del restore) ---
 if [ -z "$OLD_IP" ] || [ -z "$OLD_HOSTNAME" ]; then
   # Buscar manifest en orden: restore reciente → manifest live
@@ -99,6 +108,16 @@ with open('$FOUND_MANIFEST') as f:
 print(m.get('tailscale_ip', ''))
 " 2>/dev/null || echo "")
   fi
+
+  OLD_LAN=$(python3 -c "
+import yaml
+with open('$FOUND_MANIFEST') as f:
+    m = yaml.safe_load(f)
+print(m.get('network', {}).get('lan_subnet', ''))
+" 2>/dev/null || echo "")
+  if [ -z "$OLD_LAN" ] && [ -f "$LAB_DIR/scripts/.env" ]; then
+    OLD_LAN=$(grep '^LAN_SUBNET=' "$LAB_DIR/scripts/.env" 2>/dev/null | cut -d= -f2 || true)
+  fi
 fi
 
 if [ -z "$OLD_IP" ]; then
@@ -117,8 +136,8 @@ if [ -z "$OLD_HOME" ]; then
   OLD_HOME=$(grep -rhP '/home/[^/]+/ai-lab' "$LAB_DIR/stacks/" 2>/dev/null | grep -oP '/home/[^/]+' | head -1 || echo "")
 fi
 
-if [ "$OLD_IP" = "$NEW_IP" ] && [ "$OLD_HOSTNAME" = "$NEW_HOSTNAME" ] && { [ -z "$OLD_HOME" ] || [ "$OLD_HOME" = "$NEW_HOME" ]; }; then
-  log "La identidad no cambió (IP: $NEW_IP, hostname: $NEW_HOSTNAME, home: $NEW_HOME). Nada que hacer."
+if [ "$OLD_IP" = "$NEW_IP" ] && [ "$OLD_HOSTNAME" = "$NEW_HOSTNAME" ] && { [ -z "$OLD_HOME" ] || [ "$OLD_HOME" = "$NEW_HOME" ]; } && { [ -z "$OLD_LAN" ] || [ "$OLD_LAN" = "$NEW_LAN_SUBNET" ]; }; then
+  log "La identidad no cambió (IP: $NEW_IP, hostname: $NEW_HOSTNAME, LAN: $NEW_LAN_SUBNET). Nada que hacer."
   exit 0
 fi
 
@@ -126,8 +145,8 @@ echo "============================================"
 echo "  rehome.sh — Adaptación de identidad"
 echo "============================================"
 echo ""
-echo "  ORIGEN:   $OLD_HOSTNAME ($OLD_IP) ${OLD_HOME:+home=$OLD_HOME}"
-echo "  DESTINO:  $NEW_HOSTNAME ($NEW_IP) home=$NEW_HOME"
+echo "  ORIGEN:   $OLD_HOSTNAME ($OLD_IP) ${OLD_HOME:+home=$OLD_HOME} ${OLD_LAN:+LAN=$OLD_LAN}"
+echo "  DESTINO:  $NEW_HOSTNAME ($NEW_IP) home=$NEW_HOME LAN=$NEW_LAN_SUBNET"
 echo ""
 
 if [ "$DRY_RUN" = true ]; then
@@ -208,6 +227,29 @@ done < <(find "$HOME/.hermes" -type f \( -name "*.json" -o -name "*.yaml" -o -na
 # --- 6. scripts/.env — Uptime Kuma push URLs con IPs ---
 log "Verificando scripts/.env..."
 replace_in_file "$LAB_DIR/scripts/.env" "$OLD_IP" "$NEW_IP" "scripts/.env: push URLs"
+
+# --- 6b. scripts/.env — variables de red (TAILSCALE_IP, LAN_SUBNET) ---
+if [ -f "$LAB_DIR/scripts/.env" ]; then
+  if grep -q '^TAILSCALE_IP=' "$LAB_DIR/scripts/.env" 2>/dev/null; then
+    replace_in_file "$LAB_DIR/scripts/.env" "^TAILSCALE_IP=.*" "TAILSCALE_IP=$NEW_IP" "scripts/.env: TAILSCALE_IP"
+  fi
+  if [ -n "$NEW_LAN_SUBNET" ] && grep -q '^LAN_SUBNET=' "$LAB_DIR/scripts/.env" 2>/dev/null; then
+    if grep -q "^LAN_SUBNET=.*" "$LAB_DIR/scripts/.env" 2>/dev/null; then
+      sed -i "s|^LAN_SUBNET=.*|LAN_SUBNET=$NEW_LAN_SUBNET|" "$LAB_DIR/scripts/.env"
+      CHANGES=$((CHANGES + 1))
+      log "scripts/.env: LAN_SUBNET actualizado"
+    fi
+  fi
+fi
+
+# --- 6c. Stack .env files — TAILSCALE_IP para compose files ---
+log "Verificando TAILSCALE_IP en .env de stacks..."
+while IFS= read -r env_file; do
+  [ -f "$env_file" ] || continue
+  if grep -q '^TAILSCALE_IP=' "$env_file" 2>/dev/null; then
+    replace_in_file "$env_file" "^TAILSCALE_IP=.*" "TAILSCALE_IP=$NEW_IP" "Stack .env: $(dirname "$env_file" | xargs basename)"
+  fi
+done < <(find "$LAB_DIR/stacks" -name ".env" 2>/dev/null)
 
 # --- 7. centro-aggregator.py — URLs de servicios hardcodeadas ---
 log "Verificando centro-aggregator.py..."
