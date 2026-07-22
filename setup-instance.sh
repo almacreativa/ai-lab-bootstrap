@@ -234,6 +234,19 @@ for runbook in "$BOOTSTRAP_DIR/ops/runbooks"/*.md; do
   cp "$runbook" "$OPS_DEST/runbooks/"
 done
 
+# ── Exposure watchdog ──
+mkdir -p "$LAB_DIR/scripts"
+WATCHDOG_SRC="$BOOTSTRAP_DIR/ops/security/exposure-watchdog.sh"
+if [ -f "$WATCHDOG_SRC" ]; then
+  cp "$WATCHDOG_SRC" "$LAB_DIR/scripts/exposure-watchdog.sh"
+  chmod +x "$LAB_DIR/scripts/exposure-watchdog.sh"
+  log "Watchdog instalado: $LAB_DIR/scripts/exposure-watchdog.sh"
+else
+  warn "exposure-watchdog.sh no encontrado en $WATCHDOG_SRC"
+fi
+
+mkdir -p "$LAB_DIR/ops/state"
+
 log "ops/ copiado a $OPS_DEST ($(find "$OPS_DEST" -type f | wc -l) archivos)"
 
 # -----------------------------------------------
@@ -472,6 +485,7 @@ echo "  Manifest:    $LAB_DIR/ops/core-manifest.yaml"
 echo "  Guards:      $LAB_DIR/ops/guards/"
 echo "  Backup:      $LAB_DIR/ops/backup/lab-backup.sh"
 echo "  Runbooks:    $LAB_DIR/ops/runbooks/"
+echo "  Watchdog:    $LAB_DIR/scripts/exposure-watchdog.sh (cada 15 min vía Dagu)"
 echo "  CLAUDE.md:   $CLAUDE_MD"
 echo "  Repo:        $LAB_DIR/repos/$(hostname -s)-lab/"
 echo "  Stacks:      $(ls -d "$LAB_DIR/stacks"/*/docker-compose.yml 2>/dev/null | wc -l) compose files en stacks/"

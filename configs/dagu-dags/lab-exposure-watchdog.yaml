@@ -1,0 +1,8 @@
+description: Monitorea exposición no aprobada — túneles, firewall, puertos, Docker
+schedule: "*/15 * * * *"
+group: salud
+
+steps:
+  - name: exposure-watchdog
+    run: ${SCRIPTS_DIR}/exposure-watchdog.sh
+    timeout_sec: 120
