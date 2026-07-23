@@ -511,9 +511,70 @@ curl -s http://localhost:9119/health
 # O enviar /start al bot de Telegram
 ```
 
+### 4.4 Horizonte 1 — Orquestación tmux
+
+Tres herramientas que convierten tmux en un bus de comunicación inter-agentes:
+
+#### tmux-bridge-mcp (MCP server, stdio)
+
+MCP server que expone 9 tools para comunicación entre paneles tmux.
+No es un daemon — corre on-demand por cada sesión MCP.
+
+```bash
+# Verificar repo y wrapper:
+ls ~/ai-lab/repos/tmux-bridge-mcp/dist/cli.js
+ls ~/ai-lab/scripts/tmux-bridge-mcp.sh
+
+# Configurar en agentes (Hermes, Claude Code, OpenCode):
+# Agregar MCP server con comando: bash ~/ai-lab/scripts/tmux-bridge-mcp.sh
+```
+
+#### clawhip (daemon, :25294)
+
+Daemon Rust para monitoreo de sesiones tmux. Detecta keywords y pane stale,
+notifica via Telegram con latencia ~15s. Complementa el DAG session-watchdog.
+
+```bash
+# Habilitar e iniciar:
+systemctl --user enable clawhip clawhip-dispatch
+systemctl --user start clawhip
+systemctl --user start clawhip-dispatch  # depende de clawhip
+
+# Verificar:
+curl -sf http://127.0.0.1:25294/health
+systemctl --user is-active clawhip clawhip-dispatch
+
+# Config: ~/.clawhip/config.toml
+# Logs: ~/ai-lab/logs/clawhip/events.jsonl
+```
+
+#### tmux-gateway (daemon, :8680 HTTP, :50052 gRPC)
+
+API REST/gRPC/WebSocket sobre tmux. Requiere `pane-base-index 0` en tmux.conf
+(ya configurado en el bootstrap).
+
+```bash
+# Habilitar e iniciar:
+systemctl --user enable tmux-gateway
+systemctl --user start tmux-gateway
+
+# Verificar:
+curl -sf http://127.0.0.1:8680/health
+
+# Nota: tmux.conf debe tener pane-base-index 0 (no 1)
+```
+
 **Verificación de fase:**
 ```bash
-systemctl --user is-active moolmesh
+systemctl --user is-active moolmesh clawhip clawhip-dispatch tmux-gateway
+sudo systemctl is-active dagu hermes
+curl -sf http://127.0.0.1:25294/health && echo "clawhip OK"
+curl -sf http://127.0.0.1:8680/health && echo "tmux-gateway OK"
+```
+
+**Verificación de fase:**
+```bash
+systemctl --user is-active moolmesh clawhip clawhip-dispatch tmux-gateway
 sudo systemctl is-active dagu hermes
 ```
 

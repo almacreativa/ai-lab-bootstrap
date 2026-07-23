@@ -110,3 +110,44 @@ fresh maintenance.json 192 || echo "GAP: maintenance.json vencido"
 - DAGs relacionados: `configs/dagu-dags/health-check.yaml`,
   `configs/dagu-dags/paperclip-watchdog.yaml`,
   `configs/dagu-dags/maintenance-check.yaml`.
+
+## clawhip — monitoreo de sesiones tmux en tiempo real
+
+Clawhip es un daemon Rust que complementa (no reemplaza) el DAG
+`session-watchdog`. Mientras el watchdog corre periodicamente (DAG),
+clawhip opera en continuo con latencia de ~15 segundos desde deteccion
+hasta notificacion.
+
+### Que monitorea
+
+| Deteccion | Mecanismo | Relacion con session-watchdog |
+|---|---|---|
+| **Keywords** en output tmux | Substring match en ventana temporal (`keyword_window_secs=5`) | Equivale a deteccion de `Error`, `FAILED`, `fatal`, etc. |
+| **Stale/idle** | Pane sin cambios por N minutos (`stale_minutes=15`) | Equivale a `WD_UMBRAL_BASH=900s` y `WD_UMBRAL_FIN` |
+| **Espera-permiso** | NO cubierto | Requiere MoolMesh (session chain) |
+
+### Pipeline
+
+```
+clawhip daemon (:25294)
+  → localfile JSONL (~/ai-lab/logs/clawhip/events.jsonl)
+    → clawhip-dispatch.sh (tail -F + jq)
+      → telegram-notify.sh (push a Telegram)
+```
+
+### Relacion con MoolMesh
+
+- **clawhip**: push en tiempo real — detecta keywords y stale, notifica
+  inmediatamente via Telegram. Es el "sistema nervioso" de deteccion rapida.
+- **MoolMesh**: archivo historico — registra todas las sesiones de agentes
+  para consulta posterior, dashboards y chain analysis. Es la "memoria
+  episodica" del laboratorio.
+
+Ambos son complementarios: clawhip alerta, MoolMesh documenta.
+
+### Configuracion
+
+- Config: `~/.clawhip/config.toml`
+- Service: `systemctl --user status clawhip clawhip-dispatch`
+- Health: `curl -sf http://127.0.0.1:25294/health`
+- Logs: `~/ai-lab/logs/clawhip/events.jsonl`
