@@ -1,5 +1,5 @@
 #!/bin/bash
-# Módulo 04 — Herramientas AI: Claude Code, OpenCode, Chromium, Playwright MCP, Engram, MoolMesh
+# Módulo 04 — Herramientas AI: Claude Code, OpenCode, Chromium, Playwright MCP, Engram, MoolMesh, Horizonte 1 (tmux-bridge, clawhip, tmux-gateway)
 
 log "Paso 4/6 — Herramientas AI..."
 
@@ -181,6 +181,96 @@ PWEOF
   log "playwright-mcp.sh creado en ai-lab/scripts/."
 else
   log "playwright-mcp.sh ya existe, saltando."
+fi
+
+# ─────────────────────────────────────────────
+# Horizonte 1 — Orquestación tmux
+# ─────────────────────────────────────────────
+
+# tmux-bridge-mcp — MCP server (stdio, Node.js) para comunicación inter-agente
+if [ ! -d "$HOME/ai-lab/repos/tmux-bridge-mcp" ]; then
+  if command -v git &>/dev/null && command -v node &>/dev/null; then
+    git clone https://github.com/howardpen9/tmux-bridge-mcp.git "$HOME/ai-lab/repos/tmux-bridge-mcp" \
+      && cd "$HOME/ai-lab/repos/tmux-bridge-mcp" && npm install
+    log "tmux-bridge-mcp instalado."
+  else
+    warn "tmux-bridge-mcp: requiere git + node — saltando."
+  fi
+else
+  log "tmux-bridge-mcp ya existe, saltando."
+fi
+
+# Wrapper script para tmux-bridge-mcp
+TMUX_BRIDGE_SCRIPT="$HOME/ai-lab/scripts/tmux-bridge-mcp.sh"
+if [ ! -f "$TMUX_BRIDGE_SCRIPT" ]; then
+  mkdir -p "$HOME/ai-lab/scripts"
+  cat > "$TMUX_BRIDGE_SCRIPT" << 'TBEOF'
+#!/bin/bash
+# tmux-bridge-mcp.sh — MCP server para comunicación inter-agente vía tmux
+# 9 tools: tmux_list, tmux_read, tmux_type, tmux_message, tmux_keys,
+#          tmux_name, tmux_resolve, tmux_id, tmux_doctor
+exec node "$HOME/ai-lab/repos/tmux-bridge-mcp/dist/cli.js" "$@"
+TBEOF
+  chmod +x "$TMUX_BRIDGE_SCRIPT"
+  log "tmux-bridge-mcp.sh creado en ai-lab/scripts/."
+else
+  log "tmux-bridge-mcp.sh ya existe, saltando."
+fi
+
+# clawhip — Daemon Rust para monitoreo tmux y enrutamiento de eventos
+if [ ! -f "$HOME/.local/bin/clawhip" ]; then
+  if command -v cargo &>/dev/null && [ -d "$HOME/ai-lab/repos/clawhip" ]; then
+    log "clawhip: compilando desde source (puede tardar 1-5 min)..."
+    if (cd "$HOME/ai-lab/repos/clawhip" && cargo build --release 2>&1 | tail -3); then
+      if [ -f "$HOME/ai-lab/repos/clawhip/target/release/clawhip" ]; then
+        cp "$HOME/ai-lab/repos/clawhip/target/release/clawhip" "$HOME/.local/bin/clawhip"
+        chmod +x "$HOME/.local/bin/clawhip"
+        log "clawhip instalado ($(clawhip --version 2>/dev/null || echo 'OK'))."
+      else
+        warn "clawhip: compilación completó pero binario no encontrado."
+      fi
+    else
+      warn "clawhip: compilación falló — verificar logs."
+    fi
+  elif [ ! -d "$HOME/ai-lab/repos/clawhip" ]; then
+    warn "clawhip: repo no existe en ~/ai-lab/repos/clawhip — clonar primero."
+  else
+    warn "clawhip: requiere Rust (cargo) — instalar con rustup, luego compilar manualmente."
+  fi
+else
+  log "clawhip ya instalado ($(clawhip --version 2>/dev/null || echo 'presente')), saltando."
+fi
+
+# clawhip config directory
+if [ ! -d "$HOME/.clawhip" ] && [ -f "$HOME/.local/bin/clawhip" ]; then
+  mkdir -p "$HOME/.clawhip"
+  log "Directorio ~/.clawhip/ creado."
+fi
+
+# tmux-gateway — API REST/gRPC/WebSocket sobre tmux (Rust)
+if [ ! -f "$HOME/.local/bin/tmux-gateway" ]; then
+  if command -v cargo &>/dev/null && command -v protoc &>/dev/null && [ -d "$HOME/ai-lab/repos/tmux-gateway" ]; then
+    log "tmux-gateway: compilando desde source (puede tardar 1-5 min)..."
+    if (cd "$HOME/ai-lab/repos/tmux-gateway" && cargo build --release 2>&1 | tail -3); then
+      if [ -f "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" ]; then
+        cp "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" "$HOME/.local/bin/tmux-gateway"
+        chmod +x "$HOME/.local/bin/tmux-gateway"
+        log "tmux-gateway instalado."
+      else
+        warn "tmux-gateway: compilación completó pero binario no encontrado."
+      fi
+    else
+      warn "tmux-gateway: compilación falló — verificar logs."
+    fi
+  elif [ ! -d "$HOME/ai-lab/repos/tmux-gateway" ]; then
+    warn "tmux-gateway: repo no existe en ~/ai-lab/repos/tmux-gateway — clonar primero."
+  elif ! command -v cargo &>/dev/null; then
+    warn "tmux-gateway: requiere Rust (cargo) — instalar con rustup, luego compilar manualmente."
+  elif ! command -v protoc &>/dev/null; then
+    warn "tmux-gateway: requiere protoc (protobuf compiler) — instalar con: sudo apt install protobuf-compiler"
+  fi
+else
+  log "tmux-gateway ya instalado, saltando."
 fi
 
 log "Módulo 04 completo."
