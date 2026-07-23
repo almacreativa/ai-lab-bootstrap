@@ -38,10 +38,41 @@
 
 ## UFW (baseline)
 
-`deny incoming` por defecto. Permitidos: 22 (Tailscale `100.64.0.0/10` + LAN `192.168.50.0/24`),
-9119 (Tailscale + `172.16.0.0/12` para el monitor de Kuma), 22000 (Tailscale + LAN).
-**Importante:** UFW NO protege puertos publicados por Docker — la protección es el bind.
-Script idempotente: `~/ai-lab/scripts/security-apply-sudo.sh`.
+Modelo **per-port**: las reglas se leen de `~/ai-lab/ops/core-manifest.yaml`
+(sección `security.allowed_ports`). No hay lista fija hardcodeada; el script
+de aplicación deriva las reglas del manifiesto.
+
+**10 puertos bare-metal permitidos** (todos TCP, `deny incoming` por defecto):
+
+| Puerto | Servicio | Desde |
+|-------:|----------|-------|
+| 22     | SSH                 | Tailscale + LAN |
+| 9119   | Hermes dashboard    | Tailscale |
+| 22000  | Syncthing P2P       | Tailscale + LAN |
+| 8480   | Dagu                | Tailscale |
+| 5200   | MoolMesh            | Tailscale |
+| 9001   | centro-de-comando   | Tailscale |
+| 8770   | NLM gateway         | Tailscale |
+| 8646   | Hermes xAI proxy    | Tailscale |
+| 8384   | Syncthing GUI       | Tailscale |
+| 9000   | Glance (host network) | Tailscale |
+
+**Regla especial — Hermes desde Docker:** el Hermes xAI proxy corre como
+servicio systemd pero se expone para ser consumido por contenedores Docker
+(paperclip-xai-proxy). UFW permite el tráfico desde las redes de contenedores
+hacia 8646, manteniendo la coherencia con el modelo per-port.
+
+**fail2ban** activo con jail SSH habilitado (`security.fail2ban: true` en el
+manifiesto).
+
+**Detalle completo de las reglas** (rangos exactos de Tailscale, LAN, etc.)
+en `docs/SECURITY_GUIDE.md`.
+
+**Script de aplicación idempotente:** `~/ai-lab/scripts/security-apply-sudo.sh`
+(requiere `sudo`).
+
+**Importante:** UFW NO protege puertos publicados por Docker — la protección
+es el bind.
 
 ## Automatización — scripts, stacks y servicios
 
