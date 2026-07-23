@@ -84,11 +84,12 @@ necesita escritura.
 Fase 0: Verificar base         ← confirmar que bootstrap completó bien
 Fase 1: Secrets                 ← sin esto nada arranca
 Fase 2: Autenticaciones         ← logins interactivos (requiere humano)
-Fase 3: Servicios core          ← Hermes, Dagu, MoolMesh
-Fase 4: Stack de agentes        ← Paperclip, Odysseus, Ollama, Mem0
-Fase 5: Observabilidad          ← Uptime Kuma, Glance, guards
-Fase 6: Colaboración            ← file sharing, NLM Gateway
-Fase 7: Verificación final      ← guards limpios, todo verde
+Fase 3: Seguridad de red        ← UFW + fail2ban (antes de exponer servicios)
+Fase 4: Servicios core          ← Hermes, Dagu, MoolMesh
+Fase 5: Stack de agentes        ← Paperclip, Odysseus, Ollama, Mem0
+Fase 6: Observabilidad          ← Uptime Kuma, Glance, guards
+Fase 7: Colaboración            ← file sharing, NLM Gateway
+Fase 8: Verificación final      ← guards limpios, todo verde
 ```
 
 ---
@@ -154,7 +155,7 @@ cp ~/ai-lab/repos/ai-lab-bootstrap/templates/agents.env.example ~/ai-lab/scripts
 cat > ~/ai-lab/scripts/.env << 'EOF'
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
-# Backup (completar cuando se configure — ver Fase 5)
+# Backup (completar cuando se configure — ver Fase 6)
 RESTIC_REPOSITORY=
 RESTIC_PASSWORD=
 B2_ACCOUNT_ID=
@@ -354,11 +355,106 @@ opencode  # seleccionar provider y autenticar
 
 ---
 
-## Fase 3 — Servicios core
+## Fase 3 — Seguridad de red
+
+**Prerrequisito:** Fase 2 completada (Tailscale activo, IP conocida).
+
+Esta fase aplica el modelo de 3 capas antes de levantar servicios expuestos.
+Ver `docs/SECURITY_GUIDE.md` para el detalle del modelo.
+
+### 3.1 Variables de red
+
+El script de seguridad necesita conocer la topología de red. Verificar que
+`~/ai-lab/scripts/.env` contiene las variables de red:
+
+```bash
+grep -E "TAILSCALE_IP|TAILSCALE_IFACE|LAN_SUBNET" ~/ai-lab/scripts/.env
+```
+
+Si faltan, agregarlas:
+
+```bash
+# Obtener la IP de Tailscale:
+tailscale ip -4
+
+# Obtener la interfaz de Tailscale:
+ip -o link show | grep tailscale | awk -F': ' '{print $2}'
+
+# Obtener la subred LAN (ej: 192.168.1.0/24):
+ip route | grep "src" | awk '{print $9}'
+
+# Agregar a ~/ai-lab/scripts/.env:
+# TAILSCALE_IP=100.x.x.x
+# TAILSCALE_IFACE=tailscale0
+# LAN_SUBNET=192.168.1.0/24
+```
+
+### 3.2 Regenerar el manifiesto
+
+El manifiesto (`core-manifest.yaml`) contiene las secciones `network{}` y
+`security{}` que los scripts de seguridad consumen automáticamente.
+
+```bash
+bash ~/ai-lab/ops/manifests/generate-core-manifest.sh
+
+# Verificar que contiene las secciones de red y seguridad:
+grep -A5 "network:" ~/ai-lab/ops/core-manifest.yaml
+grep -A10 "security:" ~/ai-lab/ops/core-manifest.yaml
+```
+
+### 3.3 Aplicar reglas de seguridad
+
+```bash
+sudo bash ~/ai-lab/scripts/security-apply-sudo.sh
+```
+
+Este script lee el manifiesto y:
+- Genera reglas UFW per-port desde `security.allowed_ports[]` (no per-interface)
+- Elimina reglas viejas `allow in on tailscale0` si existen
+- Instala y configura fail2ban con jail SSH (maxretry=5, bantime=3600)
+
+### 3.4 Verificar
+
+```bash
+# UFW — debe mostrar reglas per-port, NO "allow in on tailscale0":
+sudo ufw status numbered
+
+# fail2ban — debe mostrar la jail SSH activa:
+sudo fail2ban-client status sshd
+
+# Docker binds — ningún contenedor en 0.0.0.0:
+bash ~/ai-lab/scripts/exposure-watchdog.sh
+```
+
+### 3.5 Nota sobre Docker y UFW
+
+**UFW NO protege contenedores Docker.** Docker escribe sus propias reglas
+iptables y bypassea la cadena INPUT vía FORWARD. La protección de los
+contenedores es el **bind address** en los compose files:
+
+```yaml
+# Patrón dual bind (correcto):
+ports:
+  - "127.0.0.1:${PORT}:${PORT}"
+  - "${TAILSCALE_IP}:${PORT}:${PORT}"
+
+# Incorrecto — expone en todas las interfaces:
+ports:
+  - "${PORT}:${PORT}"   # equivale a 0.0.0.0:PORT
+```
+
+El watchdog (`exposure-watchdog.sh`) verifica esto automáticamente.
+
+**Resultado esperado:** UFW activo con reglas per-port, fail2ban con jail SSH,
+ningún contenedor Docker en `0.0.0.0`.
+
+---
+
+## Fase 4 — Servicios core
 
 **Prerrequisito:** Fase 1 completada (secrets existen con valores reales).
 
-### 3.1 Dagu
+### 4.1 Dagu
 
 **Canónico del lab: UN solo service, system-scope** (`/etc/systemd/system/dagu.service`,
 `User=<usuario del lab>`, `ExecStart ... --config ~/.config/dagu/config.yaml`).
@@ -394,7 +490,7 @@ ss -tlnp | grep 8480
 #   DAGU_AUTH_PASS=<contraseña>
 ```
 
-### 3.2 MoolMesh
+### 4.2 MoolMesh
 
 ```bash
 systemctl --user start moolmesh
@@ -404,7 +500,7 @@ systemctl --user is-active moolmesh  # debe decir "active"
 curl -s http://localhost:5200/api/health | head -1
 ```
 
-### 3.3 Hermes
+### 4.3 Hermes
 
 ```bash
 sudo systemctl start hermes
@@ -423,14 +519,14 @@ sudo systemctl is-active dagu hermes
 
 ---
 
-## Fase 4 — Stack de agentes
+## Fase 5 — Stack de agentes
 
 **Prerrequisito:** Fase 1.4 completada, Docker corriendo.
 
 Cada servicio Docker usa la convención `stacks/`: código en `repos/`,
 compose de producción en `stacks/`, datos persistentes en `data/core/`.
 
-### 4.1 Paperclip
+### 5.1 Paperclip
 
 ```bash
 # 1. Clonar el repo (si no existe)
@@ -457,7 +553,7 @@ docker ps --filter name=paperclip
 curl -s -o /dev/null -w "%{http_code}" http://<TAILSCALE_IP>:3100
 ```
 
-### 4.2 Mem0 + Ollama
+### 5.2 Mem0 + Ollama
 
 ```bash
 # Mem0 incluye Ollama como dependencia en su compose
@@ -472,7 +568,7 @@ curl -s http://localhost:8765/health
 curl -s http://localhost:11434/api/tags | head -1
 ```
 
-### 4.3 Odysseus
+### 5.3 Odysseus
 
 ```bash
 # 1. Clonar el repo (si no existe)
@@ -503,9 +599,9 @@ docker ps --format "table {{.Names}}\t{{.Status}}" | sort
 
 ---
 
-## Fase 5 — Observabilidad
+## Fase 6 — Observabilidad
 
-### 5.1 Desplegar stacks de infraestructura
+### 6.1 Desplegar stacks de infraestructura
 
 `setup-instance.sh` genera los compose en `stacks/` desde templates.
 Solo falta levantar los containers:
@@ -534,7 +630,7 @@ done
 Para monitorear por nombre de container, Uptime Kuma debe estar en la
 red Docker del servicio. Su compose ya declara las redes más comunes.
 
-### 5.2 Backup
+### 6.2 Backup
 
 ```bash
 bash ~/ai-lab/ops/backup/setup-backup.sh
@@ -543,7 +639,7 @@ bash ~/ai-lab/ops/backup/setup-backup.sh
 bash ~/ai-lab/ops/backup/lab-backup.sh
 ```
 
-### 5.3 Guards
+### 6.3 Guards
 
 ```bash
 # Regenerar manifest con estado actual:
@@ -558,9 +654,9 @@ bash ~/ai-lab/ops/guards/bootstrap-guard.sh
 
 ---
 
-## Fase 6 — Colaboración y file sharing (opcional)
+## Fase 7 — Colaboración y file sharing (opcional)
 
-### 6.1 File sharing entre instancias
+### 7.1 File sharing entre instancias
 
 Para sincronizar archivos entre labs (ej: knowledge base, configs compartidos),
 hay dos opciones según el caso de uso:
@@ -607,7 +703,7 @@ tailscale file get ~/ai-lab/inbox/
     outputs/         ← resultados de agentes
 ```
 
-### 6.2 NLM Gateway (para agentes Paperclip)
+### 7.2 NLM Gateway (para agentes Paperclip)
 
 ```bash
 # Requiere stack en ~/ai-lab/stacks/nlm-gateway/
@@ -618,7 +714,7 @@ curl -s http://localhost:8770/health
 
 ---
 
-## Fase 7 — Verificación final
+## Fase 8 — Verificación final
 
 ```bash
 # 1. Regenerar manifest con todo corriendo
@@ -707,11 +803,12 @@ Las fases de esta guia aplican con estas diferencias:
 - **Fase 0:** verificar con `servy list` en vez de `systemctl`. Verificar binarios con `Get-Command`.
 - **Fase 1:** los templates de secrets se crean automaticamente en el bootstrap (modulo 05). Solo completar valores.
 - **Fase 2:** `tailscale status` desde PowerShell. `claude` y `nlm login` funcionan igual.
-- **Fase 3:** `servy start <nombre>` en vez de `systemctl start`. No hay Docker que verificar.
-- **Fase 4:** Paperclip usa PG embebido (`npx paperclipai onboard`), no Docker compose. Requiere VC++ Redistributable (modulo 01 lo instala).
-- **Fase 5:** no hay Portainer ni SearXNG local. Uptime Kuma y Glance corren nativos via Servy.
-- **Fase 6:** file sharing via Tailscale file copy o Syncthing en Windows (GUI).
-- **Fase 7:** no hay guards ni manifest en Windows (son Linux-only).
+- **Fase 3:** en Windows no aplica UFW ni fail2ban. La seguridad de red la maneja Tailscale.
+- **Fase 4:** `servy start <nombre>` en vez de `systemctl start`. No hay Docker que verificar.
+- **Fase 5:** Paperclip usa PG embebido (`npx paperclipai onboard`), no Docker compose. Requiere VC++ Redistributable (modulo 01 lo instala).
+- **Fase 6:** no hay Portainer ni SearXNG local. Uptime Kuma y Glance corren nativos via Servy.
+- **Fase 7:** file sharing via Tailscale file copy o Syncthing en Windows (GUI).
+- **Fase 8:** no hay guards ni manifest en Windows (son Linux-only).
 
 **Referencia de servicios Servy:**
 
