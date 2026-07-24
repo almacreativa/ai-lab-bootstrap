@@ -501,6 +501,7 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | `docs/KM_RUNBOOK.md` | Runbook de operaciones — mantenimiento, recuperación, troubleshooting |
 | `docs/SERVICIOS.md` | Inventario de servicios — puertos, contenedores, estado |
 | `docs/OBSERVABILIDAD.md` | Contrato de status JSON (ops-local/status/) — quién escribe cada archivo y su frescura esperada |
+| `docs/ORQUESTACION_AGENTES.md` | Orquestación de agentes — tmux-gateway + tmux-bridge-mcp + clawhip, patrón de delegación (Horizonte 1) |
 | `docs/WORKFLOWS.md` | Flujos de operación — instalación, semana típica, onboarding |
 | `docs/DECISIONES_KM.md` | ADRs — decisiones de arquitectura con contexto y razones |
 | `docs/ADR-ENGRAM.md` | ADR específico de Engram — memoria compartida entre agentes |
@@ -524,6 +525,7 @@ entre sesiones** — multi-empresa, incremental y con costo $0 de LLM:
 | `docs/ONBOARDING_EMPRESA.md` | Alta de empresa/cliente — script + pasos manuales |
 | `docs/ONBOARDING_AGENTE.md` | Alta/modificación de agentes — promptTemplate, modelos |
 | `docs/SECURITY_GUIDE.md` | Baseline de seguridad — UFW, secrets, contenedores |
+| `docs/UPGRADE_SECURITY.md` | Actualización al modelo de seguridad multicapa (Tailscale → UFW per-port → fail2ban) para labs existentes |
 | `docs/SECRETS_INVENTORY.md` | Inventario de secrets — ubicación, rotación, permisos |
 
 ### Referencia

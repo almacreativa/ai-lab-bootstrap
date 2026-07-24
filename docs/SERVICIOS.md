@@ -1,5 +1,5 @@
 # Inventario de servicios — <HOSTNAME>
-**Actualizado:** 2026-06-20 (lab-health-check + inventario de automatización)
+**Actualizado:** 2026-07-23 (Horizonte 1 — orquestación de agentes)
 
 ## Servicios y binds (regla: NADA en 0.0.0.0 salvo SSH con UFW)
 
@@ -16,6 +16,10 @@
 | SearXNG | Docker | `127.0.0.1:8080` | ~150MB | local |
 | Portainer | Docker | `<SERVER_IP>:9443` | ~80MB | tailnet |
 | **NLM Gateway** | host (uvicorn, cron @reboot) | 0.0.0.0:8770 — UFW: solo 172.16/12 (contenedores) y local | ~80MB | contenedores Paperclip |
+| **tmux-gateway** | host (binario Rust, systemd user) | `0.0.0.0:8680` — UFW: Tailscale | ~11MB | Hermes, agentes, tailnet |
+| **clawhip** | host (binario Rust, systemd user) | `127.0.0.1:25294` | ~10MB | local (monitorea tmux) |
+| **clawhip-dispatch** | host (bash, systemd user) | sin puerto (tail -F) | ~4MB | clawhip → telegram-notify.sh |
+| **tmux-bridge-mcp** | host (Node.js, stdio MCP bajo demanda) | sin puerto (stdio) | ~5MB por sesión, 0 en reposo | Hermes, Claude Code, OpenCode |
 | **Engram** | host (binario Go, stdio MCP bajo demanda) | sin puerto (stdio) | ~5-15MB por sesión, 0 en reposo | Claude Code, OpenCode, Antigravity |
 | **Playwright MCP** | host (Node.js, stdio MCP bajo demanda) | sin puerto (stdio) | ~200MB por sesión (Chromium headless) | Claude Code, OpenCode, Hermes |
 | Syncthing | systemd user | GUI `127.0.0.1:8384`; P2P 22000 — UFW: Tailscale + LAN | ~60MB | — |
@@ -114,6 +118,15 @@ bootstrap salvo que se indique lo contrario.
 | `weekly-ingest.sh <uuid>` | cron domingo (escalonado por empresa) | Ingesta semanal de KM por empresa (Fase 6) |
 | `nlm-sync.sh` | manual | Sync semi-manual knowledge → cuaderno NotebookLM (Fase 5) |
 | `nlm-distill.sh` | manual | Destilación batch: cuaderno NLM → knowledge curado |
+
+### Orquestación de agentes (Horizonte 1)
+
+| Script / servicio | Función |
+|---|---|
+| `tmux-gateway` (systemd user) | API REST :8680 para crear/listar/matar sesiones tmux de agentes — 24 endpoints |
+| `tmux-bridge-mcp` (MCP stdio) | 9 tools MCP para comunicación inter-agente via paneles tmux |
+| `clawhip` (systemd user) | Daemon Rust que monitorea output tmux: detecta keywords y sesiones idle → eventos JSONL |
+| `clawhip-dispatch.sh` (systemd user) | Watcher de eventos clawhip (tail -F): cooldown dedup + enrutamiento a telegram-notify.sh |
 
 ### Sesión / utilidades
 
