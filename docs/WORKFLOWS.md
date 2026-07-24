@@ -100,13 +100,58 @@ ls -lt ~/ai-lab/knowledge/companies/<id8>/sessions/ | head
 
 ---
 
-## 5. Mantenimiento del conocimiento (salud de la información)
+## 5. Delegación de tareas a agentes (Horizonte 1)
+
+El lab permite que un agente director (Hermes) delegue tareas a agentes de
+codificación (Claude Code, OpenCode) que corren en sesiones tmux independientes,
+con monitoreo automático y notificación push a Telegram.
+
+### Tres capas
+
+| Capa | Servicio | Qué hace |
+|---|---|---|
+| **Control** | tmux-gateway (:8680) | Crea/lista/mata sesiones tmux via REST API |
+| **Comunicación** | tmux-bridge-mcp (MCP) | 9 tools para leer/escribir paneles entre agentes |
+| **Detección** | clawhip (:25294) + dispatch | Monitoreo push de keywords/stale → Telegram (~15s) |
+
+### Flujo típico de delegación
+
+```
+1. Hermes crea sesión tmux       → curl POST gateway/new
+2. Hermes lanza agente           → curl POST gateway/send-keys (claude/opencode)
+3. Hermes envía tarea            → tmux_type via bridge-mcp (o gateway send-keys)
+4. clawhip monitorea             → detecta keyword/stale → dispatch → Telegram
+5. Usuario/Hermes decide         → verificar resultado, limpiar sesión
+6. Hermes limpia                 → curl POST gateway/kill-session
+```
+
+### Formato de targets tmux
+
+`session:window.pane` — ejemplo: `mi-tarea:1.0`
+
+- Ventanas empiezan en **1** (`base-index 1`)
+- Paneles empiezan en **0** (`pane-base-index 0`)
+- Una sesión nueva con un solo panel = `nombre:1.0`
+
+### Verificación rápida
+
+```bash
+# Los 3 servicios deben estar activos:
+curl -sf http://127.0.0.1:8680/health && echo "gateway OK"
+curl -sf http://127.0.0.1:25294/health && echo "clawhip OK"
+pgrep -f clawhip-dispatch && echo "dispatch OK"
+```
+
+Guía completa: [`ORQUESTACION_AGENTES.md`](ORQUESTACION_AGENTES.md)
+
+---
+
+## 6. Mantenimiento del conocimiento (salud de la información)
 
 - **Una sola dirección de escritura:** solo el pipeline escribe el knowledge curado.
   Los agentes escriben en su `wiki/`. Si encontrás contenido curado que nadie
   escribió por pipeline → algo está mal montado (revisar `:ro`).
-- **Outline es espejo automático** — `sync-outline.sh` replica knowledge, deliverables
-  y docs con jerarquía completa. No se edita en Outline; se corrige en el filesystem.
+- **Outline retirado (2026-06-28)** — la visibilidad la da Odysseus sobre knowledge/.
 - **insights.md es acumulativo con pesos** — los insights repetidos suben (`visto ×N`);
   no borrar, corregir con nota de fecha (el historial de correcciones también enseña).
 - **AGENTS.md ≤500 palabras siempre** — si crece, mover detalle a patterns/runbooks.
