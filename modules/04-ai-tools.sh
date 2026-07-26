@@ -217,25 +217,81 @@ else
   log "tmux-bridge-mcp.sh ya existe, saltando."
 fi
 
-# clawhip — Daemon Rust para monitoreo tmux y enrutamiento de eventos
-if [ ! -f "$HOME/.local/bin/clawhip" ]; then
-  if command -v cargo &>/dev/null && [ -d "$HOME/ai-lab/repos/clawhip" ]; then
-    log "clawhip: compilando desde source (puede tardar 1-5 min)..."
-    if (cd "$HOME/ai-lab/repos/clawhip" && cargo build --release 2>&1 | tail -3); then
-      if [ -f "$HOME/ai-lab/repos/clawhip/target/release/clawhip" ]; then
-        cp "$HOME/ai-lab/repos/clawhip/target/release/clawhip" "$HOME/.local/bin/clawhip"
-        chmod +x "$HOME/.local/bin/clawhip"
-        log "clawhip instalado ($(clawhip --version 2>/dev/null || echo 'OK'))."
-      else
-        warn "clawhip: compilación completó pero binario no encontrado."
+# ─────────────────────────────────────────────
+# Binarios PREBUILT de orquestación (clawhip, tmux-gateway)
+# Decisión (hito 2026-07-26): instalar binarios prebuilt de release en vez de
+# compilar con cargo. Así NO se exige toolchain Rust en cada nodo (reproducibilidad).
+# `cargo build` queda SOLO como fallback si no hay binario prebuilt para la plataforma.
+# Origen de los binarios:
+#   - tmux-gateway: releases upstream (github.com/tupe12334/tmux-gateway); targets
+#     x86_64/aarch64-unknown-linux-gnu (+ macOS). Verificados con sha256 sibling.
+#   - clawhip: upstream (github.com/Yeachan-Heo/clawhip) usa cargo-dist pero NO
+#     publica los tarballs Linux como assets (solo dist-manifest.json). Hasta que el
+#     lab hospede su propio binario, exportar CLAWHIP_PREBUILT_URL → tarball .tar.xz
+#     con el binario 'clawhip'. Sin eso, cae al fallback cargo.
+# Overrides por env: CLAWHIP_VER, CLAWHIP_PREBUILT_URL, TMUX_GATEWAY_VER,
+#                    TMUX_GATEWAY_PREBUILT_URL.
+# ─────────────────────────────────────────────
+
+# Triple de plataforma para los artifacts de release
+case "$(uname -m)" in
+  x86_64)        RUST_TRIPLE="x86_64-unknown-linux-gnu" ;;
+  aarch64|arm64) RUST_TRIPLE="aarch64-unknown-linux-gnu" ;;
+  *)             RUST_TRIPLE="" ;;
+esac
+
+# Instala un binario Rust prebuilt desde un tarball de release.
+# Args: nombre  url_tarball  url_sha256(o "")  ext(tar.gz|tar.xz)
+# Devuelve 0 si instaló, 1 si no (para que el caller caiga al fallback cargo).
+install_prebuilt_bin() {
+  local name="$1" url="$2" sha_url="$3" ext="$4"
+  local tmp; tmp=$(mktemp -d "/tmp/${name}-prebuilt.XXXXXX")
+  local arc="$tmp/${name}.${ext}"
+  if ! curl -fsSL -o "$arc" "$url" 2>/dev/null; then
+    rm -rf "$tmp"; return 1
+  fi
+  if [ -n "$sha_url" ]; then
+    local want; want=$(curl -fsSL "$sha_url" 2>/dev/null | awk '{print $1}')
+    if [ -n "$want" ]; then
+      local got; got=$(sha256sum "$arc" | awk '{print $1}')
+      if [ "$want" != "$got" ]; then
+        warn "$name: sha256 no coincide (esperado $want, obtuvo $got) — descarto prebuilt."
+        rm -rf "$tmp"; return 1
       fi
+    fi
+  fi
+  tar -xf "$arc" -C "$tmp" 2>/dev/null || { rm -rf "$tmp"; return 1; }
+  local found; found=$(find "$tmp" -type f -name "$name" | head -1)
+  if [ -z "$found" ]; then
+    warn "$name: el tarball prebuilt no contenía el binario '$name'."
+    rm -rf "$tmp"; return 1
+  fi
+  install -m 0755 "$found" "$HOME/.local/bin/$name"
+  rm -rf "$tmp"; return 0
+}
+
+# clawhip — Daemon Rust para monitoreo tmux y enrutamiento de eventos
+CLAWHIP_VER="${CLAWHIP_VER:-v0.6.11}"
+if [ ! -f "$HOME/.local/bin/clawhip" ]; then
+  mkdir -p "$HOME/.local/bin"
+  CLAWHIP_URL="${CLAWHIP_PREBUILT_URL:-}"
+  # Default: patrón cargo-dist upstream (hoy 404 hasta que el lab hospede el binario)
+  [ -z "$CLAWHIP_URL" ] && [ -n "$RUST_TRIPLE" ] && \
+    CLAWHIP_URL="https://github.com/Yeachan-Heo/clawhip/releases/download/${CLAWHIP_VER}/clawhip-${RUST_TRIPLE}.tar.xz"
+  if [ -n "$CLAWHIP_URL" ] && install_prebuilt_bin "clawhip" "$CLAWHIP_URL" "${CLAWHIP_URL}.sha256" "tar.xz"; then
+    log "clawhip prebuilt instalado ($(clawhip --version 2>/dev/null || echo "$CLAWHIP_VER"))."
+  elif command -v cargo &>/dev/null && [ -d "$HOME/ai-lab/repos/clawhip" ]; then
+    warn "clawhip: sin binario prebuilt para $RUST_TRIPLE — fallback a cargo (requiere Rust)."
+    log "clawhip: compilando desde source (puede tardar 1-5 min)..."
+    if (cd "$HOME/ai-lab/repos/clawhip" && cargo build --release 2>&1 | tail -3) \
+       && [ -f "$HOME/ai-lab/repos/clawhip/target/release/clawhip" ]; then
+      install -m 0755 "$HOME/ai-lab/repos/clawhip/target/release/clawhip" "$HOME/.local/bin/clawhip"
+      log "clawhip instalado desde source ($(clawhip --version 2>/dev/null || echo 'OK'))."
     else
       warn "clawhip: compilación falló — verificar logs."
     fi
-  elif [ ! -d "$HOME/ai-lab/repos/clawhip" ]; then
-    warn "clawhip: repo no existe en ~/ai-lab/repos/clawhip — clonar primero."
   else
-    warn "clawhip: requiere Rust (cargo) — instalar con rustup, luego compilar manualmente."
+    warn "clawhip: sin prebuilt y sin cargo/repo — exportar CLAWHIP_PREBUILT_URL o instalar Rust."
   fi
 else
   log "clawhip ya instalado ($(clawhip --version 2>/dev/null || echo 'presente')), saltando."
@@ -248,26 +304,26 @@ if [ ! -d "$HOME/.clawhip" ] && [ -f "$HOME/.local/bin/clawhip" ]; then
 fi
 
 # tmux-gateway — API REST/gRPC/WebSocket sobre tmux (Rust)
+TMUX_GATEWAY_VER="${TMUX_GATEWAY_VER:-v0.1.1}"
 if [ ! -f "$HOME/.local/bin/tmux-gateway" ]; then
-  if command -v cargo &>/dev/null && command -v protoc &>/dev/null && [ -d "$HOME/ai-lab/repos/tmux-gateway" ]; then
+  mkdir -p "$HOME/.local/bin"
+  TG_URL="${TMUX_GATEWAY_PREBUILT_URL:-}"
+  [ -z "$TG_URL" ] && [ -n "$RUST_TRIPLE" ] && \
+    TG_URL="https://github.com/tupe12334/tmux-gateway/releases/download/${TMUX_GATEWAY_VER}/tmux-gateway-${TMUX_GATEWAY_VER}-${RUST_TRIPLE}.tar.gz"
+  if [ -n "$TG_URL" ] && install_prebuilt_bin "tmux-gateway" "$TG_URL" "${TG_URL}.sha256" "tar.gz"; then
+    log "tmux-gateway prebuilt instalado ($TMUX_GATEWAY_VER)."
+  elif command -v cargo &>/dev/null && command -v protoc &>/dev/null && [ -d "$HOME/ai-lab/repos/tmux-gateway" ]; then
+    warn "tmux-gateway: sin binario prebuilt para $RUST_TRIPLE — fallback a cargo (requiere Rust + protoc)."
     log "tmux-gateway: compilando desde source (puede tardar 1-5 min)..."
-    if (cd "$HOME/ai-lab/repos/tmux-gateway" && cargo build --release 2>&1 | tail -3); then
-      if [ -f "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" ]; then
-        cp "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" "$HOME/.local/bin/tmux-gateway"
-        chmod +x "$HOME/.local/bin/tmux-gateway"
-        log "tmux-gateway instalado."
-      else
-        warn "tmux-gateway: compilación completó pero binario no encontrado."
-      fi
+    if (cd "$HOME/ai-lab/repos/tmux-gateway" && cargo build --release 2>&1 | tail -3) \
+       && [ -f "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" ]; then
+      install -m 0755 "$HOME/ai-lab/repos/tmux-gateway/target/release/tmux-gateway" "$HOME/.local/bin/tmux-gateway"
+      log "tmux-gateway instalado desde source."
     else
       warn "tmux-gateway: compilación falló — verificar logs."
     fi
-  elif [ ! -d "$HOME/ai-lab/repos/tmux-gateway" ]; then
-    warn "tmux-gateway: repo no existe en ~/ai-lab/repos/tmux-gateway — clonar primero."
-  elif ! command -v cargo &>/dev/null; then
-    warn "tmux-gateway: requiere Rust (cargo) — instalar con rustup, luego compilar manualmente."
-  elif ! command -v protoc &>/dev/null; then
-    warn "tmux-gateway: requiere protoc (protobuf compiler) — instalar con: sudo apt install protobuf-compiler"
+  else
+    warn "tmux-gateway: sin prebuilt y sin cargo+protoc — exportar TMUX_GATEWAY_PREBUILT_URL o instalar Rust+protoc."
   fi
 else
   log "tmux-gateway ya instalado, saltando."
