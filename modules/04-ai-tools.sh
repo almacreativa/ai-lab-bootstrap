@@ -226,11 +226,12 @@ fi
 #   - tmux-gateway: releases upstream (github.com/tupe12334/tmux-gateway); targets
 #     x86_64/aarch64-unknown-linux-gnu (+ macOS). Verificados con sha256 sibling.
 #   - clawhip: upstream (github.com/Yeachan-Heo/clawhip) usa cargo-dist pero NO
-#     publica los tarballs Linux como assets (solo dist-manifest.json). Hasta que el
-#     lab hospede su propio binario, exportar CLAWHIP_PREBUILT_URL → tarball .tar.xz
-#     con el binario 'clawhip'. Sin eso, cae al fallback cargo.
-# Overrides por env: CLAWHIP_VER, CLAWHIP_PREBUILT_URL, TMUX_GATEWAY_VER,
-#                    TMUX_GATEWAY_PREBUILT_URL.
+#     publica los tarballs Linux como assets (solo dist-manifest.json). El lab hospeda
+#     su propio binario en el fork almacreativa/clawhip (release v0.6.11-lab, x86_64,
+#     MIT — build sin modificaciones del source de Yeachan Heo). CLAWHIP_PREBUILT_URL
+#     override; CLAWHIP_LAB_TAG cambia el tag del fork. Sin asset (arm64) cae a cargo.
+# Overrides por env: CLAWHIP_VER, CLAWHIP_LAB_TAG, CLAWHIP_PREBUILT_URL,
+#                    TMUX_GATEWAY_VER, TMUX_GATEWAY_PREBUILT_URL.
 # ─────────────────────────────────────────────
 
 # Triple de plataforma para los artifacts de release
@@ -272,12 +273,16 @@ install_prebuilt_bin() {
 
 # clawhip — Daemon Rust para monitoreo tmux y enrutamiento de eventos
 CLAWHIP_VER="${CLAWHIP_VER:-v0.6.11}"
+# Tag del release del fork del lab (almacreativa/clawhip) que hospeda el binario prebuilt.
+CLAWHIP_LAB_TAG="${CLAWHIP_LAB_TAG:-v0.6.11-lab}"
 if [ ! -f "$HOME/.local/bin/clawhip" ]; then
   mkdir -p "$HOME/.local/bin"
   CLAWHIP_URL="${CLAWHIP_PREBUILT_URL:-}"
-  # Default: patrón cargo-dist upstream (hoy 404 hasta que el lab hospede el binario)
+  # Default: release del fork del lab (almacreativa/clawhip). Upstream (Yeachan-Heo)
+  # no publica los tarballs Linux como assets; el lab hospeda su propio binario x86_64.
+  # Para arm64/glibc viejo el asset no existe (404) → cae al fallback cargo. Fuente MIT.
   [ -z "$CLAWHIP_URL" ] && [ -n "$RUST_TRIPLE" ] && \
-    CLAWHIP_URL="https://github.com/Yeachan-Heo/clawhip/releases/download/${CLAWHIP_VER}/clawhip-${RUST_TRIPLE}.tar.xz"
+    CLAWHIP_URL="https://github.com/almacreativa/clawhip/releases/download/${CLAWHIP_LAB_TAG}/clawhip-${RUST_TRIPLE}.tar.xz"
   if [ -n "$CLAWHIP_URL" ] && install_prebuilt_bin "clawhip" "$CLAWHIP_URL" "${CLAWHIP_URL}.sha256" "tar.xz"; then
     log "clawhip prebuilt instalado ($(clawhip --version 2>/dev/null || echo "$CLAWHIP_VER"))."
   elif command -v cargo &>/dev/null && [ -d "$HOME/ai-lab/repos/clawhip" ]; then
