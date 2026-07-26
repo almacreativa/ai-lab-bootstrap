@@ -53,11 +53,20 @@ for b in m.get('binaries', []):
 " 2>/dev/null)
 
 # 2. Verificar servicios systemd user
+# Honra el campo `status` del manifest: un servicio declarado "inactive"
+# (oneshot de boot, etc.) es correcto si está inactivo; solo drift si está 'failed'.
 echo "[core-guard] Verificando servicios systemd..."
-while IFS= read -r svc_name; do
+while IFS=$'\t' read -r svc_name svc_status; do
   [ -z "$svc_name" ] && continue
   svc_name=$(echo "$svc_name" | tr -d '"' | xargs)
-  if systemctl --user is-active "$svc_name" &>/dev/null; then
+  [ -z "$svc_status" ] && svc_status="active"
+  if [ "$svc_status" = "inactive" ]; then
+    if systemctl --user is-failed "$svc_name" &>/dev/null; then
+      report_drift "systemd" "$svc_name" "inactive" "failed"
+    else
+      report_ok "systemd" "$svc_name"
+    fi
+  elif systemctl --user is-active "$svc_name" &>/dev/null; then
     report_ok "systemd" "$svc_name"
   elif systemctl --user is-enabled "$svc_name" &>/dev/null; then
     report_drift "systemd" "$svc_name" "active" "enabled-but-inactive"
@@ -69,14 +78,21 @@ import yaml
 with open('$MANIFEST') as f:
     m = yaml.safe_load(f)
 for s in m.get('services', {}).get('systemd_user', []):
-    print(s['name'])
+    print(f\"{s['name']}\t{s.get('status','active')}\")
 " 2>/dev/null)
 
 # 2b. Verificar servicios systemd system del lab
-while IFS= read -r svc_name; do
+while IFS=$'\t' read -r svc_name svc_status; do
   [ -z "$svc_name" ] && continue
   svc_name=$(echo "$svc_name" | tr -d '"' | xargs)
-  if systemctl is-active "$svc_name" &>/dev/null; then
+  [ -z "$svc_status" ] && svc_status="active"
+  if [ "$svc_status" = "inactive" ]; then
+    if systemctl is-failed "$svc_name" &>/dev/null; then
+      report_drift "systemd-system" "$svc_name" "inactive" "failed"
+    else
+      report_ok "systemd-system" "$svc_name"
+    fi
+  elif systemctl is-active "$svc_name" &>/dev/null; then
     report_ok "systemd-system" "$svc_name"
   elif systemctl is-enabled "$svc_name" &>/dev/null; then
     report_drift "systemd-system" "$svc_name" "active" "enabled-but-inactive"
@@ -88,7 +104,7 @@ import yaml
 with open('$MANIFEST') as f:
     m = yaml.safe_load(f)
 for s in m.get('services', {}).get('systemd_system', []):
-    print(s['name'])
+    print(f\"{s['name']}\t{s.get('status','active')}\")
 " 2>/dev/null)
 
 # 3. Verificar containers Docker

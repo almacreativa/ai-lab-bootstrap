@@ -287,6 +287,10 @@ try:
     sources["claude-mcp"] = (home / ".claude.json").read_text()
 except Exception:
     pass
+try:
+    sources["opencode-mcp"] = (home / ".config/opencode/opencode.jsonc").read_text()
+except Exception:
+    pass
 for unit in sorted((home / ".config/systemd/user").glob("*.service")):
     sources[f"systemd:{unit.name}"] = unit.read_text()
 for other in scripts:
