@@ -238,30 +238,53 @@ fácilmente — sin él, los MCPs no cargan aunque estén definidos.
 
 `nlm login` necesita un navegador con sesión de Google, pero en un servidor
 headless no hay GUI. La solución: lanzar Chromium headless con remote debugging,
-hacer el login desde tu Mac vía túnel SSH, y luego extraer las cookies.
+hacer el login **desde el browser del servidor** vía túnel SSH, y luego extraer
+las cookies. El login tiene que ocurrir en el Chromium del servidor (ver nota de
+binding abajo) — reusar un export de Cookie-Editor de otra máquina NO funciona.
 
-> **Nota:** `nlm login --force` (el método integrado) no funciona con el
-> Chromium de snap en Ubuntu Server porque falla la inicialización de la
-> plataforma gráfica (Aura), incluso con Xvfb. Por eso se lanza Chromium
-> manualmente con los flags correctos.
+> **Rebrand del host (issue #269):** Google migró NotebookLM de
+> `notebooklm.google.com` a **`notebook.google.com`**. El cookie de sesión
+> por-host (`OSID`/`__Secure-OSID`) vive en el host nuevo, pero el default de
+> `nlm` apunta al viejo. Hay que decirle el host correcto vía `base_host` en el
+> profile o `NOTEBOOKLM_BASE_URL` (ver Paso 5). Hosts válidos:
+> `notebook.google.com`, `notebooklm.google.com`, `*.cloud.google.com`.
+
+> **Binding de sesión:** las cookies de una sesión Google están atadas al
+> contexto donde se logueó (rotación de `__Secure-1PSIDTS` vía
+> `accounts.google.com/RotateCookies`). Un export de cookies hecho en otra
+> máquina se rechaza desde el servidor (`GET notebook.google.com/` → `302
+> /login`, y `RotateCookies` responde `429`). Por eso el login se hace **en el
+> Chromium del servidor**: las cookies nacen server-bound y RotateCookies
+> funciona desde acá.
+
+> **Chromium:** el `chromium` de snap en Ubuntu Server NO arranca (falla la
+> plataforma gráfica Aura, incluso con Xvfb). Usar el binario de **Playwright**
+> (no-snap). Y desde **Chrome 111+ el remote-debugging exige
+> `--remote-allow-origins`** — sin ese flag `chrome://inspect` no muestra ni deja
+> inspeccionar el target (causa típica de "no veo el Paso 3").
 
 **Paso 1 — Lanzar Chromium headless en el servidor:**
 
 ```bash
-# Necesita user-agent real; sin él Google bloquea el login
-# con "no se pudo iniciar sesión, pruebe con otro navegador"
-DISPLAY=:99 chromium \
-  --headless=new \
-  --no-sandbox \
-  --disable-gpu \
-  --remote-debugging-port=9222 \
-  --remote-debugging-address=127.0.0.1 \
+# Binario de Playwright (ajustar el glob a la versión instalada):
+CHROME=$(ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome | sort | tail -1)
+rm -rf ~/.cache/chrome-nlm-profile && mkdir -p ~/.cache/chrome-nlm-profile
+
+# nohup/setsid para que sobreviva al cierre del shell.
+# --remote-allow-origins=* es OBLIGATORIO (Chrome 111+).
+# user-agent real: sin él Google bloquea con "pruebe con otro navegador".
+nohup "$CHROME" \
+  --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+  --user-data-dir="$HOME/.cache/chrome-nlm-profile" \
+  --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \
+  --remote-allow-origins=* \
   --disable-blink-features=AutomationControlled \
   --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" \
-  "https://accounts.google.com" &
+  "https://accounts.google.com" >/tmp/chromium-nlm.log 2>&1 &
 
-# Verificar que el puerto está escuchando:
-ss -tlnp | grep 9222
+sleep 5
+ss -tlnp | grep 9222                       # confirmar que escucha
+curl -s http://127.0.0.1:9222/json/version # confirmar CDP activo
 ```
 
 **Paso 2 — Túnel SSH desde tu Mac:**
@@ -272,74 +295,98 @@ ssh -L 9222:localhost:9222 <usuario>@<IP-servidor>
 
 **Paso 3 — Login desde Chrome de tu Mac:**
 
-1. Abrir `chrome://inspect`
-2. Click en **Configure…** → agregar `localhost:9222`
-3. Aparece un tab "Inicia sesión: Cuentas de Google" → click en **inspect**
-4. En la ventana de DevTools se ve la página de Google renderizada
-5. Completar el login (email, contraseña, 2FA)
-6. Después del login, abrir NotebookLM en el Chromium remoto. Desde el
-   servidor: `curl -s -X PUT "http://127.0.0.1:9222/json/new?https://notebooklm.google.com"`
-7. Verificar en `chrome://inspect` que aparece un tab "NotebookLM" y que cargó
+1. Abrir `chrome://inspect` → **Configure…** → agregar `localhost:9222` →
+   marcar **"Discover network targets"**
+2. Bajo *Remote Target* aparece "Inicia sesión: Cuentas de Google" → **inspect**
+   (si no aparece, abrir `http://localhost:9222` directo y clickear el target)
+3. En la ventana de DevTools se ve la página de Google renderizada
+4. Completar el login (email, contraseña, 2FA). Como el browser corre en una IP
+   de datacenter, Google puede pedir verificación extra ("¿fuiste vos?") —
+   aprobarla desde el teléfono.
+5. Navegar el Chromium remoto a NotebookLM. Desde el servidor:
+   `curl -s "http://127.0.0.1:9222/json/new?https://notebook.google.com/"`
+6. Verificar que el tab cargó como "Gemini Notebook" en `notebook.google.com`
+   (NO redirigido a `/login`):
+   `curl -s http://127.0.0.1:9222/json | grep -o '"url":"[^"]*notebook[^"]*"'`
 
-**Paso 4 — Extraer cookies y autenticar nlm:**
+**Paso 4 — Extraer cookies (server-bound) via CDP:**
 
 ```bash
-# Extraer cookies del Chromium via CDP (requiere websockets)
 python3 -m venv /tmp/ws-venv && /tmp/ws-venv/bin/pip install websockets -q
 
 /tmp/ws-venv/bin/python3 << 'PYEOF'
-import asyncio, json, websockets, http.client
+import json, http.client
+from websockets.sync.client import connect
 
-async def export_cookies():
-    conn = http.client.HTTPConnection("127.0.0.1", 9222)
-    conn.request("GET", "/json")
-    tabs = json.loads(conn.getresponse().read())
-    ws_url = next(t["webSocketDebuggerUrl"] for t in tabs
-                  if "notebooklm.google.com" in t.get("url", "")
-                  and t.get("webSocketDebuggerUrl"))
-    async with websockets.connect(ws_url) as ws:
-        await ws.send(json.dumps({"id": 1, "method": "Network.getCookies",
-            "params": {"urls": ["https://notebooklm.google.com",
-                                "https://google.com",
-                                "https://accounts.google.com"]}}))
-        resp = json.loads(await ws.recv())
-        cookies = resp["result"]["cookies"]
-        lines = ["# Netscape HTTP Cookie File"]
-        for c in cookies:
-            if "google" not in c["domain"]:
-                continue
-            d = c["domain"]
-            lines.append(
-                f"{'#HttpOnly_' if c.get('httpOnly') else ''}{d}\t"
-                f"{'TRUE' if d.startswith('.') else 'FALSE'}\t"
-                f"{c.get('path','/')}\t"
-                f"{'TRUE' if c.get('secure') else 'FALSE'}\t"
-                f"{int(c.get('expires',0))}\t{c['name']}\t{c['value']}")
-        out = "/home/$USER/.nlm/cookies_fresh.txt".replace("$USER", __import__("os").environ["USER"])
-        open(out, "w").write("\n".join(lines) + "\n")
-        print(f"{len(lines)-1} cookies → {out}")
+# Storage.getCookies sobre el browser target devuelve TODAS las cookies
+conn = http.client.HTTPConnection("127.0.0.1", 9222)
+conn.request("GET", "/json/version")
+bws = json.loads(conn.getresponse().read())["webSocketDebuggerUrl"]
+with connect(bws, max_size=None) as ws:
+    ws.send(json.dumps({"id": 1, "method": "Storage.getCookies"}))
+    while True:
+        m = json.loads(ws.recv())
+        if m.get("id") == 1:
+            cookies = m["result"]["cookies"]; break
 
-asyncio.run(export_cookies())
+# Conservar SOLO .google.com (domain-wide) + notebook.google.com (host).
+# Excluir myaccount.google.com u otros hosts: su OSID pisaría al de notebook.
+def keep(c):
+    d = (c.get("domain") or "").lstrip(".").lower()
+    return d in ("google.com", "notebook.google.com")
+sel = sorted([c for c in cookies if keep(c)],
+             key=lambda c: 0 if c["domain"].lstrip(".").lower() == "google.com" else 1)
+
+lines = ["# Netscape HTTP Cookie File"]
+for c in sel:
+    d = c["domain"]
+    lines.append(
+        f"{'#HttpOnly_' if c.get('httpOnly') else ''}{d}\t"
+        f"{'TRUE' if d.startswith('.') else 'FALSE'}\t"
+        f"{c.get('path','/')}\t"
+        f"{'TRUE' if c.get('secure') else 'FALSE'}\t"
+        f"{int(c.get('expires',0) or 0)}\t{c['name']}\t{c['value']}")
+out = f"/home/{__import__('os').environ['USER']}/.nlm/cookies_fresh.txt"
+open(out, "w").write("\n".join(lines) + "\n")
+print(f"{len(sel)} cookies → {out}")
 PYEOF
+chmod 600 ~/.nlm/cookies_fresh.txt
 
-# Importar a nlm:
 nlm login --manual --file ~/.nlm/cookies_fresh.txt --profile default --force
-
-# Verificar:
-nlm login --check
-nlm list notebooks | head -5
 ```
 
-**Paso 5 — Limpiar:**
+**Paso 5 — Fijar el host (rebrand) y verificar:**
 
 ```bash
-pkill -f "chromium.*remote-debugging"
-rm -rf /tmp/ws-venv
+# base_host en el profile → baked-in, no depende de env vars.
+# OJO: un `nlm login --manual --force` futuro lo resetea a null.
+python3 - << 'PY'
+import json
+p = f"/home/{__import__('os').environ['USER']}/.notebooklm-mcp-cli/profiles/default/metadata.json"
+d = json.load(open(p)); d["base_host"] = "notebook.google.com"
+json.dump(d, open(p, "w"), indent=2)
+PY
+
+# Refuerzo durable para el gateway/servicios (prioridad #1 sobre base_host):
+#   echo 'NOTEBOOKLM_BASE_URL=https://notebook.google.com' >> ~/ai-lab/stacks/nlm-gateway/.env
+#   systemctl --user restart nlm-gateway
+
+# Verificar (el import siempre dice OK; lo real es que la API responda):
+nlm notebook list | head -8
+```
+
+**Paso 6 — Limpiar:**
+
+```bash
+pkill -f "chrome-nlm-profile"
+rm -rf /tmp/ws-venv ~/.cache/chrome-nlm-profile /tmp/chromium-nlm.log
 # Cerrar túnel SSH y chrome://inspect en el Mac
 ```
 
 > **Frecuencia:** las cookies expiran ~cada 14 días. Repetir este proceso
-> cuando `nlm login --check` falle o el gateway responda 503.
+> cuando `nlm notebook list` falle con "Authentication expired" o el gateway
+> responda 503. Si el CLI directo falla pero las cookies son frescas, revisar
+> que `base_host` siga en `metadata.json` (lo resetea `nlm login --force`).
 
 ### 2.5 Antigravity CLI (opcional)
 
