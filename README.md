@@ -121,11 +121,10 @@ bash bootstrap-macos.sh
 
 ## Windows 10/11
 
-Variante para **Windows 10 (22H2+)** y **Windows 11**. El stack completo corre dentro de **WSL2 con Ubuntu** usando **Docker CE nativo** (no Docker Desktop). El host Windows solo ejecuta apps de red/GUI (Tailscale, Syncthing).
+Variante **100% nativa** para **Windows 10 LTSC (22H2+)** — soporte principal — y **Windows 11 (22H2+)**. **Sin WSL2, sin Docker**: todo corre bare metal gestionado por **Servy** (service manager) e instalado con **Scoop** (package manager). Paperclip usa PostgreSQL embebido (zero-config) y SearXNG se consume remoto vía Tailscale.
 
-> **Requisitos:** Virtualización habilitada en BIOS, 8 GB+ RAM, cuenta Administrador.
-> En Windows 11 se habilita mirrored networking (WSL2 comparte IP del host).
-> En Windows 10 WSL2 funciona con NAT (IP propia). Ver diferencias en la guía detallada.
+> **Requisitos:** 8 GB+ RAM (16 GB recomendado), 20 GB libres en disco, cuenta Administrador.
+> No requiere reinicio: todo se instala en una sola ejecución.
 
 ```powershell
 # PowerShell como Administrador
@@ -137,34 +136,36 @@ cd ai-lab-bootstrap
 .\bootstrap-windows.ps1
 ```
 
-**Importante:** Si es la primera vez que se habilita WSL2, el script pide reiniciar. Después del reinicio, abrir la app **Ubuntu** para crear el usuario Linux, y volver a correr `.\bootstrap-windows.ps1`.
-
-El script configura el host (`.wslconfig`, WinGet packages, Defender exclusions, power plan), provisiona WSL2 con Ubuntu, y ejecuta el mismo `bootstrap.sh` de Linux dentro de la distro.
+El script detecta el sistema (Windows 10/11, edición LTSC, RAM/CPU), muestra un resumen de la configuración y, tras confirmar, instala prerrequisitos (Scoop, uv, Node LTS, Python 3.12, Servy, Tailscale), servicios nativos, agentes AI y la plataforma. Si Git no está instalado, Scoop lo provee.
 
 ### Arquitectura
 
 | Aspecto | Decisión |
 |---|---|
-| Docker | **Docker CE nativo** dentro de WSL2 (no Docker Desktop — incompatible con mirrored networking) |
-| Networking (W11) | `networkingMode=mirrored` — WSL2 comparte IP del host → Tailscale cubre a WSL2 |
-| Networking (W10) | NAT — WSL2 tiene IP propia. `localhost` funciona; LAN requiere port forwarding |
-| Servicios de red | Tailscale, Syncthing, OpenSSH en el **host** Windows. `01-system.sh` detecta `$WSL_DISTRO_NAME` y los salta |
-| systemd | Habilitado vía `/etc/wsl.conf` — reusa `hermes.service` y `docker.service` sin cambios |
-| Recursos | `.wslconfig`: memory 50% RAM, swap 4GB. W11 agrega autoMemoryReclaim y sparseVhd |
+| Package manager | **Scoop** (no WinGet — los App Execution Aliases no funcionan en LTSC sin Microsoft Store) |
+| Service manager | **Servy** (`aelassas/servy`) — gestiona servicios de larga vida con auto-start |
+| Docker | **Ninguno** — todo nativo Windows |
+| Paperclip | **PostgreSQL embebido** (zero-config), no containers |
+| Odysseus | Fork nativo para Windows (`amish-github/odysseus`) |
+| SearXNG | **Remoto** vía Tailscale (sin soporte nativo Windows — configurar `SEARXNG_URL`) |
+| Terminal multiplexer | **psmux** (equivalente nativo a tmux, en Rust) |
+| Suspend | Si Windows entra en suspensión, los servicios Servy se detienen (no es servidor 24/7) |
 
 ### Variables configurables
 
 ```powershell
-$env:INSTALL_PAPERCLIP = "true"          # default: true
-$env:INSTALL_HERMES = "true"             # default: true
-$env:INSTALL_NLM = "true"               # default: true
-$env:LAB_INSTALL_SSH_SERVER = "true"     # default: false
-$env:WSL_MEMORY = "12"                   # GB para WSL2 (default: 50% de RAM total)
-$env:WSL_PROCESSORS = "6"               # CPUs para WSL2 (default: 50% de lógicos)
+$env:INSTALL_HERMES = "true"            # Hermes Agent (default: true)
+$env:INSTALL_PAPERCLIP = "true"         # Paperclip (default: true)
+$env:INSTALL_ODYSSEUS = "true"          # Odysseus (default: true)
+$env:INSTALL_DAGU = "true"              # Dagu scheduler (default: true)
+$env:INSTALL_UPTIME_KUMA = "true"       # Uptime Kuma (default: true)
+$env:INSTALL_GLANCE = "true"            # Glance dashboard (default: true)
+$env:INSTALL_NLM = "true"               # NotebookLM MCP (default: true)
+$env:LAB_INSTALL_SSH_SERVER = "false"   # OpenSSH Server (default: false)
 .\bootstrap-windows.ps1
 ```
 
-**Guía detallada:** [`docs/WINDOWS-INSTALL.md`](docs/WINDOWS-INSTALL.md) — prerrequisitos, flujo paso a paso, diferencias W10 vs W11, troubleshooting, mantenimiento.
+**Guía detallada:** [`docs/WINDOWS-INSTALL.md`](docs/WINDOWS-INSTALL.md) — prerrequisitos, flujo paso a paso, qué hace cada módulo, pasos post-bootstrap, troubleshooting y mantenimiento.
 
 ---
 
@@ -184,10 +185,15 @@ modules/
 │                          repos, Hermes service, ops/ framework, data/ dirs
 ├── 06-post-install.sh  ← instrucciones de pasos manuales finales
 ├── macos/              ← equivalentes 01-06 para macOS (Homebrew, launchd, etc.)
-└── windows-host/
-    ├── 01-host-prereqs.ps1   ← long paths, WSL2, WinGet packages, OpenSSH Server opcional
-    ├── 02-wsl-provision.ps1  ← provisiona Ubuntu en WSL2 y corre bootstrap.sh adentro
-    └── 03-post-install.ps1   ← instrucciones de pasos manuales finales (host + WSL2)
+└── windows-host/           ← variante nativa Windows (Scoop + Servy, sin WSL2/Docker)
+    ├── 01-host-prereqs.ps1     ← long paths, Scoop, uv, Node LTS, Python 3.12, Servy,
+    │                              Tailscale, VC++ Redistributable, Defender, power plan
+    ├── 02-native-services.ps1  ← Dagu, Uptime Kuma, Glance (nativos, vía Servy)
+    ├── 03-ai-agents.ps1        ← Claude Code, OpenCode, Engram, Hermes, MoolMesh,
+    │                              Playwright MCP, NotebookLM MCP
+    ├── 04-platform.ps1         ← Paperclip (PG embebido), Odysseus (fork nativo)
+    ├── 05-connectivity.ps1     ← firewall Tailscale, templates .hermes/.env y .env_agents
+    └── 06-post-install.ps1     ← instrucciones de pasos manuales finales
 templates/
 ├── hermes.env.example      ← secrets de Hermes Agent
 ├── agents.env.example      ← API keys para agentes
