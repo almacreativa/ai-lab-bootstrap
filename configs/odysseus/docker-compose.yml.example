@@ -1,5 +1,5 @@
 # Odysseus stack — i7local Lab
-# SearXNG: usa el del lab (container 'searxng' en ai-lab-net)
+# SearXNG: usa el del lab (container 'searxng' en la red 'ai-lab', creada por el módulo 05)
 # ChromaDB: instancia dedicada para Odysseus (RAG/memoria vectorial, no existia en el lab)
 # Ollama: NO local. Reservado para GPU remota Tailscale cuando este disponible.
 
@@ -80,7 +80,7 @@ services:
           cpus: '3.0'
     networks:
       - odysseus-internal
-      - ai-lab-net
+      - ai-lab
     restart: unless-stopped
     # Rotación de logs (Docker json-file): acota el crecimiento del log del
     # contenedor. Los json.log viven en /var/lib/docker (root) — el logrotate
@@ -110,7 +110,7 @@ services:
           cpus: '1.0'
     networks:
       - odysseus-internal
-      - ai-lab-net
+      - ai-lab
     restart: unless-stopped
     logging:
       driver: json-file
@@ -121,7 +121,9 @@ services:
 networks:
   odysseus-internal:
     driver: bridge
-  ai-lab-net:
+  # Red compartida del lab, creada por el módulo 05 (docker network create ai-lab).
+  # Aquí vive 'searxng'; por eso Odysseus se adjunta como external.
+  ai-lab:
     external: true
 
 volumes:
