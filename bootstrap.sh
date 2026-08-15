@@ -85,9 +85,9 @@ INSTALL_NLM="${INSTALL_NLM:-true}"
 
 echo "  Usuario del sistema : $LAB_USER"
 echo "  Directorio del lab  : $LAB_DIR"
-echo "  Instalar Paperclip  : $INSTALL_PAPERCLIP"
-echo "  Instalar Hermes     : $INSTALL_HERMES"
-echo "  Instalar nlm        : $INSTALL_NLM"
+# Las unidades resueltas se muestran más abajo ("Unidades a instalar"), una vez
+# que SELECTED_UNITS está calculado. No imprimir aquí los flags viejos
+# (INSTALL_PAPERCLIP/HERMES/NLM): solo se conservan por retrocompat.
 echo ""
 
 # ─── Resolución de unidades a instalar ────────────────────────
