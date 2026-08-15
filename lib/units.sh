@@ -42,6 +42,12 @@ layer_units() {
 is_done()   { grep -qx "$1" "$STATE_FILE" 2>/dev/null; }
 mark_done() { is_done "$1" || echo "$1" >> "$STATE_FILE"; }
 
+# Checkpoint por ETAPA (barrera de módulo). Namespacing stage:NN para no chocar
+# con ids de unidad en el mismo state file. Los consume should_run_stage() en
+# bootstrap.sh para saltar el source completo de un módulo (--until/--resume).
+is_stage_done()   { grep -qx "stage:$1" "$STATE_FILE" 2>/dev/null; }
+mark_stage_done() { is_stage_done "$1" || echo "stage:$1" >> "$STATE_FILE"; }
+
 # is_selected <id> — true si el id está en SELECTED_UNITS o es obligatoria.
 is_selected() {
   local id="$1" u
