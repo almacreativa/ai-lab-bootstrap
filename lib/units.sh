@@ -13,7 +13,7 @@ STATE_FILE="$STATE_DIR/bootstrap.tsv"
 mkdir -p "$STATE_DIR"
 touch "$STATE_FILE"
 
-# _unit_field <id> <n-campo 1..6> — imprime el campo n de la línea del registro.
+# _unit_field <id> <n-campo 1..7> — imprime el campo n de la línea del registro.
 _unit_field() {
   local id="$1" n="$2" line
   for line in "${LAB_UNITS[@]}"; do
@@ -27,6 +27,17 @@ unit_stage()     { _unit_field "$1" 2; }
 unit_deps()      { _unit_field "$1" 5; }
 unit_desc()      { _unit_field "$1" 6; }
 unit_default()   { _unit_field "$1" 3; }
+unit_layer()     { _unit_field "$1" 7; }
+
+# layer_units <capa> — imprime (uno por línea) los ids que pertenecen a esa capa,
+# en el orden del registro. Vacío si la capa no existe.
+layer_units() {
+  local want="$1" line
+  for line in "${LAB_UNITS[@]}"; do
+    [ "$(echo "$line" | cut -d'|' -f7)" = "$want" ] && echo "${line%%|*}"
+  done
+  return 0  # el último [ ] && echo puede devolver 1; evitar abortar con set -e en el caller
+}
 
 is_done()   { grep -qx "$1" "$STATE_FILE" 2>/dev/null; }
 mark_done() { is_done "$1" || echo "$1" >> "$STATE_FILE"; }

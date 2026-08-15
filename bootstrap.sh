@@ -32,8 +32,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Todos opcionales. Sin flags = comportamiento default idéntico al histórico
 # (todas las unidades default=on, un solo confirm, sin prompts por-herramienta).
 #   --only a,b,c   instalar solo esas unidades (+ deps)
+#   --layer a,b    instalar esas capas (builder/operator/explorer/addons) (+ base y deps)
 #   --skip a,b     todo default menos esas
-#   --interactive  preguntar herramienta por herramienta
+#   --interactive  preguntar herramienta por herramienta (agrupado por capa)
 #   --until NN     cortar tras la etapa NN (01..05); reanudable luego
 #   --resume       saltar unidades ya marcadas en el state file
 #   --list         resolver y mostrar SELECTED_UNITS sin instalar nada (sale 0)
@@ -41,6 +42,7 @@ INTERACTIVE=false
 RESUME_MODE=false
 UNTIL_STAGE=""
 ONLY_LIST=""
+LAYER_LIST=""
 SKIP_LIST=""
 ONLY_LISTING=false
 while [[ $# -gt 0 ]]; do
@@ -49,10 +51,12 @@ while [[ $# -gt 0 ]]; do
     --resume)      RESUME_MODE=true; shift ;;
     --until)       UNTIL_STAGE="$2"; shift 2 ;;
     --only)        ONLY_LIST="$2"; shift 2 ;;
+    --layer)       LAYER_LIST="$2"; shift 2 ;;
     --skip)        SKIP_LIST="$2"; shift 2 ;;
     --list)        ONLY_LISTING=true; shift ;;
     -h|--help)
-      echo "Uso: bash bootstrap.sh [--only a,b] [--skip a,b] [--interactive] [--until NN] [--resume] [--list]"
+      echo "Uso: bash bootstrap.sh [--only a,b] [--layer a,b] [--skip a,b] [--interactive] [--until NN] [--resume] [--list]"
+      echo "Capas válidas para --layer: builder, operator, explorer, addons"
       exit 0 ;;
     *) shift ;;  # ignorar desconocidos
   esac
@@ -95,8 +99,30 @@ source "$SCRIPT_DIR/lib/registry.sh"
 source "$SCRIPT_DIR/lib/units.sh"
 
 SELECTED_UNITS=()
-if [ -n "$ONLY_LIST" ]; then
-  IFS=',' read -ra SELECTED_UNITS <<< "$ONLY_LIST" || true
+if [ -n "$ONLY_LIST" ] || [ -n "$LAYER_LIST" ]; then
+  # --only: ids explícitos, tal cual (respetan lo pedido aunque sean default=off).
+  if [ -n "$ONLY_LIST" ]; then
+    IFS=',' read -ra _only <<< "$ONLY_LIST" || true
+    for u in "${_only[@]}"; do
+      [ -z "$u" ] && continue
+      is_selected "$u" || SELECTED_UNITS+=("$u")
+    done
+  fi
+  # --layer: expandir cada capa a sus unidades default=on (unión con --only).
+  # Una capa NO arrastra unidades default=off (ej. odysseus): esas se piden por --only.
+  if [ -n "$LAYER_LIST" ]; then
+    IFS=',' read -ra _layers <<< "$LAYER_LIST" || true
+    for lay in "${_layers[@]}"; do
+      [ -z "$lay" ] && continue
+      _ids="$(layer_units "$lay")"
+      if [ -z "$_ids" ]; then warn "capa desconocida '$lay' — ignorada (válidas: builder, operator, explorer, addons)."; continue; fi
+      while IFS= read -r lid; do
+        [ -z "$lid" ] && continue
+        [ "$(unit_default "$lid")" = "on" ] || continue
+        is_selected "$lid" || SELECTED_UNITS+=("$lid")
+      done <<< "$_ids"
+    done
+  fi
 else
   # default: todas las unidades con default=on
   for line in "${LAB_UNITS[@]}"; do
@@ -111,14 +137,27 @@ if [ -n "$SKIP_LIST" ]; then
   for s in "${_skip[@]}"; do remove_unit "$s"; done
 fi
 
-# modo interactivo: preguntar por unidad (las obligatorias van sí o sí)
+# modo interactivo: preguntar por unidad, agrupado por capa (encabezados cosméticos).
+# El orden real de instalación lo sigue mandando el source de módulos por etapa.
+# Las obligatorias (docker/node/uv) se auto-seleccionan sin preguntar.
 if [ "$INTERACTIVE" = true ]; then
   _sel=()
-  for line in "${LAB_UNITS[@]}"; do
-    id="${line%%|*}"; desc="$(echo "$line"|cut -d'|' -f6)"
-    if [ "$(echo "$line"|cut -d'|' -f4)" = "si" ]; then _sel+=("$id"); continue; fi
-    read -rp "  ¿Instalar $id ($desc)? [S/n] " r; r="${r:-S}"
-    [[ "$r" =~ ^[Ss]$ ]] && _sel+=("$id")
+  for lay in builder operator explorer addons; do
+    echo ""
+    section "── ${lay^^} ──"
+    # Juntar los ids de la capa PRIMERO (el read -rp de abajo usa stdin real; si
+    # se leyera la lista por herestring, ambos reads competirían por el mismo fd).
+    _layer_ids=()
+    while IFS= read -r lid; do [ -n "$lid" ] && _layer_ids+=("$lid"); done <<< "$(layer_units "$lay")"
+    for lid in "${_layer_ids[@]}"; do
+      desc="$(unit_desc "$lid")"
+      if is_obligatoria "$lid"; then
+        echo "  $lid ($desc) [base, siempre]"
+        _sel+=("$lid"); continue
+      fi
+      read -rp "  ¿Instalar $lid ($desc)? [S/n] " r; r="${r:-S}"
+      [[ "$r" =~ ^[Ss]$ ]] && _sel+=("$lid")
+    done
   done
   SELECTED_UNITS=("${_sel[@]}")
 fi

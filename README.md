@@ -86,14 +86,24 @@ Sin flags, `bootstrap.sh` instala el set completo (comportamiento por defecto). 
 
 ```bash
 bash bootstrap.sh --only hermes,engram,searxng   # solo esas unidades (+ sus deps)
+bash bootstrap.sh --layer operator,explorer      # instala esas capas (+ base y deps)
 bash bootstrap.sh --skip glance,portainer        # todo menos esas
-bash bootstrap.sh --interactive                  # pregunta herramienta por herramienta
+bash bootstrap.sh --interactive                  # pregunta herramienta por herramienta (agrupado por capa)
 bash bootstrap.sh --until 03                      # corta tras la etapa 03 (reanudable)
 bash bootstrap.sh --resume                        # continúa lo que quedó pendiente
 bash bootstrap.sh --list                          # muestra qué se instalaría, sin instalar
 ```
 
 Las herramientas instalables se declaran en `lib/registry.sh` (única fuente de verdad). Las etapas (01–05) mapean a los módulos (`modules/0X-*.sh`). El progreso se guarda en `~/.ai-lab/state/bootstrap.tsv`, lo que permite cortar y reanudar sin repetir. Los flags `INSTALL_HERMES/PAPERCLIP/NLM` siguen funcionando (retrocompatibles).
+
+**Capas (`--layer`).** Agrupan las unidades por rol para elegir de a bloques:
+
+- **`builder`** — la base (Docker, Node, uv, Claude Code, OpenCode). Docker/Node/uv son obligatorias: van siempre, en cualquier instalación.
+- **`operator`** — el plano de control: Hermes, Engram, SearXNG.
+- **`explorer`** — Odysseus + MCPs de contexto (Playwright, tmux-bridge).
+- **`addons`** — automatización y observabilidad: Dagu, MoolMesh, Uptime Kuma, Glance, Portainer, Paperclip, etc.
+
+`--layer` y `--only` se combinan por unión (`--skip` resta después). Una capa arrastra solo sus unidades activas por defecto; las que están `off` (ej. Odysseus) se piden explícitamente con `--only`. No confundir "capa" con "perfil" (forja/vitrina): son dimensiones distintas.
 
 ---
 
