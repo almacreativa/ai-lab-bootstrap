@@ -78,6 +78,23 @@ export INSTALL_NLM=true              # default: true
 bash bootstrap.sh
 ```
 
+### Instalación selectiva y reanudable
+
+> Solo para Linux (`bootstrap.sh`). El instalador de macOS (`bootstrap-macos.sh`) aún no tiene el mecanismo modular.
+
+Sin flags, `bootstrap.sh` instala el set completo (comportamiento por defecto). Para instalaciones a medida:
+
+```bash
+bash bootstrap.sh --only hermes,engram,searxng   # solo esas unidades (+ sus deps)
+bash bootstrap.sh --skip glance,portainer        # todo menos esas
+bash bootstrap.sh --interactive                  # pregunta herramienta por herramienta
+bash bootstrap.sh --until 03                      # corta tras la etapa 03 (reanudable)
+bash bootstrap.sh --resume                        # continúa lo que quedó pendiente
+bash bootstrap.sh --list                          # muestra qué se instalaría, sin instalar
+```
+
+Las herramientas instalables se declaran en `lib/registry.sh` (única fuente de verdad). Las etapas (01–05) mapean a los módulos (`modules/0X-*.sh`). El progreso se guarda en `~/.ai-lab/state/bootstrap.tsv`, lo que permite cortar y reanudar sin repetir. Los flags `INSTALL_HERMES/PAPERCLIP/NLM` siguen funcionando (retrocompatibles).
+
 ---
 
 ## macOS
