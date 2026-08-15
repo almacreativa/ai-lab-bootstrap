@@ -11,7 +11,7 @@ LAB_UNITS=(
   "node|02|on|si||Node.js vía nvm (base)"
   "uv|03|on|si||uv (Python) (base)"
   "hermes|03|on|no|uv|Hermes Agent (operador)"
-  "nlm|03|on|no|uv|notebooklm-mcp-cli"
+  "nlm|03|on|no|uv,chromium|notebooklm-mcp-cli"
   "chromium|04|on|no||Chromium headless (logins CDP)"
   "claude-code|04|on|no||Claude Code CLI"
   "opencode|04|on|no||OpenCode CLI"

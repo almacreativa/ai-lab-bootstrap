@@ -179,25 +179,29 @@ fi
 mark_done glance
 fi
 
-# ── Odysseus — Frontend LLM multi-modelo (fork del lab) ──
+# ── Odysseus — Frontend LLM multi-modelo ──
 # RECETA PENDIENTE DE VALIDAR EN NODO FRESCO — por eso la unidad está default=off
-# en lib/registry.sh. Dos pendientes conocidos (ver spec instalacion-modular):
-#   1) Fork: el deployment vivo apunta a upstream pewdiepie-archdaemon/odysseus
-#      (rama dev). Aún NO existe fork almacreativa/odysseus con los caps
-#      parametrizados (ODYSSEUS_MAX_*). Setear ODYSSEUS_REPO_URL cuando exista.
+# en lib/registry.sh. Pendientes conocidos (ver spec instalacion-modular):
+#   1) Upstream: el repo canónico es odysseus-dev/odysseus (antes
+#      pewdiepie-archdaemon/odysseus, renombrado). NO tiene releases ni tags: la
+#      default branch 'dev' es inestable, así que fijamos a 'main' como línea más
+#      estable disponible. Override con ODYSSEUS_REF. Cuando el upstream publique
+#      una release/tag, cambiar ODYSSEUS_REF a ese tag.
 #   2) Red Docker: el compose vivo usa la red externa 'ai-lab-net', mientras este
 #      módulo crea 'ai-lab' (L~72). Reconciliar el nombre antes de activar on.
 # El bloque es idempotente y NO levanta nada sin un .env presente (600).
 if should_install odysseus; then
-  ODYSSEUS_REPO_URL="${ODYSSEUS_REPO_URL:-https://github.com/pewdiepie-archdaemon/odysseus.git}"
-  ODYSSEUS_REPO_BRANCH="${ODYSSEUS_REPO_BRANCH:-dev}"
-  # 1) Clonar el repo (build local del compose)
+  ODYSSEUS_REPO_URL="${ODYSSEUS_REPO_URL:-https://github.com/odysseus-dev/odysseus.git}"
+  ODYSSEUS_REF="${ODYSSEUS_REF:-main}"
+  # 1) Clonar el repo (build local del compose), fijado a la línea estable
   if [ ! -d "$LAB_DIR/repos/odysseus/.git" ]; then
-    git clone -b "$ODYSSEUS_REPO_BRANCH" "$ODYSSEUS_REPO_URL" "$LAB_DIR/repos/odysseus" \
-      && log "Odysseus clonado ($ODYSSEUS_REPO_URL @ $ODYSSEUS_REPO_BRANCH)." \
-      || warn "Odysseus: git clone falló — revisar ODYSSEUS_REPO_URL."
+    git clone --branch "$ODYSSEUS_REF" "$ODYSSEUS_REPO_URL" "$LAB_DIR/repos/odysseus" \
+      && log "Odysseus clonado ($ODYSSEUS_REPO_URL @ $ODYSSEUS_REF)." \
+      || warn "Odysseus: git clone falló — revisar ODYSSEUS_REPO_URL / ODYSSEUS_REF."
   else
-    log "Odysseus repo ya existe, saltando clone."
+    (cd "$LAB_DIR/repos/odysseus" && git fetch origin "$ODYSSEUS_REF" && git checkout "$ODYSSEUS_REF") \
+      && log "Odysseus repo ya existe — actualizado a $ODYSSEUS_REF." \
+      || warn "Odysseus: fetch/checkout de $ODYSSEUS_REF falló — revisar repo."
   fi
   # 2) Scaffolding del stack: compose desde template + placeholder de .env
   mkdir -p "$LAB_DIR/stacks/odysseus/config" "$LAB_DIR/data/core/odysseus/data" "$LAB_DIR/data/core/odysseus/logs"
