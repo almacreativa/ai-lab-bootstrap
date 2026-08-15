@@ -87,18 +87,23 @@ if (-not (Test-Path $engramBin)) {
 }
 
 # --- Hermes Agent ---------------------------------------------
+# Version fijada (pin) para consolidar. Windows compila desde fuente, y el repo
+# tagea en CalVer (v2026.7.20 == release 0.19.0), no en semver como PyPI.
+# Override con HERMES_TAG=v2026.x.y
+$hermesTag = if ($env:HERMES_TAG) { $env:HERMES_TAG } else { "v2026.7.20" }
 if ($env:INSTALL_HERMES -eq "true") {
   $hermesRepo = Join-Path $reposDir "hermes-agent"
   if (-not (Test-Path (Join-Path $hermesRepo ".git"))) {
-    Write-LabLog "Clonando Hermes Agent..."
-    git clone https://github.com/NousResearch/hermes-agent.git $hermesRepo
+    Write-LabLog "Clonando Hermes Agent ($hermesTag)..."
+    git clone --branch $hermesTag --depth 1 https://github.com/NousResearch/hermes-agent.git $hermesRepo
     if (-not (Test-Path (Join-Path $hermesRepo ".git"))) {
       Write-LabWarn "Hermes: clone fallo. Verificar acceso al repo."
     }
   } else {
-    Write-LabLog "Hermes Agent repo ya existe, actualizando..."
+    Write-LabLog "Hermes Agent repo ya existe, fijando en $hermesTag..."
     Push-Location $hermesRepo
-    git pull --ff-only 2>$null
+    git fetch --tags 2>$null
+    git checkout $hermesTag 2>$null
     Pop-Location
   }
 
