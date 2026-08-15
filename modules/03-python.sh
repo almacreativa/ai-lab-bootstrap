@@ -16,7 +16,7 @@ fi
 # Hermes requiere Python >=3.11,<3.14 — se usa uv para garantizar la versión exacta
 # Versión fijada (pin) para consolidar; override con HERMES_VERSION=x.y.z
 HERMES_VERSION="${HERMES_VERSION:-0.19.0}"
-if [ "$INSTALL_HERMES" = "true" ]; then
+if should_install hermes; then
   if [ ! -f "$HOME/.hermes-env/bin/hermes" ]; then
     uv venv "$HOME/.hermes-env" --python 3.12 --seed
     uv pip install --python "$HOME/.hermes-env/bin/python" "hermes-agent==${HERMES_VERSION}" -q
@@ -24,10 +24,11 @@ if [ "$INSTALL_HERMES" = "true" ]; then
   else
     log "Hermes ya instalado (Python $("$HOME/.hermes-env/bin/python" --version)), saltando."
   fi
+  mark_done hermes
 fi
 
 # notebooklm-mcp-cli — cliente CLI + servidor MCP para NotebookLM
-if [ "$INSTALL_NLM" = "true" ]; then
+if should_install nlm; then
   if ! command -v nlm &>/dev/null; then
     uv tool install notebooklm-mcp-cli
     log "notebooklm-mcp-cli instalado (comando: nlm)."
@@ -35,6 +36,7 @@ if [ "$INSTALL_NLM" = "true" ]; then
   else
     log "nlm ya instalado, saltando."
   fi
+  mark_done nlm
 fi
 
 log "Módulo 03 completo."

@@ -12,14 +12,17 @@ mkdir -p "$LAB_DIR/knowledge/daily"
 log "Estructura knowledge/ creada en $LAB_DIR/knowledge/"
 
 # Clonar repos base
-if [ ! -d "$LAB_DIR/repos/paperclip/.git" ]; then
-  git clone https://github.com/paperclipai/paperclip.git "$LAB_DIR/repos/paperclip"
-  log "Paperclip clonado."
-else
-  log "Paperclip ya existe, saltando."
+if should_install paperclip; then
+  if [ ! -d "$LAB_DIR/repos/paperclip/.git" ]; then
+    git clone https://github.com/paperclipai/paperclip.git "$LAB_DIR/repos/paperclip"
+    log "Paperclip clonado."
+  else
+    log "Paperclip ya existe, saltando."
+  fi
+  mark_done paperclip
 fi
 
-if [ "$INSTALL_HERMES" = "true" ]; then
+if should_install hermes; then
   if [ ! -d "$LAB_DIR/repos/hermes-agent/.git" ]; then
     git clone https://github.com/NousResearch/hermes-agent.git "$LAB_DIR/repos/hermes-agent"
     log "Hermes-agent clonado."
@@ -66,6 +69,7 @@ if [ "$INSTALL_HERMES" = "true" ]; then
   else
     warn "configs/hermes-start.sh no encontrado — instalar manualmente."
   fi
+  mark_done hermes
 fi
 
 # Red Docker dedicada para el lab
@@ -77,7 +81,8 @@ else
 fi
 
 # Portainer
-if ! docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
+if should_install portainer; then
+ if ! docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
   docker run -d \
     --name portainer \
     --restart unless-stopped \
@@ -87,13 +92,16 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
     -v portainer_data:/data \
     portainer/portainer-ce:latest
   log "Portainer arrancado en :9443"
-else
+ else
   log "Portainer ya existe."
+ fi
+ mark_done portainer
 fi
 
 # SearXNG — motor de búsqueda self-hosted, backend nativo de Hermes
 # Escucha solo en localhost:8080 (Hermes lo accede localmente)
-if ! docker ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
+if should_install searxng; then
+ if ! docker ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
   docker run -d \
     --name searxng \
     --restart unless-stopped \
@@ -102,12 +110,15 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
     searxng/searxng:latest
   log "SearXNG arrancado en localhost:8080."
   warn "Agregar SEARXNG_URL=http://localhost:8080 a ~/.env_agents para que Hermes lo use."
-else
+ else
   log "SearXNG ya existe."
+ fi
+ mark_done searxng
 fi
 
 # Uptime Kuma — monitoreo de servicios con alertas push
-if ! docker ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
+if should_install uptime-kuma; then
+ if ! docker ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
   docker run -d \
     --name uptime-kuma \
     --restart unless-stopped \
@@ -116,11 +127,14 @@ if ! docker ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
     louislam/uptime-kuma:latest
   log "Uptime Kuma arrancado en :3001"
   warn "Abrir http://<IP>:3001 para crear usuario admin y configurar monitores."
-else
+ else
   log "Uptime Kuma ya existe."
+ fi
+ mark_done uptime-kuma
 fi
 
 # Glance — Centro de Comando (dashboard de estado del lab)
+if should_install glance; then
 mkdir -p "$LAB_DIR/stacks/glance/config"
 if ! docker ps -a --format '{{.Names}}' | grep -q "^glance$"; then
   if [ ! -f "$LAB_DIR/stacks/glance/config/glance.yml" ]; then
@@ -161,6 +175,49 @@ GLANCEDCEOF
   log "Glance (Centro de Comando) arrancado en :9000"
 else
   log "Glance ya existe."
+fi
+mark_done glance
+fi
+
+# ── Odysseus — Frontend LLM multi-modelo (fork del lab) ──
+# RECETA PENDIENTE DE VALIDAR EN NODO FRESCO — por eso la unidad está default=off
+# en lib/registry.sh. Dos pendientes conocidos (ver spec instalacion-modular):
+#   1) Fork: el deployment vivo apunta a upstream pewdiepie-archdaemon/odysseus
+#      (rama dev). Aún NO existe fork almacreativa/odysseus con los caps
+#      parametrizados (ODYSSEUS_MAX_*). Setear ODYSSEUS_REPO_URL cuando exista.
+#   2) Red Docker: el compose vivo usa la red externa 'ai-lab-net', mientras este
+#      módulo crea 'ai-lab' (L~72). Reconciliar el nombre antes de activar on.
+# El bloque es idempotente y NO levanta nada sin un .env presente (600).
+if should_install odysseus; then
+  ODYSSEUS_REPO_URL="${ODYSSEUS_REPO_URL:-https://github.com/pewdiepie-archdaemon/odysseus.git}"
+  ODYSSEUS_REPO_BRANCH="${ODYSSEUS_REPO_BRANCH:-dev}"
+  # 1) Clonar el repo (build local del compose)
+  if [ ! -d "$LAB_DIR/repos/odysseus/.git" ]; then
+    git clone -b "$ODYSSEUS_REPO_BRANCH" "$ODYSSEUS_REPO_URL" "$LAB_DIR/repos/odysseus" \
+      && log "Odysseus clonado ($ODYSSEUS_REPO_URL @ $ODYSSEUS_REPO_BRANCH)." \
+      || warn "Odysseus: git clone falló — revisar ODYSSEUS_REPO_URL."
+  else
+    log "Odysseus repo ya existe, saltando clone."
+  fi
+  # 2) Scaffolding del stack: compose desde template + placeholder de .env
+  mkdir -p "$LAB_DIR/stacks/odysseus/config" "$LAB_DIR/data/core/odysseus/data" "$LAB_DIR/data/core/odysseus/logs"
+  ODYSSEUS_COMPOSE_SRC="$SCRIPT_DIR/configs/odysseus/docker-compose.yml.example"
+  if [ ! -f "$LAB_DIR/stacks/odysseus/docker-compose.yml" ] && [ -f "$ODYSSEUS_COMPOSE_SRC" ]; then
+    sed "s|{{LAB_DIR}}|$LAB_DIR|g" "$ODYSSEUS_COMPOSE_SRC" > "$LAB_DIR/stacks/odysseus/docker-compose.yml"
+    log "Odysseus docker-compose.yml generado desde template."
+  fi
+  if [ ! -f "$LAB_DIR/stacks/odysseus/.env.example" ] && [ -f "$SCRIPT_DIR/configs/odysseus/.env.example" ]; then
+    cp "$SCRIPT_DIR/configs/odysseus/.env.example" "$LAB_DIR/stacks/odysseus/.env.example"
+  fi
+  # 3) Levantar SOLO si hay .env (secrets completos, permisos 600)
+  if [ -f "$LAB_DIR/stacks/odysseus/.env" ]; then
+    (cd "$LAB_DIR/stacks/odysseus" && docker compose up -d) \
+      && log "Odysseus levantado en :7000." \
+      || warn "Odysseus: docker compose up falló — revisar .env / red ai-lab-net."
+  else
+    warn "Odysseus requiere .env — copiar .env.example a .env, completar (chmod 600) y correr: (cd $LAB_DIR/stacks/odysseus && docker compose up -d)."
+  fi
+  mark_done odysseus
 fi
 
 # Estructura de datos persistentes (convención de volúmenes)
@@ -234,6 +291,8 @@ TMUXEOF
 chmod +x "$LAB_DIR/scripts/lab-session.sh"
 fi
 
+# Watchdog + boot-cleanup de Paperclip (solo si la unidad paperclip está activa)
+if should_install paperclip; then
 # Watchdog: mata heartbeats zombies de Paperclip cada 15 minutos
 if [ -f "$LAB_DIR/scripts/paperclip-watchdog.sh" ]; then
   log "paperclip-watchdog.sh ya existe — no se sobreescribe."
@@ -278,6 +337,8 @@ WHERE status IN ('running','queued') AND stdout_excerpt IS NULL;" 2>/dev/null
 echo "$(date): boot cleanup completado"
 BCEOF
 chmod +x "$LAB_DIR/scripts/paperclip-boot-cleanup.sh"
+fi
+mark_done paperclip
 fi
 
 # Health-check: repara redes Docker faltantes (p. ej. tras un reinicio en frío,
@@ -386,6 +447,7 @@ chmod +x "$LAB_DIR/scripts/lab-health-check.sh"
 fi
 
 # ── Dagu (workflow orchestrator — reemplaza crontab) ──
+if should_install dagu; then
 # IMPORTANTE: instalar SIN el wizard interactivo. Desde v2.8.3 el installer
 # oficial corre un wizard que crea su propio /etc/systemd/system/dagu.service
 # (data dir en /var/lib/dagu), chocando con el service que despliega este
@@ -452,6 +514,8 @@ if [ ! -f /etc/systemd/system/dagu.service ] && [ -f "$DAGU_SERVICE_SRC" ]; then
   warn "Iniciar con: sudo systemctl start dagu"
 else
   log "dagu.service ya existe — no se sobreescribe."
+fi
+mark_done dagu
 fi
 
 # Crontab mínimo — solo lab-session (todo lo demás va en Dagu)
