@@ -11,50 +11,59 @@ export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
 
 # Chromium — necesario para logins headless via CDP (nlm, OAuth flows)
 # snap no es confiable dentro de WSL2 (squashfs/AppArmor) — usar apt ahí
-if [ -n "$WSL_DISTRO_NAME" ]; then
-  if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
-    sudo apt install -y chromium-browser || sudo apt install -y chromium
-    log "Chromium instalado via apt (WSL2)."
+if should_install chromium; then
+  if [ -n "$WSL_DISTRO_NAME" ]; then
+    if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
+      sudo apt install -y chromium-browser || sudo apt install -y chromium
+      log "Chromium instalado via apt (WSL2)."
+    else
+      log "Chromium ya instalado, saltando."
+    fi
+  elif ! snap list chromium &>/dev/null 2>&1; then
+    sudo snap install chromium
+    log "Chromium instalado via snap."
   else
     log "Chromium ya instalado, saltando."
   fi
-elif ! snap list chromium &>/dev/null 2>&1; then
-  sudo snap install chromium
-  log "Chromium instalado via snap."
-else
-  log "Chromium ya instalado, saltando."
+  mark_done chromium
 fi
 
 # Claude Code — instalador oficial (auto-update incluido)
-if ! command -v claude &>/dev/null; then
-  if curl -fsSL https://claude.ai/install.sh | bash 2>&1; then
-    if command -v claude &>/dev/null; then
-      log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
-      warn "Completar login después del bootstrap: claude"
+if should_install claude-code; then
+  if ! command -v claude &>/dev/null; then
+    if curl -fsSL https://claude.ai/install.sh | bash 2>&1; then
+      if command -v claude &>/dev/null; then
+        log "Claude Code instalado ($(claude --version 2>/dev/null | head -1))."
+        warn "Completar login después del bootstrap: claude"
+      else
+        warn "Claude Code: instalador completó pero 'claude' no está en PATH."
+      fi
     else
-      warn "Claude Code: instalador completó pero 'claude' no está en PATH."
+      warn "Claude Code: instalador falló — ver https://code.claude.com/docs/en/quickstart"
     fi
   else
-    warn "Claude Code: instalador falló — ver https://code.claude.com/docs/en/quickstart"
+    log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
   fi
-else
-  log "Claude Code ya instalado ($(claude --version 2>/dev/null | head -1))."
+  mark_done claude-code
 fi
 
 # OpenCode — instalador oficial
-if ! command -v opencode &>/dev/null; then
-  if curl -fsSL https://opencode.ai/install | bash 2>&1; then
-    if command -v opencode &>/dev/null; then
-      log "OpenCode instalado ($(opencode --version 2>/dev/null | head -1))."
-      warn "Completar login después del bootstrap: opencode"
+if should_install opencode; then
+  if ! command -v opencode &>/dev/null; then
+    if curl -fsSL https://opencode.ai/install | bash 2>&1; then
+      if command -v opencode &>/dev/null; then
+        log "OpenCode instalado ($(opencode --version 2>/dev/null | head -1))."
+        warn "Completar login después del bootstrap: opencode"
+      else
+        warn "OpenCode: instalador completó pero 'opencode' no está en PATH."
+      fi
     else
-      warn "OpenCode: instalador completó pero 'opencode' no está en PATH."
+      warn "OpenCode: instalador falló — ver https://opencode.ai"
     fi
   else
-    warn "OpenCode: instalador falló — ver https://opencode.ai"
+    log "OpenCode ya instalado ($(opencode --version 2>/dev/null | head -1))."
   fi
-else
-  log "OpenCode ya instalado ($(opencode --version 2>/dev/null | head -1))."
+  mark_done opencode
 fi
 
 # Aliases en .bashrc
@@ -72,7 +81,8 @@ fi
 # Nota: el repo publica releases "pi-v*" (sin binarios) y "v*" (con binarios).
 # /releases/latest puede apuntar a un pi-v* sin assets. Usamos la API para
 # encontrar el primer release con tag "v*" que tenga assets descargables.
-if ! command -v engram &>/dev/null; then
+if should_install engram; then
+ if ! command -v engram &>/dev/null; then
   ENGRAM_TMP_DIR="/tmp/engram-install"
   mkdir -p "$HOME/.local/bin" "$ENGRAM_TMP_DIR"
   ENGRAM_TAG=$(curl -fsSL "https://api.github.com/repos/Gentleman-Programming/engram/releases" 2>/dev/null \
@@ -97,25 +107,28 @@ if ! command -v engram &>/dev/null; then
     fi
   fi
   rm -rf "$ENGRAM_TMP_DIR"
-else
+ else
   log "Engram ya instalado ($(engram version 2>/dev/null || echo 'presente')), saltando."
+ fi
+ mark_done engram
 fi
 
-# MoolMesh — observatorio de sesiones de agentes AI
-if ! command -v mool &>/dev/null; then
+# MoolMesh — observatorio de sesiones de agentes AI (install + systemd service)
+if should_install moolmesh; then
+ if ! command -v mool &>/dev/null; then
   if command -v uv &>/dev/null; then
     uv tool install moolmesh
     log "MoolMesh instalado ($(mool --version 2>/dev/null || echo 'OK'))."
   else
     warn "MoolMesh requiere uv — instalar uv primero."
   fi
-else
+ else
   log "MoolMesh ya instalado ($(mool --version 2>/dev/null || echo 'presente')), saltando."
-fi
+ fi
 
-# MoolMesh systemd user service
-mkdir -p "$HOME/.config/systemd/user"
-if [ ! -f "$HOME/.config/systemd/user/moolmesh.service" ]; then
+ # MoolMesh systemd user service
+ mkdir -p "$HOME/.config/systemd/user"
+ if [ ! -f "$HOME/.config/systemd/user/moolmesh.service" ]; then
   if command -v mool &>/dev/null; then
     MOOL_PATH=$(which mool)
     cat > "$HOME/.config/systemd/user/moolmesh.service" << MOOLEOF
@@ -140,32 +153,35 @@ MOOLEOF
     log "moolmesh.service instalado y habilitado (systemd user)."
     warn "Iniciar con: systemctl --user start moolmesh"
   fi
-else
+ else
   log "moolmesh.service ya existe — no se sobreescribe."
+ fi
+ mark_done moolmesh
 fi
 
-# Playwright MCP — visual testing headless para agentes AI
+# Playwright MCP — visual testing headless para agentes AI (install + chromium + wrapper)
 # Permite a Claude Code, OpenCode, Hermes navegar webs, tomar screenshots
 # y leer el accessibility tree sin display físico
-if ! command -v playwright-mcp &>/dev/null; then
+if should_install playwright-mcp; then
+ if ! command -v playwright-mcp &>/dev/null; then
   npm install -g @playwright/mcp
   log "Playwright MCP instalado ($(playwright-mcp --version 2>/dev/null || echo 'OK'))."
-else
+ else
   log "Playwright MCP ya instalado ($(playwright-mcp --version 2>/dev/null)), saltando."
-fi
+ fi
 
-# Instalar Chromium de Playwright + dependencias de sistema para renderizado headless
-if [ ! -d "$HOME/.cache/ms-playwright/chromium-"* ] 2>/dev/null; then
+ # Instalar Chromium de Playwright + dependencias de sistema para renderizado headless
+ if [ ! -d "$HOME/.cache/ms-playwright/chromium-"* ] 2>/dev/null; then
   npx playwright install --with-deps chromium
   log "Playwright Chromium + deps de sistema instalados."
-else
+ else
   log "Playwright Chromium ya instalado, saltando."
-fi
+ fi
 
-# Wrapper script para MCP servers
-mkdir -p "$HOME/ai-lab/scripts"
-PLAYWRIGHT_MCP_SCRIPT="$HOME/ai-lab/scripts/playwright-mcp.sh"
-if [ ! -f "$PLAYWRIGHT_MCP_SCRIPT" ]; then
+ # Wrapper script para MCP servers
+ mkdir -p "$HOME/ai-lab/scripts"
+ PLAYWRIGHT_MCP_SCRIPT="$HOME/ai-lab/scripts/playwright-mcp.sh"
+ if [ ! -f "$PLAYWRIGHT_MCP_SCRIPT" ]; then
   cat > "$PLAYWRIGHT_MCP_SCRIPT" << 'PWEOF'
 #!/bin/bash
 # playwright-mcp.sh — Playwright MCP server para agentes IA (headless)
@@ -179,16 +195,19 @@ exec playwright-mcp \
 PWEOF
   chmod +x "$PLAYWRIGHT_MCP_SCRIPT"
   log "playwright-mcp.sh creado en ai-lab/scripts/."
-else
+ else
   log "playwright-mcp.sh ya existe, saltando."
+ fi
+ mark_done playwright-mcp
 fi
 
 # ─────────────────────────────────────────────
 # Horizonte 1 — Orquestación tmux
 # ─────────────────────────────────────────────
 
-# tmux-bridge-mcp — MCP server (stdio, Node.js) para comunicación inter-agente
-if [ ! -d "$HOME/ai-lab/repos/tmux-bridge-mcp" ]; then
+# tmux-bridge-mcp — MCP server (stdio, Node.js) para comunicación inter-agente (+ wrapper)
+if should_install tmux-bridge; then
+ if [ ! -d "$HOME/ai-lab/repos/tmux-bridge-mcp" ]; then
   if command -v git &>/dev/null && command -v node &>/dev/null; then
     git clone https://github.com/howardpen9/tmux-bridge-mcp.git "$HOME/ai-lab/repos/tmux-bridge-mcp" \
       && cd "$HOME/ai-lab/repos/tmux-bridge-mcp" && npm install
@@ -196,13 +215,13 @@ if [ ! -d "$HOME/ai-lab/repos/tmux-bridge-mcp" ]; then
   else
     warn "tmux-bridge-mcp: requiere git + node — saltando."
   fi
-else
+ else
   log "tmux-bridge-mcp ya existe, saltando."
-fi
+ fi
 
-# Wrapper script para tmux-bridge-mcp
-TMUX_BRIDGE_SCRIPT="$HOME/ai-lab/scripts/tmux-bridge-mcp.sh"
-if [ ! -f "$TMUX_BRIDGE_SCRIPT" ]; then
+ # Wrapper script para tmux-bridge-mcp
+ TMUX_BRIDGE_SCRIPT="$HOME/ai-lab/scripts/tmux-bridge-mcp.sh"
+ if [ ! -f "$TMUX_BRIDGE_SCRIPT" ]; then
   mkdir -p "$HOME/ai-lab/scripts"
   cat > "$TMUX_BRIDGE_SCRIPT" << 'TBEOF'
 #!/bin/bash
@@ -213,8 +232,10 @@ exec node "$HOME/ai-lab/repos/tmux-bridge-mcp/dist/cli.js" "$@"
 TBEOF
   chmod +x "$TMUX_BRIDGE_SCRIPT"
   log "tmux-bridge-mcp.sh creado en ai-lab/scripts/."
-else
+ else
   log "tmux-bridge-mcp.sh ya existe, saltando."
+ fi
+ mark_done tmux-bridge
 fi
 
 # ─────────────────────────────────────────────
@@ -272,6 +293,7 @@ install_prebuilt_bin() {
 }
 
 # clawhip — Daemon Rust para monitoreo tmux y enrutamiento de eventos
+if should_install clawhip; then
 CLAWHIP_VER="${CLAWHIP_VER:-v0.6.11}"
 # Tag del release del fork del lab (almacreativa/clawhip) que hospeda el binario prebuilt.
 CLAWHIP_LAB_TAG="${CLAWHIP_LAB_TAG:-v0.6.11-lab}"
@@ -307,8 +329,11 @@ if [ ! -d "$HOME/.clawhip" ] && [ -f "$HOME/.local/bin/clawhip" ]; then
   mkdir -p "$HOME/.clawhip"
   log "Directorio ~/.clawhip/ creado."
 fi
+mark_done clawhip
+fi
 
 # tmux-gateway — API REST/gRPC/WebSocket sobre tmux (Rust)
+if should_install tmux-gateway; then
 TMUX_GATEWAY_VER="${TMUX_GATEWAY_VER:-v0.1.1}"
 if [ ! -f "$HOME/.local/bin/tmux-gateway" ]; then
   mkdir -p "$HOME/.local/bin"
@@ -332,6 +357,8 @@ if [ ! -f "$HOME/.local/bin/tmux-gateway" ]; then
   fi
 else
   log "tmux-gateway ya instalado, saltando."
+fi
+mark_done tmux-gateway
 fi
 
 log "Módulo 04 completo."
