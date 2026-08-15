@@ -203,10 +203,38 @@ CONFIRM="${CONFIRM:-S}"
 # Exportar para que los módulos las lean
 export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM
 
+# ─── Barrera de etapa (--until / --resume a nivel de módulo) ──────
+# should_run_stage NN — decide si se debe SOURCEAR el módulo de la etapa NN.
+# Sin esta barrera, --until solo filtraba unidades DENTRO de should_install pero
+# igual sourceaba los 6 módulos (rehaciendo trabajo estructural: mkdir, redes,
+# scaffolding). Con la barrera + mark_stage_done, --until corta de verdad y
+# --resume saltea las etapas ya completadas (reanudación real).
+# Usar SIEMPRE como: if should_run_stage NN; then ...; fi  (nunca suelto: con
+# set -e un return 1 abortaría el script).
+should_run_stage() {
+  local st="$1"
+  if [ -n "${UNTIL_STAGE:-}" ] && [ "$st" \> "$UNTIL_STAGE" ]; then
+    log "[until] etapa $st fuera de rango ($UNTIL_STAGE) — omitida"; return 1
+  fi
+  if [ "${RESUME_MODE:-false}" = "true" ] && is_stage_done "$st"; then
+    log "[resume] etapa $st ya completada — omitida"; return 1
+  fi
+  return 0
+}
+
 # ─── Módulos ──────────────────────────────────────────────────
-source "$SCRIPT_DIR/modules/01-system.sh"
-source "$SCRIPT_DIR/modules/02-node.sh"
-source "$SCRIPT_DIR/modules/03-python.sh"
-source "$SCRIPT_DIR/modules/04-ai-tools.sh"
-source "$SCRIPT_DIR/modules/05-docker-stack.sh"
-source "$SCRIPT_DIR/modules/06-post-install.sh"
+# El source queda a nivel TOP-LEVEL a propósito (NO envolver en una función que
+# haga el source adentro): en bash, source dentro de una función mete las
+# asignaciones de variables NO exportadas en el scope local de esa función, y los
+# módulos posteriores dejarían de ver el estado que esperan. Las definiciones de
+# funciones sí serían globales, pero las variables no. Mantener el patrón literal
+# if should_run_stage NN; then source ...; mark_stage_done NN; fi.
+# La etapa se marca SOLO si el source completó (con set -e, un corte a mitad de
+# módulo aborta antes del mark_stage_done → al reanudar re-corre esa etapa, y
+# adentro should_install/is_done + guards de idempotencia saltan lo ya hecho).
+if should_run_stage 01; then source "$SCRIPT_DIR/modules/01-system.sh";      mark_stage_done 01; fi
+if should_run_stage 02; then source "$SCRIPT_DIR/modules/02-node.sh";        mark_stage_done 02; fi
+if should_run_stage 03; then source "$SCRIPT_DIR/modules/03-python.sh";      mark_stage_done 03; fi
+if should_run_stage 04; then source "$SCRIPT_DIR/modules/04-ai-tools.sh";    mark_stage_done 04; fi
+if should_run_stage 05; then source "$SCRIPT_DIR/modules/05-docker-stack.sh"; mark_stage_done 05; fi
+if should_run_stage 06; then source "$SCRIPT_DIR/modules/06-post-install.sh"; mark_stage_done 06; fi
