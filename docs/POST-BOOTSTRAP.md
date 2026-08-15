@@ -7,6 +7,10 @@ Esta guía lleva al lab de "instalado" a "funcionando".
 **Diseñada para ser leída por un agente AI o un operador humano.**
 Cada fase tiene prerrequisitos, pasos y verificación.
 
+> **¿Instalaste solo una parte del lab?** `bootstrap.sh` (Linux) soporta instalación
+> selectiva y reanudable (`--only`, `--skip`, `--interactive`, `--until`, `--resume`,
+> `--list`). Ver [README → Instalación selectiva y reanudable](../README.md#instalación-selectiva-y-reanudable).
+
 ---
 
 ## Arquitectura del lab
