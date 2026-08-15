@@ -11,6 +11,7 @@
 LAB_UNITS=(
   "docker|01|on|si||Docker CE + Compose (base)|builder"
   "node|02|on|si||Node.js vía nvm (base)|builder"
+  "antigravity|02|on|no||Antigravity CLI (agy) — agente de código de Google|builder"
   "uv|03|on|si||uv (Python) (base)|builder"
   "hermes|03|on|no|uv|Hermes Agent (operador)|operator"
   "nlm|03|on|no|uv,chromium|notebooklm-mcp-cli|addons"

@@ -14,11 +14,17 @@ nvm use 24
 nvm alias default 24
 log "Node $(node --version) activo."
 
-if ! command -v antigravity &>/dev/null; then
-  curl -fsSL https://antigravity.google/cli/install.sh | bash
-  log "Antigravity CLI instalado."
-else
-  log "Antigravity CLI ya instalado."
+# Antigravity CLI (agy) — unidad seleccionable. El bloque nvm/node de arriba es
+# base (corre siempre); esto se gatea por should_install. El binario instalado se
+# llama 'agy' (no 'antigravity'): así lo verifica el guard de idempotencia.
+if should_install antigravity; then
+  if ! command -v agy &>/dev/null; then
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+    log "Antigravity CLI (agy) instalado."
+  else
+    log "Antigravity CLI (agy) ya instalado."
+  fi
+  mark_done antigravity
 fi
 
 log "Módulo 02 completo."
