@@ -201,8 +201,10 @@ fi
 #      default branch 'dev' es inestable, así que fijamos a 'main' como línea más
 #      estable disponible. Override con ODYSSEUS_REF. Cuando el upstream publique
 #      una release/tag, cambiar ODYSSEUS_REF a ese tag.
-#   2) Red Docker: el compose vivo usa la red externa 'ai-lab-net', mientras este
-#      módulo crea 'ai-lab' (L~72). Reconciliar el nombre antes de activar on.
+#   2) Red Docker: RECONCILIADA. El template configs/odysseus/docker-compose.yml.example
+#      se adjunta a la red externa 'ai-lab' (la que crea este módulo, L~90, donde vive
+#      searxng). El compose vivo del host histórico usaba 'ai-lab-net'; en nodo fresco
+#      la red canónica es 'ai-lab'.
 # El bloque es idempotente y NO levanta nada sin un .env presente (600).
 if should_install odysseus; then
   ODYSSEUS_REPO_URL="${ODYSSEUS_REPO_URL:-https://github.com/odysseus-dev/odysseus.git}"
@@ -231,7 +233,7 @@ if should_install odysseus; then
   if [ -f "$LAB_DIR/stacks/odysseus/.env" ]; then
     (cd "$LAB_DIR/stacks/odysseus" && $DOCKER compose up -d) \
       && log "Odysseus levantado en :7000." \
-      || warn "Odysseus: docker compose up falló — revisar .env / red ai-lab-net."
+      || warn "Odysseus: docker compose up falló — revisar .env / red ai-lab."
   else
     warn "Odysseus requiere .env — copiar .env.example a .env, completar (chmod 600) y correr: (cd $LAB_DIR/stacks/odysseus && docker compose up -d)."
   fi
