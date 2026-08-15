@@ -8,8 +8,8 @@ Esta guía lleva al lab de "instalado" a "funcionando".
 Cada fase tiene prerrequisitos, pasos y verificación.
 
 > **¿Instalaste solo una parte del lab?** `bootstrap.sh` (Linux) soporta instalación
-> selectiva y reanudable (`--only`, `--skip`, `--interactive`, `--until`, `--resume`,
-> `--list`). Ver [README → Instalación selectiva y reanudable](../README.md#instalación-selectiva-y-reanudable).
+> selectiva y reanudable (`--only`, `--skip`, `--layer`, `--interactive`, `--until`,
+> `--resume`, `--list`). Ver [README → Instalación selectiva y reanudable](../README.md#instalación-selectiva-y-reanudable).
 
 ---
 

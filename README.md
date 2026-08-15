@@ -94,7 +94,7 @@ bash bootstrap.sh --resume                        # continúa lo que quedó pend
 bash bootstrap.sh --list                          # muestra qué se instalaría, sin instalar
 ```
 
-Las herramientas instalables se declaran en `lib/registry.sh` (única fuente de verdad). Las etapas (01–05) mapean a los módulos (`modules/0X-*.sh`). El progreso se guarda en `~/.ai-lab/state/bootstrap.tsv`, lo que permite cortar y reanudar sin repetir. Los flags `INSTALL_HERMES/PAPERCLIP/NLM` siguen funcionando (retrocompatibles).
+Las herramientas instalables se declaran en `lib/registry.sh` (única fuente de verdad). Las etapas (01–06) mapean a los módulos (`modules/0X-*.sh`); `--until NN` corta tras la etapa `NN`. El progreso se guarda en `~/.ai-lab/state/bootstrap.tsv`, lo que permite cortar y reanudar sin repetir. Los flags `INSTALL_HERMES/PAPERCLIP/NLM` siguen funcionando (retrocompatibles).
 
 **Capas (`--layer`).** Agrupan las unidades por rol para elegir de a bloques:
 
@@ -104,6 +104,38 @@ Las herramientas instalables se declaran en `lib/registry.sh` (única fuente de 
 - **`addons`** — automatización y observabilidad: Dagu, MoolMesh, Uptime Kuma, Glance, Portainer, Paperclip, etc.
 
 `--layer` y `--only` se combinan por unión (`--skip` resta después). Una capa arrastra solo sus unidades activas por defecto; las que están `off` (ej. Odysseus) se piden explícitamente con `--only`. No confundir "capa" con "perfil" (forja/vitrina): son dimensiones distintas.
+
+**Recetas por escenario.** Casos comunes de las distintas formas de instalar:
+
+```bash
+# Ver qué se instalaría, sin tocar nada (ideal antes de cualquier corrida):
+bash bootstrap.sh --list
+
+# Lab completo (comportamiento por defecto):
+bash bootstrap.sh
+
+# Solo el operador (Hermes + memoria + búsqueda), con su base mínima:
+bash bootstrap.sh --layer operator
+
+# Solo herramientas de código (base + Claude Code + OpenCode):
+bash bootstrap.sh --layer builder
+
+# Lab completo pero sin la observabilidad/UI:
+bash bootstrap.sh --skip portainer,uptime-kuma,glance
+
+# Equipo lento o instalación en varias tandas — cortar tras la etapa 03 y seguir después:
+bash bootstrap.sh --until 03      # instala etapas 01–03 y para
+bash bootstrap.sh --resume        # retoma desde donde quedó (04–06)
+
+# Retomar tras un corte inesperado (Ctrl-C, corte de luz):
+bash bootstrap.sh --resume
+
+# Elegir herramienta por herramienta (agrupado por capa):
+bash bootstrap.sh --interactive
+
+# Agregar Odysseus (viene apagado por defecto), junto a lo que quieras:
+bash bootstrap.sh --layer operator --only odysseus
+```
 
 ---
 
