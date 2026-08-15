@@ -3,6 +3,20 @@
 
 log "Paso 5/6 — Docker stack..."
 
+# H3 — el grupo 'docker' recién agregado en el módulo 01 (usermod -aG) NO está
+# activo en ESTA shell (la membresía de grupo se aplica en un login nuevo). En la
+# 1ª pasada del bootstrap, invocar docker directo daría 'permission denied' en
+# docker.sock y la red ai-lab no se crearía. Detectamos acceso una vez y usamos un
+# wrapper: $DOCKER para todas las invocaciones de TIEMPO DE INSTALACIÓN. Los
+# 'docker exec' dentro de los scripts generados (watchdog/boot-cleanup/health-check)
+# NO se tocan: corren en runtime, cuando el grupo ya está activo.
+if docker info >/dev/null 2>&1; then
+  DOCKER="docker"
+else
+  DOCKER="sudo docker"
+  warn "docker sin acceso directo (grupo no activo en esta sesión) — usando 'sudo docker'."
+fi
+
 mkdir -p "$LAB_DIR/repos"
 
 # Carpeta de conocimiento compartido — sincronizada con Syncthing, usada por Hermes
@@ -73,8 +87,8 @@ if should_install hermes; then
 fi
 
 # Red Docker dedicada para el lab
-if ! docker network inspect ai-lab &>/dev/null; then
-  docker network create --driver bridge --subnet 172.30.0.0/24 ai-lab
+if ! $DOCKER network inspect ai-lab &>/dev/null; then
+  $DOCKER network create --driver bridge --subnet 172.30.0.0/24 ai-lab
   log "Red Docker 'ai-lab' creada (172.30.0.0/24)."
 else
   log "Red ai-lab ya existe."
@@ -82,8 +96,8 @@ fi
 
 # Portainer
 if should_install portainer; then
- if ! docker ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
-  docker run -d \
+ if ! $DOCKER ps -a --format '{{.Names}}' | grep -q "^portainer$"; then
+  $DOCKER run -d \
     --name portainer \
     --restart unless-stopped \
     -p 8000:8000 \
@@ -101,8 +115,8 @@ fi
 # SearXNG — motor de búsqueda self-hosted, backend nativo de Hermes
 # Escucha solo en localhost:8080 (Hermes lo accede localmente)
 if should_install searxng; then
- if ! docker ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
-  docker run -d \
+ if ! $DOCKER ps -a --format '{{.Names}}' | grep -q "^searxng$"; then
+  $DOCKER run -d \
     --name searxng \
     --restart unless-stopped \
     -p 127.0.0.1:8080:8080 \
@@ -118,8 +132,8 @@ fi
 
 # Uptime Kuma — monitoreo de servicios con alertas push
 if should_install uptime-kuma; then
- if ! docker ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
-  docker run -d \
+ if ! $DOCKER ps -a --format '{{.Names}}' | grep -q "^uptime-kuma$"; then
+  $DOCKER run -d \
     --name uptime-kuma \
     --restart unless-stopped \
     -p 3001:3001 \
@@ -136,7 +150,7 @@ fi
 # Glance — Centro de Comando (dashboard de estado del lab)
 if should_install glance; then
 mkdir -p "$LAB_DIR/stacks/glance/config"
-if ! docker ps -a --format '{{.Names}}' | grep -q "^glance$"; then
+if ! $DOCKER ps -a --format '{{.Names}}' | grep -q "^glance$"; then
   if [ ! -f "$LAB_DIR/stacks/glance/config/glance.yml" ]; then
     TS_IP=$(tailscale ip -4 2>/dev/null || echo "127.0.0.1")
     cat > "$LAB_DIR/stacks/glance/config/glance.yml" << GLANCEEOF
@@ -170,7 +184,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
 GLANCEDCEOF
   cd "$LAB_DIR/stacks/glance"
-  docker compose up -d
+  $DOCKER compose up -d
   cd -
   log "Glance (Centro de Comando) arrancado en :9000"
 else
@@ -215,7 +229,7 @@ if should_install odysseus; then
   fi
   # 3) Levantar SOLO si hay .env (secrets completos, permisos 600)
   if [ -f "$LAB_DIR/stacks/odysseus/.env" ]; then
-    (cd "$LAB_DIR/stacks/odysseus" && docker compose up -d) \
+    (cd "$LAB_DIR/stacks/odysseus" && $DOCKER compose up -d) \
       && log "Odysseus levantado en :7000." \
       || warn "Odysseus: docker compose up falló — revisar .env / red ai-lab-net."
   else
