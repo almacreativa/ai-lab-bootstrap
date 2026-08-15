@@ -194,8 +194,10 @@ mark_done glance
 fi
 
 # ── Odysseus — Frontend LLM multi-modelo ──
-# RECETA PENDIENTE DE VALIDAR EN NODO FRESCO — por eso la unidad está default=off
-# en lib/registry.sh. Pendientes conocidos (ver spec instalacion-modular):
+# RECETA VALIDADA EN NODO FRESCO (i5local-l, 2026-08-15): --only odysseus instala
+# docker, crea la red 'ai-lab', clona odysseus-dev/odysseus@main, construye la
+# imagen y levanta odysseus (:7000, login 200) + chromadb. Unidad default=on.
+# Notas de upstream:
 #   1) Upstream: el repo canónico es odysseus-dev/odysseus (antes
 #      pewdiepie-archdaemon/odysseus, renombrado). NO tiene releases ni tags: la
 #      default branch 'dev' es inestable, así que fijamos a 'main' como línea más

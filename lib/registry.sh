@@ -30,5 +30,5 @@ LAB_UNITS=(
   "uptime-kuma|05|on|no|docker|Monitoreo con alertas|addons"
   "glance|05|on|no|docker|Dashboard Centro de Comando|addons"
   "dagu|05|on|no||Orquestador de workflows (reemplaza crontab)|addons"
-  "odysseus|05|off|no|docker|Frontend LLM multi-modelo (receta pendiente — ver módulo 05 §Odysseus)|explorer"
+  "odysseus|05|on|no|docker|Frontend LLM multi-modelo (workspace AI)|explorer"
 )
