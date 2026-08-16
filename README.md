@@ -135,7 +135,13 @@ bash bootstrap.sh --interactive
 
 # Agregar Odysseus (viene apagado por defecto), junto a lo que quieras:
 bash bootstrap.sh --layer operator --only odysseus
+
+# Base mínima endurecida (Docker + Tailscale + SSH hardening), sin extras del lab
+# — cimiento para un host externo (p.ej. un server Dokploy):
+bash bootstrap.sh --until 01 --skip syncthing,restic,etckeeper
 ```
+
+> En un host de este tipo **no** correr `setup-instance.sh` (es configuración del lab de IA) ni instalar Portainer (choca con Dokploy; ya queda fuera con `--until 01`).
 
 ---
 

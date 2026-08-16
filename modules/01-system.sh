@@ -88,29 +88,35 @@ else
   log "fail2ban ya instalado, saltando."
 fi
 
-# Syncthing — en WSL2 se omite: correr desde el host Windows (acceso de red más simple)
-if [ -n "$WSL_DISTRO_NAME" ]; then
-  log "WSL2 detectado — saltando Syncthing (usar la instalación del host Windows)."
-elif ! command -v syncthing &>/dev/null; then
-  curl -s https://syncthing.net/release-key.txt \
-    | sudo gpg --dearmor -o /etc/apt/keyrings/syncthing.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/syncthing.gpg] https://apt.syncthing.net/ syncthing stable" \
-    | sudo tee /etc/apt/sources.list.d/syncthing.list > /dev/null
-  sudo apt update -qq && sudo apt install -y syncthing
-  sudo systemctl enable syncthing@"$LAB_USER"
-  sudo systemctl start syncthing@"$LAB_USER"
-  log "Syncthing instalado y activo como servicio del sistema."
-  warn "Configuración de Syncthing requiere pasos manuales — ver instrucciones al final del bootstrap."
-else
-  log "Syncthing ya instalado, saltando."
+# Syncthing — unidad opcional (default=on); en WSL2 se omite: correr desde el host Windows
+if should_install syncthing; then
+  if [ -n "$WSL_DISTRO_NAME" ]; then
+    log "WSL2 detectado — saltando Syncthing (usar la instalación del host Windows)."
+  elif ! command -v syncthing &>/dev/null; then
+    curl -s https://syncthing.net/release-key.txt \
+      | sudo gpg --dearmor -o /etc/apt/keyrings/syncthing.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/syncthing.gpg] https://apt.syncthing.net/ syncthing stable" \
+      | sudo tee /etc/apt/sources.list.d/syncthing.list > /dev/null
+    sudo apt update -qq && sudo apt install -y syncthing
+    sudo systemctl enable syncthing@"$LAB_USER"
+    sudo systemctl start syncthing@"$LAB_USER"
+    log "Syncthing instalado y activo como servicio del sistema."
+    warn "Configuración de Syncthing requiere pasos manuales — ver instrucciones al final del bootstrap."
+  else
+    log "Syncthing ya instalado, saltando."
+  fi
+  mark_done syncthing
 fi
 
-# Herramientas de backup y cifrado
-if ! command -v restic &>/dev/null; then
-  sudo apt install -y restic
-  log "restic instalado ($(restic version 2>/dev/null | head -1))."
-else
-  log "restic ya instalado ($(restic version 2>/dev/null | head -1)), saltando."
+# restic — unidad opcional (default=on): backup a B2 del lab
+if should_install restic; then
+  if ! command -v restic &>/dev/null; then
+    sudo apt install -y restic
+    log "restic instalado ($(restic version 2>/dev/null | head -1))."
+  else
+    log "restic ya instalado ($(restic version 2>/dev/null | head -1)), saltando."
+  fi
+  mark_done restic
 fi
 
 if ! command -v age &>/dev/null; then
@@ -127,14 +133,17 @@ else
   log "sqlite3 ya instalado, saltando."
 fi
 
-# etckeeper — auto-commitea cambios en /etc tras cada apt install
-if ! dpkg -l etckeeper &>/dev/null 2>&1; then
-  sudo apt install -y etckeeper
-  sudo etckeeper init 2>/dev/null || true
-  sudo etckeeper commit "etckeeper: init tras bootstrap" 2>/dev/null || true
-  log "etckeeper instalado — /etc bajo control de versiones automático."
-else
-  log "etckeeper ya instalado, saltando."
+# etckeeper — unidad opcional (default=on): auto-commitea cambios en /etc tras cada apt install
+if should_install etckeeper; then
+  if ! dpkg -l etckeeper &>/dev/null 2>&1; then
+    sudo apt install -y etckeeper
+    sudo etckeeper init 2>/dev/null || true
+    sudo etckeeper commit "etckeeper: init tras bootstrap" 2>/dev/null || true
+    log "etckeeper instalado — /etc bajo control de versiones automático."
+  else
+    log "etckeeper ya instalado, saltando."
+  fi
+  mark_done etckeeper
 fi
 
 log "Módulo 01 completo."
