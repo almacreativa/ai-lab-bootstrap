@@ -74,9 +74,31 @@ export LAB_DIR="/home/miusuario/ai-lab"  # default: ~/ai-lab
 export INSTALL_PAPERCLIP=true        # default: true
 export INSTALL_HERMES=true           # default: true
 export INSTALL_NLM=true              # default: true
+export LAB_BIND_ADDR="127.0.0.1"     # default: 127.0.0.1 (ver "Acceso a los paneles" abajo)
 
 bash bootstrap.sh
 ```
+
+#### Acceso a los paneles de administración (`LAB_BIND_ADDR`)
+
+Por defecto los paneles de administración (Portainer `:9443`, Uptime Kuma `:3001`, Glance `:9000`, dashboard de Hermes `:9119`, Dagu `:8480`) bindean a **`127.0.0.1`** — es decir, **no quedan expuestos** a la LAN ni a internet. Esto es *secure-by-default*: **UFW no protege a los contenedores Docker** (bypass de la cadena FORWARD, ver `docs/SECURITY_GUIDE.md` §8), así que el bind es la única protección real de estos paneles.
+
+Para acceder a ellos hay dos caminos:
+
+```bash
+# (a) Túnel SSH desde tu máquina (no expone nada en la red):
+ssh -L 9443:127.0.0.1:9443 -L 3001:127.0.0.1:3001 usuario@host
+#     luego abrir https://localhost:9443 en tu navegador
+
+# (b) Exponerlos SOLO en tu tailnet (Tailscale) — setear la IP tailscale del host
+#     ANTES del bootstrap:
+export LAB_BIND_ADDR="100.x.y.z"   # tu IP tailscale (tailscale ip -4)
+bash bootstrap.sh
+```
+
+> **Nunca** usar `LAB_BIND_ADDR=0.0.0.0` en redes no confiables: expone todos los paneles (varios sin autenticación, como el dashboard de Hermes que corre `--insecure`) a cualquiera que alcance el host.
+>
+> **Monitores en contenedor (caveat):** con el default `127.0.0.1`, monitores que corren *dentro* de un contenedor (Uptime Kuma → Hermes, Glance → Dagu) no alcanzan los servicios del host (el `localhost` del contenedor ≠ el del host). Si se quiere ese monitoreo funcionando, exponer con `LAB_BIND_ADDR=<ip-tailscale>` en lugar de loopback.
 
 ### Instalación selectiva y reanudable
 

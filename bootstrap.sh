@@ -82,9 +82,17 @@ LAB_DIR="${LAB_DIR:-$HOME/ai-lab}"
 INSTALL_PAPERCLIP="${INSTALL_PAPERCLIP:-true}"
 INSTALL_HERMES="${INSTALL_HERMES:-true}"
 INSTALL_NLM="${INSTALL_NLM:-true}"
+# Dirección de bind de los paneles de administración (secure-by-default).
+# Default 127.0.0.1 = solo alcanzables por loopback (túnel SSH o local).
+# Override con tu IP tailscale para exponerlos en la tailnet, o 0.0.0.0 (viejo
+# comportamiento, expuesto a LAN/internet — bajo tu responsabilidad).
+# OJO: UFW NO protege contenedores Docker (bypass FORWARD), el bind es la
+# única protección real de estos paneles.
+LAB_BIND_ADDR="${LAB_BIND_ADDR:-127.0.0.1}"
 
 echo "  Usuario del sistema : $LAB_USER"
 echo "  Directorio del lab  : $LAB_DIR"
+echo "  Bind paneles admin  : $LAB_BIND_ADDR"
 # Las unidades resueltas se muestran más abajo ("Unidades a instalar"), una vez
 # que SELECTED_UNITS está calculado. No imprimir aquí los flags viejos
 # (INSTALL_PAPERCLIP/HERMES/NLM): solo se conservan por retrocompat.
@@ -201,7 +209,7 @@ CONFIRM="${CONFIRM:-S}"
 [[ "$CONFIRM" =~ ^[Ss]$ ]] || { echo "Abortado."; exit 0; }
 
 # Exportar para que los módulos las lean
-export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM
+export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM LAB_BIND_ADDR
 
 # ─── Barrera de etapa (--until / --resume a nivel de módulo) ──────
 # should_run_stage NN — decide si se debe SOURCEAR el módulo de la etapa NN.
