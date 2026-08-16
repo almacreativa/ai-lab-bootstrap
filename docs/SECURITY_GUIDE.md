@@ -170,9 +170,21 @@ DOCKER (capa independiente):
 
 ## 7. UFW — reglas por puerto desde el manifiesto
 
+**Baseline en el bootstrap (`firewall-baseline`).** Antes de cualquier per-port,
+el propio `bootstrap.sh` (módulo 01, unidad `firewall-baseline`, default=on) deja
+UFW activo con un baseline seguro: `deny incoming`, `allow outgoing` y SSH solo
+desde la tailnet (`100.64.0.0/10`) y la LAN detectada (más la fuente de la sesión
+SSH actual, blindaje anti-lockout). Así, quien corre únicamente el bootstrap ya
+queda con firewall — no depende de este script post-bootstrap. Este baseline
+**no** replica la lógica per-port: solo cierra el gap de "cero firewall tras
+bootstrap". Se puede omitir con `bash bootstrap.sh --skip firewall-baseline`. En
+WSL2 se salta (UFW no aplica; la red la gestiona el host Windows).
+
 `security-apply-sudo.sh` lee la sección `security.allowed_ports[]` del manifiesto
 (`core-manifest.yaml`) y genera reglas UFW dinámicamente. No hay IPs ni puertos
-hardcodeados en el script.
+hardcodeados en el script. Es consistente con el baseline: usa per-port desde
+`100.64.0.0/10`, y la regla amplia por interfaz (`allow in on tailscale0`, modelo
+viejo) la elimina si existe.
 
 **Flujo para agregar un servicio nuevo:**
 
