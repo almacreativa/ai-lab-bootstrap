@@ -13,6 +13,7 @@ LAB_UNITS=(
   "syncthing|01|on|no||Syncthing (sync de archivos del lab)|addons"
   "restic|01|on|no||restic (backup a B2 del lab)|addons"
   "etckeeper|01|on|no||etckeeper (/etc bajo control de versiones)|addons"
+  "firewall-baseline|01|on|no||UFW baseline (deny-in + SSH solo tailnet/LAN)|addons"
   "node|02|on|si||Node.js vía nvm (base)|builder"
   "antigravity|02|on|no||Antigravity CLI (agy) — agente de código de Google|builder"
   "uv|03|on|si||uv (Python) (base)|builder"

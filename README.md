@@ -83,6 +83,10 @@ bash bootstrap.sh
 
 Por defecto los paneles de administración (Portainer `:9443`, Uptime Kuma `:3001`, Glance `:9000`, dashboard de Hermes `:9119`, Dagu `:8480`) bindean a **`127.0.0.1`** — es decir, **no quedan expuestos** a la LAN ni a internet. Esto es *secure-by-default*: **UFW no protege a los contenedores Docker** (bypass de la cadena FORWARD, ver `docs/SECURITY_GUIDE.md` §8), así que el bind es la única protección real de estos paneles.
 
+#### Firewall del host (`firewall-baseline`)
+
+Complementario a lo anterior (que cubre Docker), el bootstrap deja **UFW activo con un baseline seguro** para los servicios del host: `deny incoming` por defecto, `allow outgoing`, y **SSH accesible solo desde la tailnet (`100.64.0.0/10`) y la LAN detectada**. Es *secure-by-default*: quien corre únicamente el bootstrap (sin el hardening post-bootstrap) ya queda con firewall. El detalle **per-port** de cada servicio se afina después con `scripts/security-apply-sudo.sh` (lee el manifiesto). Para desactivar el baseline: `bash bootstrap.sh --skip firewall-baseline`.
+
 Para acceder a ellos hay dos caminos:
 
 ```bash

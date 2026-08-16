@@ -88,6 +88,43 @@ else
   log "fail2ban ya instalado, saltando."
 fi
 
+# firewall-baseline — unidad opcional (default=on): UFW secure-by-default.
+# Cierra el gap de "cero firewall tras bootstrap": quien corre solo el bootstrap
+# (sin security-apply-sudo.sh + manifiesto) quedaba sin firewall. Este baseline
+# deja deny-incoming + SSH solo desde tailnet/LAN. El detalle per-port de cada
+# servicio lo sigue afinando security-apply-sudo.sh (post-bootstrap, manifiesto).
+# Corre DESPUÉS del SSH hardening + fail2ban (necesita SSH ya configurado).
+# OJO: UFW NO protege contenedores Docker (bypass FORWARD) — esos se cierran por
+# bind a localhost (F1). Este baseline protege los servicios del host.
+if should_install firewall-baseline; then
+  if [ -n "$WSL_DISTRO_NAME" ]; then
+    log "WSL2 detectado — saltando firewall-baseline (UFW no aplica; red gestionada por el host Windows)."
+  else
+    command -v ufw >/dev/null || sudo apt install -y ufw
+    # ── ANTI-LOCKOUT: permitir SSH ANTES de cualquier deny/enable ──
+    TAILNET="100.64.0.0/10"
+    sudo ufw allow from "$TAILNET" to any port 22 proto tcp comment 'SSH via Tailscale'
+    # LAN detectada (no romper acceso del operador en LAN durante el install).
+    # Se toma la subred de la interfaz del default route (el uplink físico real),
+    # NO el primer route link-scope: ese suele ser docker0/tailscale0 y detectarlos
+    # como "LAN" vaciaría de sentido esta regla anti-lockout.
+    LAN_IF=$(ip route show default 2>/dev/null | awk '/^default/{print $5; exit}')
+    LAN=""
+    [ -n "$LAN_IF" ] && LAN=$(ip -o -f inet route show scope link dev "$LAN_IF" 2>/dev/null | awk '{print $1; exit}')
+    [ -n "$LAN" ] && sudo ufw allow from "$LAN" to any port 22 proto tcp comment 'SSH LAN'
+    # fuente de ESTA sesión SSH (blindaje extra anti-lockout)
+    SRC=$(echo "${SSH_CLIENT:-}" | awk '{print $1}')
+    [ -n "$SRC" ] && sudo ufw allow from "$SRC" to any port 22 proto tcp comment 'SSH sesión actual'
+    # baseline
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw --force enable
+    log "UFW baseline activo: deny-incoming, SSH desde tailnet/LAN. Per-port de servicios: security-apply-sudo.sh."
+    warn "UFW no protege contenedores Docker (bypass FORWARD) — esos se cierran por bind (F1)."
+  fi
+  mark_done firewall-baseline
+fi
+
 # Syncthing — unidad opcional (default=on); en WSL2 se omite: correr desde el host Windows
 if should_install syncthing; then
   if [ -n "$WSL_DISTRO_NAME" ]; then
