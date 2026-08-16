@@ -8,7 +8,7 @@
 # (dags en ~/.config/dagu/dags). Si Dagu "pierde historial", verificar que no
 # haya dos services con data dirs distintos (ver configs/dagu.service).
 
-host: 0.0.0.0
+host: {{LAB_BIND_ADDR}}
 port: 8480
 dags_dir: {{HOME}}/.config/dagu/dags
 base_config: {{HOME}}/.config/dagu/base.yaml

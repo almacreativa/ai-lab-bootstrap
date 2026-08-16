@@ -60,9 +60,12 @@ LAB_DIR="${LAB_DIR:-$HOME/ai-lab}"
 INSTALL_PAPERCLIP="${INSTALL_PAPERCLIP:-true}"
 INSTALL_HERMES="${INSTALL_HERMES:-true}"
 INSTALL_NLM="${INSTALL_NLM:-true}"
+# Bind de paneles admin (secure-by-default). Ver bootstrap.sh para detalle.
+LAB_BIND_ADDR="${LAB_BIND_ADDR:-127.0.0.1}"
 
 echo "  Usuario del sistema : $LAB_USER"
 echo "  Directorio del lab  : $LAB_DIR"
+echo "  Bind paneles admin  : $LAB_BIND_ADDR"
 echo "  Instalar Paperclip  : $INSTALL_PAPERCLIP"
 echo "  Instalar Hermes     : $INSTALL_HERMES"
 echo "  Instalar nlm        : $INSTALL_NLM"
@@ -72,7 +75,7 @@ CONFIRM="${CONFIRM:-S}"
 [[ "$CONFIRM" =~ ^[Ss]$ ]] || { echo "Abortado."; exit 0; }
 
 # Exportar para que los módulos las lean
-export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM
+export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM LAB_BIND_ADDR
 
 # ─── Módulos ──────────────────────────────────────────────────
 source "$SCRIPT_DIR/modules/macos/01-system.sh"

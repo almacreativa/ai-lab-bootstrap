@@ -64,7 +64,7 @@ if should_install hermes; then
     log "hermes.service ya existe — no se sobreescribe."
   elif [ -f "$HERMES_SERVICE_SRC" ]; then
     NODE_VERSION=$(node --version 2>/dev/null || echo "v24.16.0")
-    sed "s|{{LAB_USER}}|$LAB_USER|g; s|{{NODE_VERSION}}|$NODE_VERSION|g" "$HERMES_SERVICE_SRC" \
+    sed "s|{{LAB_USER}}|$LAB_USER|g; s|{{NODE_VERSION}}|$NODE_VERSION|g; s|{{LAB_BIND_ADDR}}|${LAB_BIND_ADDR:-127.0.0.1}|g" "$HERMES_SERVICE_SRC" \
       | sudo tee /etc/systemd/system/hermes.service > /dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable hermes
@@ -100,8 +100,8 @@ if should_install portainer; then
   $DOCKER run -d \
     --name portainer \
     --restart unless-stopped \
-    -p 8000:8000 \
-    -p 9443:9443 \
+    -p ${LAB_BIND_ADDR:-127.0.0.1}:8000:8000 \
+    -p ${LAB_BIND_ADDR:-127.0.0.1}:9443:9443 \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
     portainer/portainer-ce:latest
@@ -136,11 +136,11 @@ if should_install uptime-kuma; then
   $DOCKER run -d \
     --name uptime-kuma \
     --restart unless-stopped \
-    -p 3001:3001 \
+    -p ${LAB_BIND_ADDR:-127.0.0.1}:3001:3001 \
     -v uptime-kuma-data:/app/data \
     louislam/uptime-kuma:latest
-  log "Uptime Kuma arrancado en :3001"
-  warn "Abrir http://<IP>:3001 para crear usuario admin y configurar monitores."
+  log "Uptime Kuma arrancado en ${LAB_BIND_ADDR}:3001"
+  warn "Con bind a loopback (default), abrir vía túnel SSH: ssh -L 3001:127.0.0.1:3001 <host>. Luego crear usuario admin y configurar monitores."
  else
   log "Uptime Kuma ya existe."
  fi
@@ -170,14 +170,16 @@ pages:
 GLANCEEOF
     log "Glance config base creado — personalizar en $LAB_DIR/stacks/glance/config/glance.yml"
   fi
-  cat > "$LAB_DIR/stacks/glance/docker-compose.yml" << 'GLANCEDCEOF'
+  # Heredoc SIN comillas en el delimitador para interpolar ${LAB_BIND_ADDR}.
+  # El cuerpo no tiene ninguna otra variable $ que escapar.
+  cat > "$LAB_DIR/stacks/glance/docker-compose.yml" << GLANCEDCEOF
 services:
   glance:
     image: glanceapp/glance
     container_name: glance
     restart: unless-stopped
     ports:
-      - "9000:8080"
+      - "${LAB_BIND_ADDR:-127.0.0.1}:9000:8080"
     volumes:
       - ./config:/app/config:ro
       - /etc/timezone:/etc/timezone:ro
@@ -499,7 +501,7 @@ DAGU_BASE_SRC="$SCRIPT_DIR/configs/dagu-base.yaml.example"
 DAGU_SERVICE_SRC="$SCRIPT_DIR/configs/dagu.service"
 
 if [ ! -f "$HOME/.config/dagu/config.yaml" ] && [ -f "$DAGU_CONFIG_SRC" ]; then
-  sed "s|{{HOME}}|$HOME|g; s|{{HOSTNAME}}|$(hostname -s)|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
+  sed "s|{{HOME}}|$HOME|g; s|{{HOSTNAME}}|$(hostname -s)|g; s|{{LAB_BIND_ADDR}}|${LAB_BIND_ADDR:-127.0.0.1}|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
   log "Dagu config.yaml creado."
 fi
 

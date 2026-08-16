@@ -51,7 +51,7 @@ if [ "$INSTALL_HERMES" = "true" ]; then
     log "com.almacreativa.hermes.plist ya existe — no se sobreescribe."
   elif [ -f "$HERMES_PLIST_SRC" ]; then
     NODE_VERSION_DIR=$(basename "$(dirname "$(dirname "$(command -v node)")")" 2>/dev/null || echo "v24.0.0")
-    sed "s|{{HOME}}|$HOME|g; s|{{NODE_VERSION}}|$NODE_VERSION_DIR|g" "$HERMES_PLIST_SRC" > "$HERMES_PLIST_DST"
+    sed "s|{{HOME}}|$HOME|g; s|{{NODE_VERSION}}|$NODE_VERSION_DIR|g; s|{{LAB_BIND_ADDR}}|${LAB_BIND_ADDR:-127.0.0.1}|g" "$HERMES_PLIST_SRC" > "$HERMES_PLIST_DST"
     log "LaunchAgent de Hermes instalado en $HERMES_PLIST_DST (Node $NODE_VERSION_DIR)"
   else
     warn "configs/com.almacreativa.hermes.plist no encontrado — instalar manualmente."
@@ -118,7 +118,7 @@ DAGU_BASE_SRC="$SCRIPT_DIR/configs/dagu-base.yaml.example"
 DAGU_PLIST_SRC="$SCRIPT_DIR/configs/com.almacreativa.dagu.plist"
 
 if [ ! -f "$HOME/.config/dagu/config.yaml" ] && [ -f "$DAGU_CONFIG_SRC" ]; then
-  sed "s|{{HOME}}|$HOME|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
+  sed "s|{{HOME}}|$HOME|g; s|{{LAB_BIND_ADDR}}|${LAB_BIND_ADDR:-127.0.0.1}|g" "$DAGU_CONFIG_SRC" > "$HOME/.config/dagu/config.yaml"
   log "Dagu config.yaml creado."
 fi
 

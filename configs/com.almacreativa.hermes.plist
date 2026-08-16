@@ -18,7 +18,7 @@
         <key>HERMES_HOME</key>
         <string>{{HOME}}/.hermes</string>
         <key>HERMES_DASHBOARD_HOST</key>
-        <string>0.0.0.0</string>
+        <string>{{LAB_BIND_ADDR}}</string>
         <key>HERMES_DASHBOARD_PORT</key>
         <string>9119</string>
         <key>PATH</key>

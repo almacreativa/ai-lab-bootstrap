@@ -4,7 +4,7 @@ set -e
 
 HERMES_BIN="/home/{{LAB_USER}}/.hermes-env/bin/hermes"
 HERMES_HOME="/home/{{LAB_USER}}/.hermes"
-DASHBOARD_HOST="${HERMES_DASHBOARD_HOST:-0.0.0.0}"
+DASHBOARD_HOST="${HERMES_DASHBOARD_HOST:-127.0.0.1}"
 DASHBOARD_PORT="${HERMES_DASHBOARD_PORT:-9119}"
 HERMES_WEB_DIST="/home/{{LAB_USER}}/ai-lab/repos/hermes-agent/hermes_cli/web_dist"
 
