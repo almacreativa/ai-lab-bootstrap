@@ -3,6 +3,23 @@
 **Parte del bootstrap.** Complementa a `scripts/security-apply-sudo.sh` monitoreando
 que sus reglas se mantengan vigentes. Corre sin sudo cada 15 minutos vía Dagu.
 
+## Reporte de exposición al terminar el bootstrap (F5)
+
+Al finalizar, el bootstrap imprime un **resumen de exposición** (UFW, fail2ban,
+SSH hardening, puertos del host en `0.0.0.0`, contenedores Docker en `0.0.0.0`)
+para que quede claro qué quedó protegido vs expuesto. Es **informativo y
+read-only** — nunca aborta el bootstrap.
+
+Re-ejecutable en cualquier momento (no requiere manifiesto ni sudo salvo para
+leer el estado de UFW):
+
+```bash
+bash ~/ai-lab/repos/ai-lab-bootstrap/ops/security/exposure-report.sh
+```
+
+A diferencia de `exposure-watchdog.sh`, este reporte es **self-contained**: no
+depende de `core-manifest.yaml` ni de `telegram-notify.sh`.
+
 ## Qué monitorea
 
 | Check | Qué detecta |

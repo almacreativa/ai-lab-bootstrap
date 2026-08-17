@@ -126,3 +126,8 @@ echo "  Guía completa post-bootstrap: docs/POST-BOOTSTRAP.md"
 echo "  (Un agente AI puede leer ese archivo y guiarte paso a paso)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
+
+# Reporte de exposición (F5 audit) — read-only, informativo, nunca fatal.
+# Cierra el círculo de F1 (paneles a localhost) + F2 (firewall baseline):
+# el bootstrap termina diciendo qué quedó protegido vs expuesto.
+[ -x "$SCRIPT_DIR/ops/security/exposure-report.sh" ] && bash "$SCRIPT_DIR/ops/security/exposure-report.sh" || true
