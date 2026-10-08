@@ -101,6 +101,13 @@ for r in json.load(sys.stdin):
         break" 2>/dev/null || true
 }
 
+# ── ¿latest es realmente más nuevo que installed? (corta alertas hacia atrás) ──
+version_gt() {
+  local a="$1" b="$2"
+  [[ -z "$a" || -z "$b" || "$a" == "$b" ]] && return 1
+  [[ "$(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -1)" == "$a" ]]
+}
+
 UPDATES_FOUND=0
 REPORT=""
 TOOL_STATES=()   # formato: nombre|instalado|disponible|dias|estable
@@ -117,14 +124,16 @@ check_tool() {
   echo "  Instalado : ${installed:-desconocido}"
   echo "  Disponible: ${latest:-desconocido}  (publicado: ${release_date:-desconocido})"
 
-  local days=0 stable=false
-  if [[ -n "$latest" && -n "$installed" && "$installed" != "desconocido" && "$latest" != "$installed" ]]; then
+  local days=0 stable=false pending=false
+  if [[ -n "$latest" && -n "$installed" && "$installed" != "desconocido" && "$latest" != "$installed" ]] \
+     && version_gt "$latest" "$installed"; then
     days=999
     [[ -n "$release_date" ]] && days=$(days_since "$release_date")
     echo "  Días desde release: $days"
 
     if [[ "$days" -ge "$STABILITY_DAYS" ]]; then
       stable=true
+      pending=true
       echo "  → Pasa ventana de estabilidad ($STABILITY_DAYS días). Investigando..."
       local vuln bug
       vuln=$(search_issues "$name $latest vulnerability security issue")
@@ -144,18 +153,32 @@ ${bug}
       echo "  → Solo ${days}d desde el release — esperando ventana de ${STABILITY_DAYS}d (faltan $((STABILITY_DAYS - days))d)"
     fi
   else
-    echo "  → Al día"
+    if [[ -n "$latest" && "$installed" != "desconocido" && "$latest" != "$installed" ]] && ! version_gt "$latest" "$installed"; then
+      echo "  → Al día (la versión publicada ${latest} es anterior a ${installed})"
+    else
+      echo "  → Al día"
+    fi
   fi
-  TOOL_STATES+=("$name|${installed:-desconocido}|${latest:-}|${days}|${stable}")
+  TOOL_STATES+=("$name|${installed:-desconocido}|${latest:-}|${days}|${stable}|${pending}")
 }
 
 # ════════════════════════════════════════════════
 # Inventario de herramientas
 # ════════════════════════════════════════════════
 
-INSTALLED=$("$HERMES_ENV" show hermes-agent 2>/dev/null | grep ^Version | awk '{print $2}' || echo "desconocido")
-check_tool "hermes-agent" "$INSTALLED" "$(pypi_latest hermes-agent)" \
-  '`pip install --upgrade hermes-agent` + reiniciar servicio'
+# hermes-agent puede instalarse por git (este host) o por pip. El release upstream
+# se tagea en calver (v2026.9.24) y PyPI queda rezagado → con install por git hay
+# que comparar contra los releases de GitHub, NO contra PyPI.
+if [[ -d "$HOME/.hermes/hermes-agent/.git" ]]; then
+  INSTALLED=$(git -C "$HOME/.hermes/hermes-agent" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+  [[ -z "$INSTALLED" ]] && INSTALLED="desconocido"
+  check_tool "hermes-agent" "$INSTALLED" "$(github_latest NousResearch/hermes-agent)" \
+    '`git -C ~/.hermes/hermes-agent pull` + reiniciar servicio (install por git)'
+else
+  INSTALLED=$("$HERMES_ENV" show hermes-agent 2>/dev/null | grep ^Version | awk '{print $2}' || echo "desconocido")
+  check_tool "hermes-agent" "$INSTALLED" "$(pypi_latest hermes-agent)" \
+    '`pip install --upgrade hermes-agent` + reiniciar servicio'
+fi
 
 INSTALLED=$("$OPENCODE_BIN" --version 2>/dev/null | grep -oP '[\d]+\.[\d]+\.[\d]+' | head -1 || echo "desconocido")
 check_tool "opencode" "$INSTALLED" "$(npm_latest opencode-ai)" \
@@ -204,8 +227,9 @@ all_current = True
 for line in sys.stdin.read().splitlines():
     if not line:
         continue
-    name, installed, latest, days, stable = (line.split('|') + ['']*5)[:5]
-    pending = bool(latest) and latest != installed and installed != 'desconocido'
+    parts = (line.split('|') + ['']*6)[:6]
+    name, installed, latest, days, stable, pend_flag = parts
+    pending = pend_flag == 'true'
     if pending:
         all_current = False
     tools.append({
