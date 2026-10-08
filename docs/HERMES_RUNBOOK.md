@@ -96,7 +96,7 @@ for p, v in d['platforms'].items():
 ## Estructura del setup bare metal
 
 ```
-~/.hermes-env/              ← venv Python con hermes-agent instalado
+~/.hermes-env/              ← symlink al venv del install git (~/.hermes/hermes-agent/venv)
     bin/hermes              ← el binario que usás desde la terminal
 
 /usr/local/bin/hermes-start.sh   ← launcher del servicio systemd

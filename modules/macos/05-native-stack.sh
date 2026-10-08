@@ -21,24 +21,8 @@ else
 fi
 
 if [ "$INSTALL_HERMES" = "true" ]; then
-  if [ ! -d "$LAB_DIR/repos/hermes-agent/.git" ]; then
-    git clone https://github.com/NousResearch/hermes-agent.git "$LAB_DIR/repos/hermes-agent"
-    log "Hermes-agent clonado."
-  else
-    log "Hermes-agent ya existe, saltando."
-  fi
-
-  # Build del frontend (genera hermes_cli/web_dist/)
-  if [ ! -f "$LAB_DIR/repos/hermes-agent/hermes_cli/web_dist/index.html" ]; then
-    log "Compilando frontend de Hermes..."
-    cd "$LAB_DIR/repos/hermes-agent/web"
-    npm install --silent
-    npm run build
-    cd -
-    log "Frontend de Hermes compilado."
-  else
-    log "Frontend de Hermes ya compilado, saltando."
-  fi
+  # Código/venv los instala el módulo 03 (instalador oficial del tag vía git).
+  # Acá solo se registra el LaunchAgent + launcher.
 
   # Hermes como LaunchAgent (equivalente macOS de systemd --user)
   HERMES_PLIST_SRC="$SCRIPT_DIR/configs/com.almacreativa.hermes.plist"

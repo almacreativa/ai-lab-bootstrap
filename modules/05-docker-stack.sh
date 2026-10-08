@@ -37,24 +37,8 @@ if should_install paperclip; then
 fi
 
 if should_install hermes; then
-  if [ ! -d "$LAB_DIR/repos/hermes-agent/.git" ]; then
-    git clone https://github.com/NousResearch/hermes-agent.git "$LAB_DIR/repos/hermes-agent"
-    log "Hermes-agent clonado."
-  else
-    log "Hermes-agent ya existe, saltando."
-  fi
-
-  # Build del frontend (genera hermes_cli/web_dist/)
-  if [ ! -f "$LAB_DIR/repos/hermes-agent/hermes_cli/web_dist/index.html" ]; then
-    log "Compilando frontend de Hermes..."
-    cd "$LAB_DIR/repos/hermes-agent/web"
-    npm install --silent
-    npm run build
-    cd -
-    log "Frontend de Hermes compilado."
-  else
-    log "Frontend de Hermes ya compilado, saltando."
-  fi
+  # Código/venv los instala el módulo 03 (instalador oficial del tag vía git).
+  # Acá solo se registra el servicio systemd + launcher.
 
   # Hermes systemd service
   HERMES_SERVICE_SRC="$SCRIPT_DIR/configs/hermes.service"
