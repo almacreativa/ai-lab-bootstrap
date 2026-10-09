@@ -561,6 +561,13 @@ log "Scripts operativos verificados en $LAB_DIR/scripts/"
 grep -q "alias lab=" "$HOME/.bashrc" || \
   echo "alias lab=\"$LAB_DIR/scripts/lab-session.sh\"" >> "$HOME/.bashrc"
 
+# ─── Linger — units de usuario sobreviven logout/reboot (F7 E2E) ──
+# Sin esto, moolmesh/tmux-gateway (systemd --user) mueren al cerrar la última
+# sesión y no se levantan al boot (i12local: Linger=yes). Idempotente.
+sudo loginctl enable-linger "$LAB_USER" 2>/dev/null \
+  && log "Linger habilitado para $LAB_USER (units de usuario sobreviven logout/reboot)." \
+  || warn "No se pudo habilitar linger para $LAB_USER — verificar manualmente: sudo loginctl enable-linger $LAB_USER"
+
 # ─── Limpieza de disco (F6 E2E) ──────────────────────────────
 # El perfil mínimo consume ~5.8G (chromium snap pesa fuerte); apt conserva
 # cache de ~600M que no sirve post-install. Autoremove controlado: solo

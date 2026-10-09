@@ -448,6 +448,10 @@ fi
 # -----------------------------------------------
 # Paso 10: Servicios
 # -----------------------------------------------
+# Arranque post-secrets (F7 E2E): el bootstrap habilita las units pero no las
+# arranca; este paso (o una re-corrida de setup-instance post-seed) las deja
+# activas. Las units de Capa 2 (clawhip, tmux-gateway, tmux) se activan también
+# en apply-configs.sh del seed; acá el arranque es best-effort si ya existen.
 log "Paso 10/10: Servicios"
 
 if [ "$SKIP_SERVICES" = true ]; then
@@ -456,17 +460,23 @@ else
   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
   export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 
-  # Dagu corre como servicio system (UN solo service — ver modules/05)
-  if systemctl is-enabled dagu.service &>/dev/null 2>&1; then
-    sudo systemctl start dagu.service 2>/dev/null && \
-      log "Servicio iniciado: dagu (system)" || \
-      warn "No se pudo iniciar: dagu"
-  fi
+  # Servicios system (Dagu corriendo como $LAB_USER — UN solo service, ver modules/05)
+  for svc in dagu hermes; do
+    if systemctl is-enabled "${svc}.service" &>/dev/null 2>&1; then
+      sudo systemctl start "${svc}.service" 2>/dev/null && \
+        log "Servicio iniciado: $svc (system)" || \
+        warn "No se pudo iniciar: $svc"
+    fi
+  done
 
-  for svc in moolmesh centro-de-comando; do
+  # Servicios de usuario (sobreviven logout gracias a linger — bootstrap modules/05)
+  for svc in moolmesh centro-de-comando clawhip tmux-gateway tmux; do
+    unit="$HOME/.config/systemd/user/${svc}.service"
+    [ -f "$unit" ] || continue
+    systemctl --user enable "${svc}.service" &>/dev/null 2>&1 || true
     if systemctl --user is-enabled "${svc}.service" &>/dev/null 2>&1; then
       systemctl --user start "${svc}.service" 2>/dev/null && \
-        log "Servicio iniciado: $svc" || \
+        log "Servicio iniciado: $svc (user)" || \
         warn "No se pudo iniciar: $svc"
     fi
   done
