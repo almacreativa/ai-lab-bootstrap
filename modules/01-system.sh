@@ -3,15 +3,16 @@
 
 log "Paso 1/6 — Sistema base..."
 
-# iptables-persistent usa debconf interactivo — pre-seed para que no pause
-echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | sudo debconf-set-selections
-echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | sudo debconf-set-selections
+# NOTA (F2 E2E V1): NO instalar iptables-persistent acá. En noble conflictúa
+# con ufw (netfilter-persistent ↔ ufw): instalarlo REMUEVE ufw y dejaba al
+# perfil sin firewall-baseline sin ningún firewall. El modelo elegido es UFW
+# (unidad firewall-baseline + security-apply-sudo.sh); Docker gestiona sus
+# propias cadenas sin netfilter-persistent.
 sudo apt update -qq
 sudo apt install -y \
   git curl wget \
   tmux \
   lm-sensors \
-  iptables-persistent \
   python3-pip python3-venv \
   openssh-server \
   ca-certificates \
