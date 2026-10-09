@@ -13,7 +13,7 @@ sudo apt install -y \
   git curl wget \
   tmux \
   lm-sensors \
-  python3-pip python3-venv \
+  python3-pip python3-venv python3-yaml \
   openssh-server \
   ca-certificates \
   gnupg \
