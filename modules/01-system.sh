@@ -77,7 +77,11 @@ else
   sudo sed -i 's/^#*TCPKeepAlive.*/TCPKeepAlive yes/' /etc/ssh/sshd_config
   sudo sed -i 's/^#*ClientAliveInterval.*/ClientAliveInterval 30/' /etc/ssh/sshd_config
   sudo sed -i 's/^#*ClientAliveCountMax.*/ClientAliveCountMax 3/' /etc/ssh/sshd_config
-  sudo systemctl reload ssh
+  # reload best-effort: con ssh socket-activated (Ubuntu 24.04) ssh.service puede
+  # estar inactivo (una conexión por vez) y `reload` fallaba matando el bootstrap
+  # bajo set -e si no había sesión SSH activa (QA i5local-w 2026-10-09). La
+  # config igual aplica: ssh.socket lanza un sshd nuevo por conexión.
+  sudo systemctl reload ssh 2>/dev/null || true
   log "SSH hardening aplicado (keepalive 30s, sin root, sin password)."
 fi
 
