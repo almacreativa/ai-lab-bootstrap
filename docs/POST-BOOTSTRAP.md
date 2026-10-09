@@ -10,6 +10,12 @@ Cada fase tiene prerrequisitos, pasos y verificación.
 > **¿Instalaste solo una parte del lab?** `bootstrap.sh` (Linux) soporta instalación
 > selectiva y reanudable (`--only`, `--skip`, `--layer`, `--interactive`, `--until`,
 > `--resume`, `--list`). Ver [README → Instalación selectiva y reanudable](../README.md#instalación-selectiva-y-reanudable).
+>
+> **Disco (perfil mínimo):** ≥10 GB libres. Chromium (dep de `nlm`) es snap y pesa
+> ~1.5 GB; el bootstrap limpia cache de apt al final (`apt clean`).
+> **Servicios:** el bootstrap habilita las units pero **no las arranca** — el
+> arranque se hace post-secrets con `setup-instance.sh` (paso 10) o a mano
+> (ver sección "Arranque de servicios"). `loginctl enable-linger` ya queda activo.
 
 ---
 

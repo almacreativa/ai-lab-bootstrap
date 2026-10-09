@@ -42,6 +42,10 @@ Instala y configura el stack necesario para correr agentes de IA localmente, con
 - Ubuntu Server 24.04 LTS (limpio) — o macOS (ver sección abajo)
 - Usuario con acceso `sudo`
 - Conexión a internet
+- Disco: **≥10 GB libres** para el perfil mínimo (incluye Chromium, dep de
+  `nlm`); 20 GB+ si instalás stacks/Docker completos (el bootstrap limpia
+  cache de apt al final, pero Chromium/snap pesa ~1.5 GB — podés omitirlo
+  con `--skip nlm,chromium` si no vas a usar NotebookLM)
 
 ---
 

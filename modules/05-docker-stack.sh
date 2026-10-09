@@ -561,6 +561,16 @@ log "Scripts operativos verificados en $LAB_DIR/scripts/"
 grep -q "alias lab=" "$HOME/.bashrc" || \
   echo "alias lab=\"$LAB_DIR/scripts/lab-session.sh\"" >> "$HOME/.bashrc"
 
+# ─── Limpieza de disco (F6 E2E) ──────────────────────────────
+# El perfil mínimo consume ~5.8G (chromium snap pesa fuerte); apt conserva
+# cache de ~600M que no sirve post-install. Autoremove controlado: solo
+# paquetes marcados auto sin dependientes (no toca kernels en uso).
+DF_PRE=$(df -h / | awk 'NR==2{print $4}')
+sudo apt-get clean >/dev/null 2>&1 || true
+sudo apt-get autoremove -y >/dev/null 2>&1 || true
+DF_POST=$(df -h / | awk 'NR==2{print $4}')
+log "Limpieza de disco: libres ${DF_PRE} → ${DF_POST} (apt clean + autoremove)."
+
 warn "Antes de iniciar servicios, completar los secrets usando los templates en: $SCRIPT_DIR/templates/"
 
 log "Módulo 05 completo."
