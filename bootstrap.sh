@@ -211,6 +211,21 @@ CONFIRM="${CONFIRM:-S}"
 # Exportar para que los módulos las lean
 export LAB_USER LAB_DIR INSTALL_PAPERCLIP INSTALL_HERMES INSTALL_NLM LAB_BIND_ADDR
 
+# ─── Preflight: raíz overlay (nodos efímeros/QA con overlayroot) ──
+# En raíz overlay los hooks de configuración de kernel (zz-update-grub) corren
+# grub-probe contra 'overlayroot', fallan y ABORTAN la transacción apt entera.
+# Si además hay un kernel a medio configurar (p.ej. bake de imagen QA con
+# unattended-upgrades), el primer `apt install` del paso 1 dispara el postinst
+# y mata el bootstrap completo (E2E i5local-w 2026-10-09, exit 100).
+# En overlayroot el boot lo maneja la imagen base, no grub del root efímero:
+# neutralizar el hook es seguro y no afecta sistemas sin overlay.
+if awk '$2=="/"{print $3}' /proc/mounts | grep -qx overlay; then
+  if [ -e /etc/kernel/postinst.d/zz-update-grub ]; then
+    sudo mv /etc/kernel/postinst.d/zz-update-grub /etc/kernel/postinst.d/zz-update-grub.disabled
+    warn "raíz overlay detectada — zz-update-grub desactivado (evita aborto de apt por kernel postinst)."
+  fi
+fi
+
 # ─── Barrera de etapa (--until / --resume a nivel de módulo) ──────
 # should_run_stage NN — decide si se debe SOURCEAR el módulo de la etapa NN.
 # Sin esta barrera, --until solo filtraba unidades DENTRO de should_install pero
