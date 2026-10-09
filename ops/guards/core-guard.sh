@@ -255,7 +255,9 @@ while IFS=$'\t' read -r mcp_scope mcp_name mcp_cmd; do
   # El comando base debe existir (binario en PATH o ruta)
   base=$(echo "$mcp_cmd" | awk '{print $1}')
   if [ -n "$base" ] && [[ "$base" != /* ]]; then
-    command -v "$base" >/dev/null 2>&1 || ok=false
+    # Fallback ~/.local/bin: el guard corre no-interactivo (ssh sin .bashrc)
+    # y no ve el PATH del operador (ej. engram).
+    command -v "$base" >/dev/null 2>&1 || [ -x "$HOME/.local/bin/$base" ] || ok=false
   fi
   if $ok; then
     report_ok "mcp" "$mcp_scope/$mcp_name"
