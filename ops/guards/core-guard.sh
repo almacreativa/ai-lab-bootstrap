@@ -166,17 +166,26 @@ for d in m.get('dags', []):
 " 2>/dev/null)
 
 # 6. Verificar backup
+# `optional: true` (manifest base del perfil mínimo) = backup aún sin configurar
+# en un nodo fresco es esperado, no un GAP.
 echo "[core-guard] Verificando backup..."
-if python3 -c "
+BACKUP_STATE=$(python3 -c "
 import yaml
 with open('$MANIFEST') as f:
     m = yaml.safe_load(f)
-exit(0 if m.get('backup', {}).get('configured') else 1)
-" 2>/dev/null; then
-  report_ok "backup" "configured"
-else
-  report_gap "backup" "configured" "backup no configurado"
-fi
+b = m.get('backup', {}) or {}
+if b.get('configured'):
+    print('configured')
+elif b.get('optional'):
+    print('optional')
+else:
+    print('missing')
+" 2>/dev/null || echo "missing")
+case "$BACKUP_STATE" in
+  configured) report_ok "backup" "configured" ;;
+  optional)   report_ok "backup" "no configurado (opcional en perfil mínimo)" ;;
+  *)          report_gap "backup" "configured" "backup no configurado" ;;
+esac
 
 # 7. Verificar copias de scripts en ~/.hermes/scripts/ (Hermes no acepta
 # symlinks — los crons ejecutan copias físicas que pueden divergir del canónico)

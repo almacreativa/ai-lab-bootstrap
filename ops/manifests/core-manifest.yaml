@@ -1,0 +1,146 @@
+# core-manifest.yaml — manifest base del perfil mínimo (V1)
+# Fallback que modules/05 copia a ~/ai-lab/ops/core-manifest.yaml en un nodo
+# recién bootstrappeado (core-guard sin esto sale exit 2 "manifest ausente").
+# setup-instance.sh lo REGENERA por nodo (generate-core-manifest.sh local es la
+# autoridad). Perfil de referencia:
+#   --only hermes,opencode,nlm,engram,moolmesh,clawhip,tmux-gateway,dagu,firewall-baseline
+# NO editar a mano en el nodo — regenerar con ops/manifests/generate-core-manifest.sh
+generated: "static:perfil-minimo-v1"
+hostname: "cualquiera"
+tailscale_ip: "no configurado"
+core_version: "1.0.0"
+
+security:
+  model: "per-port"
+  ufw_default: "deny incoming"
+  fail2ban: true
+
+  allowed_ports:
+    - port: 22
+      proto: tcp
+      from: [tailscale, lan]
+      service: SSH
+    - port: 9119
+      proto: tcp
+      from: [tailscale]
+      service: Hermes dashboard
+    - port: 22000
+      proto: tcp
+      from: [tailscale, lan]
+      service: Syncthing P2P
+    - port: 8480
+      proto: tcp
+      from: [tailscale]
+      service: Dagu
+    - port: 5200
+      proto: tcp
+      from: [tailscale]
+      service: MoolMesh
+    - port: 9001
+      proto: tcp
+      from: [tailscale]
+      service: centro-de-comando
+    - port: 8770
+      proto: tcp
+      from: [tailscale]
+      service: NLM gateway
+    - port: 8646
+      proto: tcp
+      from: [tailscale]
+      service: Hermes xAI proxy
+    - port: 8384
+      proto: tcp
+      from: [tailscale]
+      service: Syncthing GUI
+    - port: 9000
+      proto: tcp
+      from: [tailscale]
+      service: Glance (host network)
+
+  docker_binds:
+    - service: paperclip-server
+      port: 3100
+      bind: [localhost, tailscale]
+    - service: paperclip-db
+      port: 5432
+      bind: [localhost]
+    - service: odysseus
+      port: 7000
+      bind: [localhost, tailscale]
+    - service: portainer
+      port: 9443
+      bind: [tailscale]
+    - service: uptime-kuma
+      port: 3001
+      bind: [tailscale]
+    - service: searxng
+      port: 8080
+      bind: [localhost]
+    - service: glance
+      port: 9000
+      bind: [host_network]
+    - service: chromadb-odysseus
+      port: 8100
+      bind: [localhost]
+
+binaries:
+  - name: "clawhip"
+    version: "any"
+  - name: "dagu"
+    version: "any"
+  - name: "engram"
+    version: "any"
+  - name: "hermes"
+    version: "any"
+  - name: "hermes-acp"
+    version: "any"
+  - name: "hermes-agent"
+    version: "any"
+  - name: "mool"
+    version: "any"
+  - name: "nlm"
+    version: "any"
+  - name: "notebooklm-mcp"
+    version: "any"
+  - name: "tmux-gateway"
+    version: "any"
+  - name: "uv"
+    version: "any"
+  - name: "uvx"
+    version: "any"
+
+services:
+  systemd_user:
+    # El bootstrap habilita pero NO arranca (paso de arranque post-secrets:
+    # setup-instance.sh / apply-configs.sh). "inactive" = debe existir y no
+    # estar failed; si ya está activo el guard también lo acepta.
+    - name: "moolmesh.service"
+      status: "inactive"
+  systemd_system:
+    - name: "dagu.service"
+      status: "inactive"
+    - name: "hermes.service"
+      status: "inactive"
+  docker:
+
+networks:
+  - name: "ai-lab"
+    driver: "bridge"
+
+dags:
+  - "cleanup-tmp.yaml"
+  - "health-check.yaml"
+  - "lab-backup-retention.yaml"
+  - "lab-backup.yaml"
+  - "lab-exposure-watchdog.yaml"
+  - "lab-guards.yaml"
+  - "logrotate.yaml"
+  - "maintenance-check.yaml"
+  - "paperclip-watchdog.yaml"
+  - "sync-outline.yaml"
+
+backup:
+  # Sin secrets de backup aún — esperado en un nodo recién bootstrappeado;
+  # setup-instance.sh lo regenera (configured: true) al configurar restic+B2.
+  configured: false
+  optional: true

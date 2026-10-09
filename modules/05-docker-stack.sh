@@ -267,6 +267,14 @@ if [ -d "$BOOTSTRAP_OPS" ]; then
     done
     log "Runbooks copiados a $LAB_DIR/ops/runbooks/"
   fi
+
+  # Manifest base del perfil mínimo (F5 E2E): sin esto core-guard salía exit 2
+  # ("manifest ausente") en un nodo recién bootstrappeado. setup-instance.sh lo
+  # regenera por nodo; acá solo se deja un fallback auditable desde el minuto 0.
+  if [ -f "$BOOTSTRAP_OPS/manifests/core-manifest.yaml" ] && [ ! -f "$LAB_DIR/ops/core-manifest.yaml" ]; then
+    cp "$BOOTSTRAP_OPS/manifests/core-manifest.yaml" "$LAB_DIR/ops/core-manifest.yaml"
+    log "ops/core-manifest.yaml instalado (manifest base del perfil mínimo)."
+  fi
 fi
 
 # Scripts operativos del lab

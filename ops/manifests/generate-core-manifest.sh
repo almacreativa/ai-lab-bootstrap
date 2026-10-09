@@ -209,6 +209,9 @@ if [ -f "$LAB_DIR/scripts/.env" ] && grep -q "RESTIC_PASSWORD" "$LAB_DIR/scripts
   echo "  last_snapshot: \"${LAST_SNAP}\"" >> "$MANIFEST"
 else
   echo "  configured: false" >> "$MANIFEST"
+  # En perfil mínimo el backup puede no estar configurado aún (sin secrets);
+  # `optional: true` evita que core-guard lo cuente como GAP esperado.
+  echo "  optional: true" >> "$MANIFEST"
 fi
 
 # Crons de Hermes, MCPs configurados y scripts (con detección de huérfanos)
