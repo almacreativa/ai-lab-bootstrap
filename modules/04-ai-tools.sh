@@ -77,6 +77,14 @@ if ! grep -q "alias claude-d=" "$BASHRC"; then
   log "Aliases y PATH agregados a .bashrc."
 fi
 
+# OpenCode instala su binario en ~/.opencode/bin y el export de PATH de arriba
+# solo cubre ~/.local/bin: en shells nuevas `opencode` no resolvía (E2E
+# i5local-w 2026-10-09). Persistir su PATH de forma aditiva e idempotente.
+if ! grep -q '\.opencode/bin' "$BASHRC"; then
+  echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\"" >> "$BASHRC"
+  log "PATH de OpenCode (~/.opencode/bin) agregado a .bashrc."
+fi
+
 # Engram — memoria persistente cross-session para agentes AI (binario Go estático)
 # Nota: el repo publica releases "pi-v*" (sin binarios) y "v*" (con binarios).
 # /releases/latest puede apuntar a un pi-v* sin assets. Usamos la API para
